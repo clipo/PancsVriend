@@ -259,6 +259,62 @@ Once the simulation is stopped, it creates the following:
 
 ---
 
+## 🧪 Running in Batch Mode & LLM Experiments
+
+### 🔁 Batch Runs
+
+To compare performance across multiple runs (e.g., with and without LLMs), execute:
+
+```bash
+for i in {1..10}; do python SchellingSim.py; done
+```
+
+Each run will log its convergence step in `convergence_summary.csv`, including:
+
+- Step (timestep when convergence occurred)
+- Whether LLM was used (`USE_LLM`)
+- Model name (`OLLAMA_MODEL`)
+- Total number of agents
+
+You can analyze these using:
+
+```python
+import pandas as pd
+df = pd.read_csv("convergence_summary.csv")
+df.groupby("Model")["Step"].describe()
+```
+
+---
+
+### 🤖 LLM-Driven Behavior
+
+To activate LLM decision-making:
+
+1. Set `USE_LLM = True` in `config.py`.
+2. Select a model from the dropdown in the GUI.
+3. Ensure your Ollama server is running and the model is available.
+
+---
+
+### 🧠 Customizing LLM Queries
+
+Modify `LLMAgent.py` to explore new agent preferences:
+
+```python
+prompt = f"What would an agent who values {context_theme} prefer as a neighborhood? Current neighborhood: {context}"
+```
+
+Replace `context_theme` with:
+
+- `"racial composition"`
+- `"ethnic background"`
+- `"musical taste"`
+- `"language spoken"`
+
+This lets you simulate preferences for cultural affinity, communication compatibility, or lifestyle similarity.
+
+---
+
 ## 🛠 Tips for Enhancing Visuals
 
 To get good screenshots:
