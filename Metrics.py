@@ -61,22 +61,22 @@ def compute_switch_rate(grid):
     return switches / total if total > 0 else 0
 
 def compute_distance(grid):
-    from scipy.ndimage import distance_transform_edt
-    type_mask = np.zeros(grid.shape, dtype=int)
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent:
-                type_mask[r][c] = agent.type_id + 1
     dists = []
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
+    height, width = grid.shape
+    for r in range(height):
+        for c in range(width):
             agent = grid[r][c]
             if agent:
-                other_type = 1 if agent.type_id == 0 else 2
-                other_mask = (type_mask == other_type)
-                dist = distance_transform_edt(~other_mask)[r][c]
-                dists.append(dist)
+                min_dist = float('inf')
+                for r2 in range(height):
+                    for c2 in range(width):
+                        target = grid[r2][c2]
+                        if target and target.type_id != agent.type_id:
+                            dist = abs(r - r2) + abs(c - c2)
+                            if dist < min_dist:
+                                min_dist = dist
+                if min_dist != float('inf'):
+                    dists.append(min_dist)
     return np.mean(dists) if dists else 0
 
 def compute_mix_deviation(grid):
