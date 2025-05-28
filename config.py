@@ -13,8 +13,13 @@ COLOR_A = (255, 0, 0)
 COLOR_B = (0, 0, 255)
 VACANT_COLOR = (220, 220, 220)
 
-USE_LLM = False
+USE_LLM = True
 
 UTILITY_BASE = 1
 UTILITY_SLOPE = 1
 UTILITY_CUTOFF = 50
+
+# LLM API config
+OLLAMA_MODEL = "qwen2.5-coder:32B"
+OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"
+OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"
