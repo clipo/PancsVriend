@@ -176,3 +176,44 @@ python batch_run.py
 
 ---
 
+
+
+---
+
+## 🧰 Tools and Enhancements
+
+### 🟦 Simulation Progress Bar
+The simulation now includes a visual **progress bar** that fills as the simulation proceeds through its defined number of steps (`max_steps`). This is useful for monitoring run progress at a glance.
+
+---
+
+### 📊 Real-Time CSV Visualizer
+Run this script in a separate terminal to monitor the evolving metrics:
+
+```bash
+python realtime_csv_plot.py
+```
+
+This visualizer watches the `segregation_metrics.csv` file and updates live metric plots every second.
+
+---
+
+### 📈 Batch Summary Dashboard
+
+If you've run multiple simulations (e.g., `segregation_metrics_1.csv`, `segregation_metrics_2.csv`, ...), you can visualize their collective results:
+
+```bash
+python batch_summary_dashboard.py
+```
+
+This tool computes the **mean** and **standard deviation** over time across all simulations and produces line plots with shaded confidence regions for:
+
+- Cluster count
+- Switch rate
+- Distance to unlike agents
+- Mix deviation
+- Share of same-type neighbors
+- Ghetto rate
+
+---
+

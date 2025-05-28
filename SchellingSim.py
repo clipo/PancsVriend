@@ -8,7 +8,6 @@ from Agent import Agent
 from Metrics import calculate_all_metrics
 from LLMAgent import maybe_use_llm_agent
 import config as cfg
-import matplotlib.backends.backend_pdf
 
 class Simulation:
     def __init__(self):
@@ -21,30 +20,35 @@ class Simulation:
         self.populate_grid()
         self.running = True
         self.step = 0
+        self.simulation_started = False
         self.setup_ui()
         self.setup_csv()
         self.setup_plots()
 
     def setup_ui(self):
-        self.show_live_graphs = False
-        self.stop_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((330, 10), (100, 30)),
-            text="Stop & Graph",
+        self.max_steps = 1000
+        self.progress_bar = pygame_gui.elements.UIProgressBar(
+            relative_rect=pygame.Rect((10, 50), (660, 20)),
             manager=self.manager
         )
-        self.graph_toggle = pygame_gui.elements.UIButton(
+        self.start_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((440, 10), (120, 30)),
-            text="Toggle Graphs",
+            text="Start",
+            manager=self.manager
+        )
+        self.stop_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((310, 10), (120, 30)),
+            text="Stop & Graph",
             manager=self.manager
         )
         self.llm_model_dropdown = pygame_gui.elements.UIDropDownMenu(
             options_list=['qwen2.5-coder:32B', 'llama3.2:1B', 'phi-4:14B', 'mistral:7B'],
             starting_option=cfg.OLLAMA_MODEL,
-            relative_rect=pygame.Rect((10, 10), (200, 30)),
+            relative_rect=pygame.Rect((10, 10), (180, 30)),
             manager=self.manager
         )
         self.llm_toggle = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((220, 10), (100, 30)),
+            relative_rect=pygame.Rect((200, 10), (100, 30)),
             text='Toggle LLM',
             manager=self.manager
         )
@@ -57,8 +61,6 @@ class Simulation:
                 writer.writerow(['Step', 'Clusters', 'Switch Rate', 'Distance', 'Mix Deviation', 'Share', 'Ghetto Rate'])
 
     def setup_plots(self):
-        plt.ion()
-        self.fig, self.axs = plt.subplots(3, 2, figsize=(10, 8))
         self.metrics_history = {
             'clusters': [],
             'switch_rate': [],
@@ -67,17 +69,6 @@ class Simulation:
             'share': [],
             'ghetto_rate': []
         }
-
-    def update_plots(self, metrics):
-        if not self.show_live_graphs:
-            return
-        for idx, key in enumerate(self.metrics_history.keys()):
-            self.metrics_history[key].append(metrics[key])
-            ax = self.axs[idx // 2][idx % 2]
-            ax.clear()
-            ax.plot(self.metrics_history[key])
-            ax.set_title(key.replace('_', ' ').title())
-        plt.pause(0.01)
 
     def populate_grid(self):
         agents = [Agent(type_id) for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
@@ -98,34 +89,37 @@ class Simulation:
                     if event.ui_element == self.llm_model_dropdown:
                         cfg.OLLAMA_MODEL = event.text
                 elif event.type == pygame_gui.UI_BUTTON_PRESSED:
-                    if event.ui_element == self.graph_toggle:
-                        self.show_live_graphs = not self.show_live_graphs
+                    if event.ui_element == self.start_button:
+                        self.simulation_started = True
                     elif event.ui_element == self.stop_button:
                         self.running = False
                         self.plot_final_metrics()
-                    if event.ui_element == self.llm_toggle:
+                    elif event.ui_element == self.llm_toggle:
                         cfg.USE_LLM = not cfg.USE_LLM
                 self.manager.process_events(event)
 
-            self.manager.update(time_delta)
+            # GUI rendering
             self.window.fill(cfg.BG_COLOR)
             self.draw_grid()
+            self.manager.update(time_delta)
+            self.progress_bar.set_current_progress(min(self.step / self.max_steps * 100, 100))
             self.manager.draw_ui(self.window)
             pygame.display.update()
 
-            # Move several agents per frame to show more activity
-            for _ in range(cfg.GRID_SIZE):
+            # Core simulation logic (only if started)
+            if self.simulation_started:
                 self.update_agents()
-
-            self.log_metrics()
+                self.log_metrics()
 
     def draw_grid(self):
+        visible_agents = 0
         for r in range(cfg.GRID_SIZE):
             for c in range(cfg.GRID_SIZE):
                 agent = self.grid[r][c]
                 rect = pygame.Rect(c * cfg.CELL_SIZE, r * cfg.CELL_SIZE, cfg.CELL_SIZE, cfg.CELL_SIZE)
                 if agent:
                     color = cfg.COLOR_A if agent.type_id == 0 else cfg.COLOR_B
+                    visible_agents += 1
                 else:
                     color = cfg.VACANT_COLOR
                 pygame.draw.rect(self.window, color, rect)
@@ -133,7 +127,7 @@ class Simulation:
 
     def update_agents(self):
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
-        np.random.shuffle(all_positions)  # Add randomness to selection
+        np.random.shuffle(all_positions)
         for r, c in all_positions:
             agent = self.grid[r][c]
             if not agent:
@@ -159,11 +153,12 @@ class Simulation:
                 metrics['share'],
                 metrics['ghetto_rate']
             ])
-        self.update_plots(metrics)
+        for key in self.metrics_history:
+            self.metrics_history[key].append(metrics[key])
         self.step += 1
 
     def plot_final_metrics(self):
-
+        import matplotlib.backends.backend_pdf
         plt.ioff()
         fig, axs = plt.subplots(3, 2, figsize=(12, 8))
         for idx, key in enumerate(self.metrics_history.keys()):
@@ -177,8 +172,6 @@ class Simulation:
         pdf.savefig(fig)
         pdf.close()
         plt.show()
-
-
 
 if __name__ == "__main__":
     Simulation().run()
