@@ -24,32 +24,66 @@ class Simulation:
         self.setup_ui()
         self.setup_csv()
         self.setup_plots()
+        self.converged = False
+        self.convergence_step = None
+        self.no_move_steps = 0
+        self.no_move_threshold = 20
+
 
     def setup_ui(self):
         self.max_steps = 1000
+
+        sidebar_x = cfg.GRID_SIZE * cfg.CELL_SIZE + 20
+        button_width = 160
+        button_height = 30
+        y = 10
+        spacing = 40
+
         self.progress_bar = pygame_gui.elements.UIProgressBar(
-            relative_rect=pygame.Rect((10, 50), (660, 20)),
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
             manager=self.manager
         )
-        self.start_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((440, 10), (120, 30)),
-            text="Start",
-            manager=self.manager
-        )
-        self.stop_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((310, 10), (120, 30)),
-            text="Stop & Graph",
-            manager=self.manager
-        )
+        y += spacing
+
         self.llm_model_dropdown = pygame_gui.elements.UIDropDownMenu(
             options_list=['qwen2.5-coder:32B', 'llama3.2:1B', 'phi-4:14B', 'mistral:7B'],
             starting_option=cfg.OLLAMA_MODEL,
-            relative_rect=pygame.Rect((10, 10), (180, 30)),
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
             manager=self.manager
         )
+        y += spacing
+
         self.llm_toggle = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((200, 10), (100, 30)),
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
             text='Toggle LLM',
+            manager=self.manager
+        )
+        y += spacing
+
+        self.start_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
+            text="Start",
+            manager=self.manager
+        )
+        y += spacing
+
+        self.pause_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
+            text="Pause",
+            manager=self.manager
+        )
+        y += spacing
+
+        self.stop_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
+            text="Stop & Graph",
+            manager=self.manager
+        )
+        y += spacing
+
+        self.reset_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((sidebar_x, y), (button_width, button_height)),
+            text="Reset",
             manager=self.manager
         )
 
@@ -96,6 +130,17 @@ class Simulation:
                         self.plot_final_metrics()
                     elif event.ui_element == self.llm_toggle:
                         cfg.USE_LLM = not cfg.USE_LLM
+                    elif event.ui_element == self.pause_button:
+                        self.simulation_started = not self.simulation_started
+                        print("Paused" if not self.simulation_started else "Resumed")
+                    elif event.ui_element == self.reset_button:
+                        print("Resetting simulation...")
+                        self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
+                        self.populate_grid()
+                        self.step = 0
+                        self.metrics_history = {key: [] for key in self.metrics_history}
+                        self.simulation_started = False
+                        self.running = True
                 self.manager.process_events(event)
 
             # GUI rendering
@@ -110,6 +155,7 @@ class Simulation:
             if self.simulation_started:
                 self.update_agents()
                 self.log_metrics()
+                self.check_convergence()
 
     def draw_grid(self):
         visible_agents = 0
@@ -126,6 +172,7 @@ class Simulation:
                 pygame.draw.rect(self.window, cfg.GRID_LINE_COLOR, rect, 1)
 
     def update_agents(self):
+        moved = False
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
         np.random.shuffle(all_positions)
         for r, c in all_positions:
@@ -138,7 +185,9 @@ class Simulation:
                 if self.grid[r_new][c_new] is None:
                     self.grid[r_new][c_new] = agent
                     self.grid[r][c] = None
+                    moved = True
             break  # Only one agent moves per call
+        self.last_agent_moved = moved
 
     def log_metrics(self):
         metrics = calculate_all_metrics(self.grid)
@@ -158,6 +207,7 @@ class Simulation:
         self.step += 1
 
     def plot_final_metrics(self):
+        print(f"Converged at step: {self.convergence_step}")
         import matplotlib.backends.backend_pdf
         plt.ioff()
         fig, axs = plt.subplots(3, 2, figsize=(12, 8))
@@ -172,6 +222,40 @@ class Simulation:
         pdf.savefig(fig)
         pdf.close()
         plt.show()
+
+
+
+    def check_convergence(self):
+        if not hasattr(self, 'last_agent_moved'):
+            return
+        if self.last_agent_moved:
+            self.no_move_steps = 0
+        else:
+            self.no_move_steps += 1
+
+        if self.no_move_steps >= self.no_move_threshold:
+            print(f"Convergence detected at step {self.step}")
+            self.converged = True
+            self.convergence_step = self.step
+            self.plot_final_metrics()
+            self.running = False
+
+            if not os.path.exists('convergence_summary.csv'):
+                with open('convergence_summary.csv', 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['Step', 'USE_LLM', 'Model', 'Total Agents'])
+
+            with open('convergence_summary.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    self.step,
+                    cfg.USE_LLM,
+                    cfg.OLLAMA_MODEL,
+                    cfg.NUM_TYPE_A + cfg.NUM_TYPE_B
+                ])
+
+if __name__ == "__main__":
+    Simulation().run()
 
 if __name__ == "__main__":
     Simulation().run()

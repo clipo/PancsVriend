@@ -217,3 +217,54 @@ This tool computes the **mean** and **standard deviation** over time across all 
 
 ---
 
+
+
+---
+
+## 🖼 Interface Overview
+
+The simulation features a GUI-based layout with the following controls:
+
+- 🔘 **Start Button**: Begins the simulation.
+- ⏹ **Stop & Graph**: Ends the simulation and generates PDF plots of segregation metrics.
+- 🔄 **LLM Toggle**: Enables or disables large language model agent logic.
+- 📥 **Model Dropdown**: Choose among LLM models if LLM is active.
+- 📊 **Progress Bar**: Shows percentage progress through the run.
+
+### Layout Screenshot (Placeholder)
+Replace the image below with a screenshot of your simulation GUI:
+
+![Simulation GUI Layout](images/gui_layout_placeholder.png)
+*Fig. 1: Main window with grid and control panel.*
+
+---
+
+## 📈 Output Visualizations
+
+Once the simulation is stopped, it creates the following:
+
+- `segregation_metrics.csv`: Time series of segregation metrics
+- `final_metrics_summary.pdf`: PDF of plots showing evolution of:
+  - Clusters
+  - Switch Rate
+  - Distance to Unlike
+  - Mix Deviation
+  - Share of Same-Type Neighbors
+  - Ghetto Rate
+
+### Sample Metric Graph (Placeholder)
+
+![Metric Evolution Plot](images/metrics_plot_placeholder.png)
+*Fig. 2: Example of plotted segregation metrics over simulation time.*
+
+---
+
+## 🛠 Tips for Enhancing Visuals
+
+To get good screenshots:
+- Use ⌘ + Shift + 4 (Mac) or Snipping Tool (Windows)
+- Place images in an `images/` folder
+- Update the README paths to reflect your screenshot filenames
+
+---
+
