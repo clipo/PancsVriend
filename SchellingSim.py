@@ -8,6 +8,7 @@ from Agent import Agent
 from Metrics import calculate_all_metrics
 from LLMAgent import maybe_use_llm_agent
 import config as cfg
+import matplotlib.backends.backend_pdf
 
 class Simulation:
     def __init__(self):
@@ -25,6 +26,17 @@ class Simulation:
         self.setup_plots()
 
     def setup_ui(self):
+        self.show_live_graphs = False
+        self.stop_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((330, 10), (100, 30)),
+            text="Stop & Graph",
+            manager=self.manager
+        )
+        self.graph_toggle = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((440, 10), (120, 30)),
+            text="Toggle Graphs",
+            manager=self.manager
+        )
         self.llm_model_dropdown = pygame_gui.elements.UIDropDownMenu(
             options_list=['qwen2.5-coder:32B', 'llama3.2:1B', 'phi-4:14B', 'mistral:7B'],
             starting_option=cfg.OLLAMA_MODEL,
@@ -57,6 +69,8 @@ class Simulation:
         }
 
     def update_plots(self, metrics):
+        if not self.show_live_graphs:
+            return
         for idx, key in enumerate(self.metrics_history.keys()):
             self.metrics_history[key].append(metrics[key])
             ax = self.axs[idx // 2][idx % 2]
@@ -80,13 +94,17 @@ class Simulation:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                if event.type == pygame.USEREVENT:
-                    if event.user_type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
-                        if event.ui_element == self.llm_model_dropdown:
-                            cfg.OLLAMA_MODEL = event.text
-                    elif event.user_type == pygame_gui.UI_BUTTON_PRESSED:
-                        if event.ui_element == self.llm_toggle:
-                            cfg.USE_LLM = not cfg.USE_LLM
+                if event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
+                    if event.ui_element == self.llm_model_dropdown:
+                        cfg.OLLAMA_MODEL = event.text
+                elif event.type == pygame_gui.UI_BUTTON_PRESSED:
+                    if event.ui_element == self.graph_toggle:
+                        self.show_live_graphs = not self.show_live_graphs
+                    elif event.ui_element == self.stop_button:
+                        self.running = False
+                        self.plot_final_metrics()
+                    if event.ui_element == self.llm_toggle:
+                        cfg.USE_LLM = not cfg.USE_LLM
                 self.manager.process_events(event)
 
             self.manager.update(time_delta)
@@ -94,7 +112,11 @@ class Simulation:
             self.draw_grid()
             self.manager.draw_ui(self.window)
             pygame.display.update()
-            self.update_agents()
+
+            # Move several agents per frame to show more activity
+            for _ in range(cfg.GRID_SIZE):
+                self.update_agents()
+
             self.log_metrics()
 
     def draw_grid(self):
@@ -111,15 +133,18 @@ class Simulation:
 
     def update_agents(self):
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
-        if not all_positions:
-            return
-        r, c = all_positions[np.random.randint(len(all_positions))]
-        agent = self.grid[r][c]
-        move_to = maybe_use_llm_agent(agent, r, c, self.grid) if cfg.USE_LLM else agent.best_response(r, c, self.grid)
-        if move_to:
-            r_new, c_new = move_to
-            self.grid[r_new][c_new] = agent
-            self.grid[r][c] = None
+        np.random.shuffle(all_positions)  # Add randomness to selection
+        for r, c in all_positions:
+            agent = self.grid[r][c]
+            if not agent:
+                continue
+            move_to = maybe_use_llm_agent(agent, r, c, self.grid) if cfg.USE_LLM else agent.best_response(r, c, self.grid)
+            if move_to:
+                r_new, c_new = move_to
+                if self.grid[r_new][c_new] is None:
+                    self.grid[r_new][c_new] = agent
+                    self.grid[r][c] = None
+            break  # Only one agent moves per call
 
     def log_metrics(self):
         metrics = calculate_all_metrics(self.grid)
@@ -136,6 +161,24 @@ class Simulation:
             ])
         self.update_plots(metrics)
         self.step += 1
+
+    def plot_final_metrics(self):
+
+        plt.ioff()
+        fig, axs = plt.subplots(3, 2, figsize=(12, 8))
+        for idx, key in enumerate(self.metrics_history.keys()):
+            ax = axs[idx // 2][idx % 2]
+            ax.plot(self.metrics_history[key])
+            ax.set_title(key.replace('_', ' ').title())
+            ax.set_xlabel("Step")
+            ax.set_ylabel("Value")
+        plt.tight_layout()
+        pdf = matplotlib.backends.backend_pdf.PdfPages("final_metrics_summary.pdf")
+        pdf.savefig(fig)
+        pdf.close()
+        plt.show()
+
+
 
 if __name__ == "__main__":
     Simulation().run()

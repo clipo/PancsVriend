@@ -134,3 +134,45 @@ They're prompted to return coordinates of the best location to move to. You can 
 - Pancs, R., & Vriend, N. J. (2007). *Schelling's spatial proximity model of segregation revisited.* Journal of Public Economics, 91(1), 1-24.
 - Schelling, T. C. (1971). *Dynamic models of segregation.* Journal of Mathematical Sociology, 1(2), 143-186.
 
+
+
+---
+
+## ⚙️ Configurations and Batch Runs
+
+### 🔧 Runtime Configurations
+
+These options allow you to control performance and output:
+
+- **Live Graphs Toggle**: Click "Toggle Graphs" to enable or disable live metric plotting.
+  - Live graphs are OFF by default (faster simulation).
+  - Turning them ON shows evolving metric plots in real-time.
+- **Stop & Graph Button**: Ends the simulation and generates a **PDF summary** of all metric graphs from the current run (`final_metrics_summary.pdf`).
+- **LLM Toggle**: Switch between mechanistic and LLM-based agents at any time.
+- **LLM Model Dropdown**: Choose the LLM model used when `USE_LLM = True`.
+
+---
+
+### 📦 Batch Mode Analysis
+
+Use the included `batch_run.py` to run multiple simulations and aggregate results.
+
+#### How It Works:
+
+- Runs the simulation multiple times (default = 5)
+- Collects metric values from `segregation_metrics.csv` after each run
+- Computes **mean** and **standard deviation** per timestep
+- Produces line plots with confidence intervals for each metric
+- Saves results as `batch_<metric>.pdf` (e.g., `batch_clusters.pdf`)
+
+#### To Run:
+
+```bash
+python batch_run.py
+```
+
+> Note: Currently assumes you manually close each simulation run.
+> Full `--headless` mode is planned for future automation.
+
+---
+
