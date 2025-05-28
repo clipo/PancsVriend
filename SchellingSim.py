@@ -9,6 +9,33 @@ from Metrics import calculate_all_metrics
 from LLMAgent import maybe_use_llm_agent
 import config as cfg
 
+def check_llm_connection():
+    import requests
+    try:
+        test_headers = {
+            "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        test_payload = {
+            "model": cfg.OLLAMA_MODEL,
+            "messages": [{"role": "user", "content": "Respond with the word 'success' only."}],
+            "stream": False
+        }
+        response = requests.post(cfg.OLLAMA_URL, headers=test_headers, json=test_payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if "choices" not in data or not data["choices"]:
+            print("[LLM Test Failed] Response missing 'choices'. Full response:", data)
+            return False
+        content = data["choices"][0]["message"]["content"]
+        if "success" not in content.lower():
+            print("[LLM Test Failed] Unexpected response:", content)
+            return False
+        return True
+    except Exception as e:
+        print("[LLM Startup Check Failed]", e)
+        return False
+
 class Simulation:
     def __init__(self):
         pygame.init()
@@ -129,7 +156,15 @@ class Simulation:
                         self.running = False
                         self.plot_final_metrics()
                     elif event.ui_element == self.llm_toggle:
-                        cfg.USE_LLM = not cfg.USE_LLM
+                        if not cfg.USE_LLM:
+                            print("Checking LLM connection...")
+                            if check_llm_connection():
+                                print("LLM connection confirmed.")
+                                cfg.USE_LLM = True
+                            else:
+                                print("LLM connection failed. Remaining in manual mode.")
+                        else:
+                            cfg.USE_LLM = False
                     elif event.ui_element == self.pause_button:
                         self.simulation_started = not self.simulation_started
                         print("Paused" if not self.simulation_started else "Resumed")
@@ -179,7 +214,10 @@ class Simulation:
             agent = self.grid[r][c]
             if not agent:
                 continue
+            if cfg.USE_LLM:
+                print(f"LLM is active. Agent at ({r},{c}) is querying the model...")
             move_to = maybe_use_llm_agent(agent, r, c, self.grid) if cfg.USE_LLM else agent.best_response(r, c, self.grid)
+            print(f"Suggested move: {move_to}")
             if move_to:
                 r_new, c_new = move_to
                 if self.grid[r_new][c_new] is None:
@@ -257,5 +295,3 @@ class Simulation:
 if __name__ == "__main__":
     Simulation().run()
 
-if __name__ == "__main__":
-    Simulation().run()
