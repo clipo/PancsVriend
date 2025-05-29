@@ -129,6 +129,31 @@ They're prompted to return coordinates of the best location to move to. You can 
 
 ---
 
+
+---
+
+## ✅ Recent Fixes and Performance Improvements
+
+The current version of the simulation includes critical updates to make LLM-based movement both correct and efficient:
+
+### 🔁 Correct LLM Coordinate Interpretation
+LLM agents return 3×3 neighborhood-relative coordinates (centered at position (1,1)). These are now correctly translated to absolute grid positions before move validation. This has fixed the prior issue where agents repeatedly attempted to move to globally invalid or occupied cells.
+
+### 🧠 Enhanced LLM Prompts
+The agent prompt enforces strict formatting, asking for a tuple `(r, c)` or `None` — and nothing else. This eliminates parsing ambiguity and ensures smooth operation.
+
+### 📉 Faster and Parallel LLM Responses
+The system uses a background worker model with `queue.Queue` and a thread pool to parallelize LLM calls. This enables smoother GUI responsiveness even when agent decisions are LLM-driven.
+
+### 🎯 GUI and Metric Updates
+- The simulation loop now applies moves **before** drawing the grid.
+- Metrics and visualizations now reflect real changes, and GUI updates are tied to actual agent behavior.
+- Convergence logic prevents premature termination by ensuring the agent queue is fully processed.
+
+If your LLM agents seem too cautious or always return `None`, consider tuning the prompt to reward movement or suggest alternative goals (e.g., diversity, centrality, clustering).
+
+---
+
 ## 📚 References
 
 - Pancs, R., & Vriend, N. J. (2007). *Schelling's spatial proximity model of segregation revisited.* Journal of Public Economics, 91(1), 1-24.
