@@ -8,6 +8,8 @@ from Agent import Agent
 from Metrics import calculate_all_metrics
 from LLMAgent import maybe_use_llm_agent
 import config as cfg
+import threading
+import queue
 
 def check_llm_connection():
     import requests
@@ -52,10 +54,30 @@ class Simulation:
         self.setup_csv()
         self.setup_plots()
         self.converged = False
+        self.start_llm_worker()
         self.convergence_step = None
         self.no_move_steps = 0
         self.no_move_threshold = 20
 
+    def start_llm_worker(self):
+        def worker():
+            while True:
+                task = self.query_queue.get()
+                if task is None:
+                    break  # Sentinel to shut down the worker
+                agent, r, c = task
+                try:
+                    move_to = maybe_use_llm_agent(agent, r, c, self.grid)
+                    self.result_queue.put((agent, r, c, move_to))
+                except Exception as e:
+                    print(f"[LLM Worker Error] Agent at ({r},{c}): {e}")
+                finally:
+                    self.query_queue.task_done()
+
+        self.query_queue = queue.Queue()
+        self.result_queue = queue.Queue()
+        self.llm_thread = threading.Thread(target=worker, daemon=True)
+        self.llm_thread.start()
 
     def setup_ui(self):
         self.max_steps = 1000
@@ -207,25 +229,54 @@ class Simulation:
                 pygame.draw.rect(self.window, cfg.GRID_LINE_COLOR, rect, 1)
 
     def update_agents(self):
-        moved = False
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
         np.random.shuffle(all_positions)
-        for r, c in all_positions:
-            agent = self.grid[r][c]
-            if not agent:
-                continue
-            if cfg.USE_LLM:
-                print(f"LLM is active. Agent at ({r},{c}) is querying the model...")
-            move_to = maybe_use_llm_agent(agent, r, c, self.grid) if cfg.USE_LLM else agent.best_response(r, c, self.grid)
-            print(f"Suggested move: {move_to}")
-            if move_to:
-                r_new, c_new = move_to
-                if self.grid[r_new][c_new] is None:
-                    self.grid[r_new][c_new] = agent
-                    self.grid[r][c] = None
-                    moved = True
-            break  # Only one agent moves per call
-        self.last_agent_moved = moved
+
+        self.last_agent_moved = False
+
+        if not cfg.USE_LLM:
+            for r, c in all_positions:
+                agent = self.grid[r][c]
+                move_to = agent.best_response(r, c, self.grid)
+                if move_to:
+                    r_new, c_new = move_to
+                    if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE:
+                        if self.grid[r_new][c_new] is None:
+                            self.grid[r_new][c_new] = agent
+                            self.grid[r][c] = None
+                            self.last_agent_moved = True
+                            print(f"[Main Thread] Moved agent from ({r},{c}) to ({r_new},{c_new})")
+                        else:
+                            print(f"[Main Thread] Target cell ({r_new},{c_new}) is occupied.")
+                    else:
+                        print(f"[Main Thread] Ignored invalid move: ({r_new},{c_new})")
+        else:
+            for r, c in all_positions[:5]:
+                agent = self.grid[r][c]
+                self.query_queue.put((agent, r, c))
+
+            for _ in range(5):
+                try:
+                    agent, r, c, move_to = self.result_queue.get_nowait()
+                    if move_to:
+                        # LLM moves are 3x3 relative, so adjust them
+                        rel_r, rel_c = move_to
+                        r_new = r + (rel_r - 1)
+                        c_new = c + (rel_c - 1)
+
+                        if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE:
+                            if self.grid[r_new][c_new] is None:
+                                self.grid[r_new][c_new] = agent
+                                self.grid[r][c] = None
+                                self.last_agent_moved = True
+                                print(f"[Main Thread] Moved agent from ({r},{c}) to ({r_new},{c_new})")
+                            else:
+                                print(f"[Main Thread] Target cell ({r_new},{c_new}) is occupied.")
+                        else:
+                            print(f"[Main Thread] Ignored invalid move: ({r_new},{c_new})")
+                    self.result_queue.task_done()
+                except queue.Empty:
+                    break
 
     def log_metrics(self):
         metrics = calculate_all_metrics(self.grid)
@@ -264,6 +315,8 @@ class Simulation:
 
 
     def check_convergence(self):
+        if not hasattr(self, 'last_agent_moved') or not self.result_queue.empty() or not self.query_queue.empty():
+            return
         if not hasattr(self, 'last_agent_moved'):
             return
         if self.last_agent_moved:
