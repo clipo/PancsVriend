@@ -2,6 +2,10 @@
 
 This project implements an extended version of the Schelling Segregation Model based on Pancs & Vriend (2007). The simulation demonstrates how individual preferences for neighborhood composition—even preferences *for integration*—can unintentionally lead to segregation.
 
+## 🆕 Comprehensive Experiment Framework
+
+This enhanced version includes a complete experimental framework for comparing mechanical agents with LLM-based agents under various social contexts, with sophisticated statistical analysis and visualization capabilities.
+
 ## 🔍 What It Does
 
 This Python-based simulation models a 2D grid-based society of agents from two groups (e.g., Group A and Group B). Each agent evaluates its neighborhood and decides whether to stay or move based on how satisfied it is with its current surroundings. Satisfaction is calculated via a utility function, and agents perform **best-response dynamics** to relocate.
@@ -56,7 +60,7 @@ To evaluate how LLMs differ from traditional agents:
 ### 1. Install Dependencies
 
 ```bash
-pip install pygame pygame_gui matplotlib numpy
+pip install -r requirements.txt
 ```
 
 ### 2. Configure Your Environment
@@ -202,6 +206,84 @@ python batch_run.py
 ---
 
 
+
+---
+
+## 🚀 Running Comprehensive Experiments
+
+### Quick Start - Full Experiment Suite
+
+Run the complete experiment comparing baseline mechanical agents with LLM agents across different social contexts:
+
+```bash
+python run_experiments.py
+```
+
+This will:
+1. Run 100 baseline simulations with mechanical agents
+2. Run 10 simulations for each LLM context scenario
+3. Analyze convergence patterns and plateau detection
+4. Generate comprehensive visualizations
+5. Perform statistical analysis comparing all scenarios
+6. Create a PDF report with all results
+
+### Custom Experiment Configuration
+
+```bash
+# Run with custom parameters
+python run_experiments.py --baseline-runs 50 --llm-runs 20 --max-steps 500
+
+# Run specific LLM scenarios only
+python run_experiments.py --scenarios baseline race_white_black income_high_low
+
+# Quick test mode (5 baseline, 2 LLM runs)
+python run_experiments.py --quick-test
+```
+
+### Available LLM Context Scenarios
+
+1. **baseline**: Simple red vs blue agents
+2. **race_white_black**: White middle class vs predominantly black neighborhoods
+3. **race_asian_hispanic**: Asian vs Hispanic neighborhoods
+4. **income_high_low**: High-income vs low-income households
+5. **political_liberal_conservative**: Liberal vs conservative households
+
+### Running Individual Components
+
+```bash
+# Run baseline experiments only
+python baseline_runner.py --runs 100
+
+# Run LLM experiments with specific scenario
+python llm_runner.py --scenario race_white_black --runs 10
+
+# Analyze existing results
+python visualization.py --baseline-dir experiments/baseline_[timestamp] --llm-dirs experiments/llm_*
+```
+
+---
+
+## 📊 Analysis Capabilities
+
+### Plateau Detection
+- Automatically detects when metrics stabilize
+- Calculates convergence rates and half-life
+- Compares speed of segregation across scenarios
+
+### Statistical Analysis
+- Descriptive statistics for all metrics
+- Normality tests (Shapiro-Wilk)
+- ANOVA/Kruskal-Wallis for multi-group comparisons
+- Post-hoc tests (Tukey HSD, Dunn)
+- Effect size calculations (Cohen's d)
+- Multivariate analysis (PCA)
+
+### Visualization Features
+- Evolution of metrics over time with confidence intervals
+- Convergence time distributions
+- Scenario comparison bar charts
+- Comprehensive PDF reports
+- Real-time plotting capabilities
 
 ---
 
