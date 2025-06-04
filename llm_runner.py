@@ -14,6 +14,77 @@ import argparse
 import time
 import threading
 import queue
+import sys
+
+def check_llm_connection(timeout=10):
+    """
+    Check if LLM connection is active and working
+    
+    Returns:
+    - True if connection successful
+    - False if connection failed
+    """
+    print("\nChecking LLM connection...")
+    print(f"URL: {cfg.OLLAMA_URL}")
+    print(f"Model: {cfg.OLLAMA_MODEL}")
+    
+    try:
+        test_payload = {
+            "model": cfg.OLLAMA_MODEL,
+            "messages": [{"role": "user", "content": "Respond with only the word 'OK' and nothing else."}],
+            "stream": False,
+            "temperature": 0
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        start_time = time.time()
+        response = requests.post(cfg.OLLAMA_URL, headers=headers, json=test_payload, timeout=timeout)
+        elapsed = time.time() - start_time
+        
+        if response.status_code != 200:
+            print(f"❌ LLM connection failed - HTTP {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+        
+        data = response.json()
+        
+        # Check for proper response structure
+        if "choices" not in data or not data["choices"]:
+            print("❌ LLM connection failed - Invalid response structure")
+            print(f"Response: {data}")
+            return False
+        
+        content = data["choices"][0]["message"]["content"].strip()
+        print(f"✅ LLM connection successful (response time: {elapsed:.2f}s)")
+        print(f"Test response: '{content}'")
+        
+        return True
+        
+    except requests.exceptions.Timeout:
+        print(f"❌ LLM connection failed - Timeout after {timeout}s")
+        print("The LLM server is not responding. Please check:")
+        print("1. Is the Ollama server running?")
+        print("2. Is the URL correct?")
+        print("3. Is the model loaded?")
+        return False
+        
+    except requests.exceptions.ConnectionError as e:
+        print(f"❌ LLM connection failed - Connection error")
+        print(f"Error: {e}")
+        print("\nPlease check:")
+        print("1. Is the Ollama server running?")
+        print("2. Is the URL correct?")
+        print("3. Is your network connection working?")
+        return False
+        
+    except Exception as e:
+        print(f"❌ LLM connection failed - Unexpected error")
+        print(f"Error: {type(e).__name__}: {e}")
+        return False
 
 # Define context scenarios
 CONTEXT_SCENARIOS = {
@@ -127,8 +198,8 @@ class LLMAgent(Agent):
         self.agent_type = self.context_info['type_a'] if type_id == 0 else self.context_info['type_b']
         self.opposite_type = self.context_info['type_b'] if type_id == 0 else self.context_info['type_a']
     
-    def get_llm_decision(self, r, c, grid):
-        """Get movement decision from LLM"""
+    def get_llm_decision(self, r, c, grid, max_retries=2):
+        """Get movement decision from LLM with retry logic"""
         # Construct 3x3 neighborhood context
         context = []
         for dr in [-1, 0, 1]:
@@ -157,42 +228,58 @@ class LLMAgent(Agent):
             context=context_str
         )
         
-        try:
-            payload = {
-                "model": cfg.OLLAMA_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-                "temperature": 0.3  # Lower temperature for more consistent responses
-            }
-            
-            headers = {
-                "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            
-            response = requests.post(cfg.OLLAMA_URL, headers=headers, json=payload, timeout=20)
-            response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-            
-            # Parse response
-            match = re.search(r"\((\d+),\s*(\d+)\)", text)
-            if match:
-                move_to = (int(match.group(1)), int(match.group(2)))
-                # Convert from relative to absolute coordinates
-                r_new = r + (move_to[0] - 1)
-                c_new = c + (move_to[1] - 1)
-                return (r_new, c_new)
-            
-            if "none" in text.strip().lower():
+        for attempt in range(max_retries + 1):
+            try:
+                payload = {
+                    "model": cfg.OLLAMA_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "temperature": 0.3,  # Lower temperature for more consistent responses
+                    "timeout": 15000  # 15 second timeout in milliseconds
+                }
+                
+                headers = {
+                    "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Shorter timeout for individual requests
+                response = requests.post(cfg.OLLAMA_URL, headers=headers, json=payload, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                text = data["choices"][0]["message"]["content"]
+                
+                # Parse response
+                match = re.search(r"\((\d+),\s*(\d+)\)", text)
+                if match:
+                    move_to = (int(match.group(1)), int(match.group(2)))
+                    # Convert from relative to absolute coordinates
+                    r_new = r + (move_to[0] - 1)
+                    c_new = c + (move_to[1] - 1)
+                    return (r_new, c_new)
+                
+                if "none" in text.strip().lower():
+                    return None
+                
                 return None
-            
-            return None
-            
-        except Exception as e:
-            print(f"[LLM Error] {e}")
-            # Fallback to mechanical agent behavior
-            return self.best_response(r, c, grid)
+                
+            except requests.exceptions.Timeout:
+                if attempt < max_retries:
+                    print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c})")
+                    time.sleep(1)  # Brief pause before retry
+                    continue
+                else:
+                    print(f"[LLM Error] Max retries exceeded for agent at ({r},{c})")
+                    return self.best_response(r, c, grid)
+                    
+            except Exception as e:
+                if attempt < max_retries:
+                    print(f"[LLM Error] {type(e).__name__} - Retry {attempt + 1}/{max_retries}")
+                    time.sleep(1)
+                    continue
+                else:
+                    print(f"[LLM Error] {type(e).__name__}: {e}")
+                    return self.best_response(r, c, grid)
 
 class LLMSimulation:
     def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0):
@@ -342,6 +429,15 @@ class LLMSimulation:
 
 def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_probability=1.0):
     """Run LLM experiments with specified scenario"""
+    
+    # Check LLM connection first
+    if not check_llm_connection():
+        print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
+        print("Please ensure the LLM server is running and accessible.")
+        print("\nTo start Ollama locally:")
+        print("  ollama serve")
+        print(f"  ollama pull {cfg.OLLAMA_MODEL}")
+        return None, []
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     experiment_name = f"llm_{scenario}_{timestamp}"

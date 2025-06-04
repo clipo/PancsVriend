@@ -74,7 +74,23 @@ OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"
 OLLAMA_API_KEY = "your-api-key-here"
 ```
 
-### 3. Start the Simulation
+### 3. Check LLM Connectivity (Important!)
+
+Before running LLM experiments, verify your LLM connection:
+
+```bash
+python check_llm.py
+```
+
+This will test:
+- Basic connectivity and authentication
+- Response parsing reliability  
+- Load handling capability
+- Context-aware decision making
+
+If the check fails, the script will provide specific troubleshooting steps.
+
+### 4. Start the Simulation
 
 ```bash
 python SchellingSim.py
@@ -213,7 +229,12 @@ python batch_run.py
 
 ### Quick Start - Full Experiment Suite
 
-Run the complete experiment comparing baseline mechanical agents with LLM agents across different social contexts:
+**First, check LLM connectivity:**
+```bash
+python check_llm.py
+```
+
+Then run the complete experiment comparing baseline mechanical agents with LLM agents across different social contexts:
 
 ```bash
 python run_experiments.py

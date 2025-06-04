@@ -9,9 +9,10 @@ import argparse
 import json
 from datetime import datetime
 import time
+import config as cfg
 
 from baseline_runner import run_baseline_experiment
-from llm_runner import run_llm_experiment, CONTEXT_SCENARIOS
+from llm_runner import run_llm_experiment, CONTEXT_SCENARIOS, check_llm_connection
 from visualization import create_comprehensive_report
 from statistical_analysis import create_statistical_report
 from plateau_detection import compare_convergence_across_runs
@@ -63,23 +64,39 @@ def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000,
     print(f"   Scenarios: {', '.join(scenarios)}")
     print("-"*60)
     
-    llm_results = {}
-    for scenario in scenarios:
-        print(f"\n   Running scenario: {scenario}")
-        
-        # Add delay between scenarios to avoid overwhelming LLM
-        if len(llm_results) > 0:
-            print("   Waiting 10 seconds before next scenario...")
-            time.sleep(10)
-        
-        llm_dir, llm_run_results = run_llm_experiment(
-            scenario=scenario,
-            n_runs=llm_runs,
-            max_steps=max_steps,
-            use_llm_probability=llm_probability
-        )
-        llm_results[scenario] = llm_dir
-        experiment_results[f'llm_{scenario}'] = llm_dir
+    # Check LLM connection before starting LLM experiments
+    print("\n   Checking LLM availability...")
+    if not check_llm_connection():
+        print("\n   ⚠️  WARNING: LLM connection check failed!")
+        print("   Skipping all LLM experiments.")
+        print("\n   To run LLM experiments:")
+        print("   1. Ensure Ollama is running: ollama serve")
+        print(f"   2. Pull the model: ollama pull {cfg.OLLAMA_MODEL}")
+        print("   3. Verify the URL and API key in config.py")
+        llm_results = {}
+    else:
+        llm_results = {}
+        for scenario in scenarios:
+            print(f"\n   Running scenario: {scenario}")
+            
+            # Add delay between scenarios to avoid overwhelming LLM
+            if len(llm_results) > 0:
+                print("   Waiting 10 seconds before next scenario...")
+                time.sleep(10)
+            
+            llm_dir, llm_run_results = run_llm_experiment(
+                scenario=scenario,
+                n_runs=llm_runs,
+                max_steps=max_steps,
+                use_llm_probability=llm_probability
+            )
+            
+            if llm_dir is None:
+                print(f"   ⚠️  Scenario {scenario} failed - skipping")
+                continue
+                
+            llm_results[scenario] = llm_dir
+            experiment_results[f'llm_{scenario}'] = llm_dir
     
     # 3. Analyze convergence patterns
     print("\n3. Analyzing convergence patterns...")
