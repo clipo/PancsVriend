@@ -1,469 +1,281 @@
-# Schelling Segregation Simulator (Enhanced Edition)
+# Schelling Segregation Model: LLM vs Mechanical Agents
 
-This project implements an extended version of the Schelling Segregation Model based on Pancs & Vriend (2007). The simulation demonstrates how individual preferences for neighborhood composition—even preferences *for integration*—can unintentionally lead to segregation.
+**A comprehensive experimental framework comparing traditional utility-maximizing agents with LLM-based agents exhibiting authentic human residential preferences.**
 
-## 🆕 Comprehensive Experiment Framework
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This enhanced version includes a complete experimental framework for comparing mechanical agents with LLM-based agents under various social contexts, with sophisticated statistical analysis and visualization capabilities.
+## 🎯 Overview
 
-## 🔍 What It Does
+This project extends the classic Schelling Segregation Model to compare how **mechanical utility-maximizing agents** versus **LLM agents acting as authentic residents** make housing decisions. The framework enables systematic study of segregation patterns across different social contexts.
 
-This Python-based simulation models a 2D grid-based society of agents from two groups (e.g., Group A and Group B). Each agent evaluates its neighborhood and decides whether to stay or move based on how satisfied it is with its current surroundings. Satisfaction is calculated via a utility function, and agents perform **best-response dynamics** to relocate.
+### 🔬 Research Questions
 
-### Core Features
+- Do LLM agents exhibit realistic residential segregation patterns?
+- How do social contexts (race, income, politics) affect LLM decision-making?
+- What's the difference between purely rational and human-like housing choices?
+- Can we measure the "speed of segregation" across different scenarios?
 
-- **Spatial Agent-Based Simulation**
-- **6 Segregation Metrics Tracked:**
-  - Cluster count
-  - Switch rate
-  - Distance to unlike neighbors
-  - Mix deviation
-  - Share measure
-  - Ghetto rate
-- **Graphical User Interface** using `pygame` and `pygame_gui`
-- **CSV logging** of metrics per timestep
-- **Live plotting** of metric trends (`matplotlib`)
-- **LLM Decision Mode**: Switches from mechanistic decision logic to LLM-based reasoning using Ollama
+## ✨ Key Features
 
----
+### 🤖 **Dual Agent Systems**
+- **Mechanical Agents**: Traditional utility-maximizing best-response dynamics
+- **LLM Agents**: Act as authentic residents considering cultural, economic, and social factors
 
-## 💡 Expected Behavior
+### 🌍 **Social Context Scenarios**
+1. **Baseline**: Red vs blue teams (control)
+2. **Racial**: White middle class vs Black families
+3. **Ethnic**: Asian American vs Hispanic/Latino families  
+4. **Economic**: High-income vs working-class households
+5. **Political**: Liberal vs conservative households
 
-This simulator demonstrates that:
-- Even mild or integration-favoring preferences can result in rapid segregation.
-- Segregation persists despite agents preferring mixed neighborhoods.
-- LLM agents may exhibit different movement patterns compared to traditional best-response agents depending on their interpretive logic.
+### 📊 **Comprehensive Analytics**
+- **6 Segregation Metrics**: Clusters, switch rate, distance, mix deviation, share, ghetto rate
+- **Plateau Detection**: Automatic identification of convergence points
+- **Statistical Testing**: ANOVA, effect sizes, multivariate analysis
+- **Visualization**: Evolution plots, comparison charts, PDF reports
 
-You can switch between:
-- **Mechanistic Mode** — classic Schelling-style myopic best response.
-- **LLM Mode** — context-aware decision making using large language models like `qwen2.5-coder:32B`.
+### 🔧 **Robust Infrastructure**
+- **Parallel Processing**: Efficient LLM query handling with circuit breakers
+- **Error Handling**: Graceful degradation when LLM services fail
+- **Scalability**: 100+ simulation runs with configurable parameters
 
----
+## 🚀 Quick Start
 
-## 🧪 Comparing Mechanistic vs. LLM Agents
-
-To evaluate how LLMs differ from traditional agents:
-
-1. **Set `USE_LLM = False`** in `config.py` and run the simulation. Observe CSV metrics and live plots.
-2. **Set `USE_LLM = True`**, then choose a model from the dropdown in the GUI.
-3. Run identical scenarios (same population and initial conditions) and compare:
-   - How quickly segregation occurs.
-   - Whether more or fewer agents end up in ghettos.
-   - The variation in number of clusters.
-   - Whether LLM agents behave in a more nuanced or chaotic way.
-4. Export and analyze logged data (`segregation_metrics.csv`) for both modes.
-
----
-
-## ⚙️ How to Run
-
-### 1. Install Dependencies
+### 1. Installation
 
 ```bash
+git clone https://github.com/clipo/PancsVriend.git
+cd PancsVriend
 pip install -r requirements.txt
 ```
 
-### 2. Configure Your Environment
+### 2. Configuration
 
-Edit `config.py`:
+Edit `config.py` with your LLM settings:
 
 ```python
-USE_LLM = True  # or False
+# LLM Configuration
 OLLAMA_MODEL = "qwen2.5-coder:32B"
-OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"
+OLLAMA_URL = "https://your-llm-server.com/api/chat/completions"
 OLLAMA_API_KEY = "your-api-key-here"
+
+# Simulation Parameters
+GRID_SIZE = 20
+NUM_TYPE_A = 150
+NUM_TYPE_B = 150
 ```
 
-### 3. Check LLM Connectivity (Important!)
-
-Before running LLM experiments, verify your LLM connection:
+### 3. Verify LLM Connection
 
 ```bash
+# Test basic connectivity
 python check_llm.py
-```
 
-This will test:
-- Basic connectivity and authentication
-- Response parsing reliability  
-- Load handling capability
-- Context-aware decision making
-
-**Optional: Test Parallel Processing**
-```bash
+# Test parallel processing robustness (optional)
 python test_llm_parallel.py
 ```
 
-This tests the robustness of parallel LLM processing and failure handling.
-
-If the checks fail, the scripts will provide specific troubleshooting steps.
-
-### 4. Start the Simulation
+### 4. Run Complete Experiment Suite
 
 ```bash
+# Full experiment: 100 baseline + 10 runs per LLM scenario
+python run_experiments.py
+
+# Quick test: 5 baseline + 2 runs per scenario
+python run_experiments.py --quick-test
+
+# Custom configuration
+python run_experiments.py --baseline-runs 50 --llm-runs 20 --scenarios baseline race_white_black
+```
+
+## 📋 Experiment Workflow
+
+### Automatic Process:
+1. **Baseline Simulations** → 100 runs of mechanical agents
+2. **LLM Connectivity Check** → Verify LLM availability  
+3. **LLM Simulations** → 10 runs per social context scenario
+4. **Convergence Analysis** → Detect plateaus and calculate rates
+5. **Statistical Testing** → ANOVA, effect sizes, significance tests
+6. **Visualization** → Generate comprehensive PDF reports
+7. **Summary Report** → JSON with all experiment metadata
+
+### Output Structure:
+```
+experiments/
+├── baseline_[timestamp]/          # Mechanical agent results
+├── llm_baseline_[timestamp]/      # LLM baseline results  
+├── llm_race_white_black_[timestamp]/  # Racial context results
+└── ...
+
+reports/
+├── comprehensive_report_[timestamp].pdf  # Visual analysis
+├── statistical_analysis_[timestamp].txt  # Statistical tests
+└── experiment_summary_[timestamp].json   # Master summary
+```
+
+## 🧠 How LLM Agents Work
+
+### Authentic Resident Personas
+LLM agents are prompted to act as **real people** making housing decisions:
+
+> *"You are a white middle class family considering whether to move to a different house in your neighborhood. As a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live..."*
+
+### Decision Factors Considered:
+- **Cultural connections** and community comfort
+- **Family needs** and children's friendships  
+- **Economic priorities** and property values
+- **Social dynamics** and neighborhood composition
+- **Safety perceptions** and lifestyle preferences
+
+### Response Format:
+- Coordinates `(row, col)` to move to an empty house
+- `None` to stay in current location
+- **No explanations** - just the decision (for clean data)
+
+## 📊 Analysis Capabilities
+
+### Convergence Detection
+- **Plateau identification**: When metrics stabilize
+- **Convergence rates**: Speed of segregation
+- **Half-life calculations**: Time to reach 50% of final value
+
+### Statistical Methods
+- **Descriptive statistics**: Mean, std, quartiles for all metrics
+- **Normality testing**: Shapiro-Wilk tests
+- **Group comparisons**: ANOVA/Kruskal-Wallis with post-hoc tests
+- **Effect sizes**: Cohen's d for practical significance
+- **Multivariate analysis**: PCA for pattern recognition
+
+### Visualization Features
+- **Time series plots** with confidence intervals
+- **Convergence distributions** across scenarios
+- **Scenario comparisons** with error bars
+- **Heat maps** and correlation matrices
+
+## 🛠️ Individual Components
+
+### Run Components Separately:
+
+```bash
+# Baseline mechanical agents only
+python baseline_runner.py --runs 100
+
+# Specific LLM scenario
+python llm_runner.py --scenario race_white_black --runs 10
+
+# Analysis of existing results
+python statistical_analysis.py
+python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs experiments/llm_*
+```
+
+### Interactive GUI Simulation:
+
+```bash
+# Original interactive simulation
 python SchellingSim.py
 ```
 
----
+## 🔧 Advanced Configuration
 
-## 🧭 Interface Controls
+### Parallel Processing Tuning:
+- Modify `batch_size` in `llm_runner.py` (default: 5 agents)
+- Adjust `max_llm_failures` for circuit breaker sensitivity (default: 20)
+- Change timeouts in `get_llm_decision()` method
 
-- **LLM Toggle**: Switch between classic and LLM-driven agents
-- **Model Dropdown**: Select an active model deployed on your local or institutional Ollama server
-- **Live Graphs**: 6 panels show evolving segregation metrics
-- **CSV Logging**: `segregation_metrics.csv` accumulates all time-step data
+### Experiment Customization:
+- Add new social contexts in `CONTEXT_SCENARIOS`
+- Modify convergence thresholds (`no_move_threshold`)
+- Adjust utility functions in `Agent.py`
 
----
+### Statistical Analysis:
+- Customize significance levels (`alpha = 0.05`)
+- Add new metrics to track
+- Modify plateau detection sensitivity
 
-## 🧠 LLM Agent Behavior
+## 📈 Expected Results
 
-The LLM agents are prompted to act as **real residents** of their demographic group, making authentic housing decisions based on their background and circumstances.
+### Typical Findings:
+- **Mechanical agents**: Rapid, predictable segregation patterns
+- **LLM baseline**: Similar to mechanical but with more variability
+- **Social contexts**: Different scenarios show varying segregation rates
+- **Convergence speeds**: Real-world contexts often segregate faster/slower than baseline
 
-### How LLM Agents Make Decisions
+### Performance Metrics:
+- **Baseline simulations**: ~30 seconds per run
+- **LLM simulations**: ~3-5 minutes per run (depends on LLM speed)
+- **Full experiment suite**: 2-4 hours total
 
-1. **Personal Identity**: Each agent is told they are a specific type of resident (e.g., "You are a white middle class family" or "You are a working-class household")
+## 🚨 Troubleshooting
 
-2. **Neighborhood Context**: They see their 3x3 neighborhood like:
+### LLM Connection Issues:
+```bash
+# Check connectivity
+python check_llm.py
 
+# Common fixes:
+# 1. Verify Ollama is running: ollama serve
+# 2. Check model is loaded: ollama pull qwen2.5-coder:32B  
+# 3. Validate URL and API key in config.py
 ```
-[
- ["S", "E", "O"],
- ["X", "S", "E"],
- ["O", "S", "E"]
-]
+
+### Performance Issues:
+```bash
+# Test parallel processing
+python test_llm_parallel.py
+
+# If issues detected:
+# 1. Reduce batch_size in llm_runner.py
+# 2. Increase timeouts
+# 3. Use smaller/faster LLM model
 ```
 
-Where:
-- `S` = Same group
-- `O` = Opposite group
-- `E` = Empty cell
-- `X` = Out of bounds
+### Memory/Hanging Issues:
+- The system includes circuit breakers and timeouts
+- LLM failures automatically fall back to mechanical agents
+- All threads have bounded queues and forced cleanup
 
-They're prompted to return coordinates of the best location to move to. You can use this to test:
-- Reasoning under partial satisfaction
-- Interpretations of “integration” or “diversity”
-- Exploration vs. exploitation in movement
+## 📚 Scientific Background
 
----
+### Schelling Segregation Model
+Based on Thomas Schelling's pioneering work demonstrating how individual preferences can lead to collective segregation patterns, even when individuals prefer integration.
 
-## 📊 Output Files
+### Extensions in This Framework:
+- **Pancs & Vriend (2007)**: Utility-based best response dynamics
+- **LLM Integration**: Authentic human-like decision making
+- **Multi-context Analysis**: Real-world social scenarios
+- **Convergence Analytics**: Mathematical analysis of segregation speed
 
-- `segregation_metrics.csv` — logs step-by-step values for 6 metrics
-- Live graphical window — shows the evolving grid and metric plots
-- Console output — for error/debug logs if needed
+## 🤝 Contributing
 
----
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 🛠 Future Additions
+## 📄 License
 
-- Snapshot export of grid states
-- Configurable utility curves
-- Batch run comparison tools
-- Cluster heatmaps or agent movement traces
+This project is licensed under the MIT License - see the LICENSE file for details.
 
----
+## 📖 Citation
 
+If you use this framework in your research, please cite:
 
----
+```bibtex
+@software{schelling_llm_framework,
+  title={Schelling Segregation Model: LLM vs Mechanical Agents},
+  author={[Your Name]},
+  year={2024},
+  url={https://github.com/clipo/PancsVriend}
+}
+```
 
-## ✅ Recent Fixes and Performance Improvements
-
-The current version of the simulation includes critical updates to make LLM-based movement both correct and efficient:
-
-### 🔁 Correct LLM Coordinate Interpretation
-LLM agents return 3×3 neighborhood-relative coordinates (centered at position (1,1)). These are now correctly translated to absolute grid positions before move validation. This has fixed the prior issue where agents repeatedly attempted to move to globally invalid or occupied cells.
-
-### 🧠 Enhanced LLM Prompts
-The agent prompt enforces strict formatting, asking for a tuple `(r, c)` or `None` — and nothing else. This eliminates parsing ambiguity and ensures smooth operation.
-
-### 📉 Faster and Parallel LLM Responses
-The system uses a background worker model with `queue.Queue` and a thread pool to parallelize LLM calls. This enables smoother GUI responsiveness even when agent decisions are LLM-driven.
-
-### 🎯 GUI and Metric Updates
-- The simulation loop now applies moves **before** drawing the grid.
-- Metrics and visualizations now reflect real changes, and GUI updates are tied to actual agent behavior.
-- Convergence logic prevents premature termination by ensuring the agent queue is fully processed.
-
-If your LLM agents seem too cautious or always return `None`, consider tuning the prompt to reward movement or suggest alternative goals (e.g., diversity, centrality, clustering).
-
----
-
-## 📚 References
+## 🔗 References
 
 - Pancs, R., & Vriend, N. J. (2007). *Schelling's spatial proximity model of segregation revisited.* Journal of Public Economics, 91(1), 1-24.
 - Schelling, T. C. (1971). *Dynamic models of segregation.* Journal of Mathematical Sociology, 1(2), 143-186.
 
-
-
 ---
 
-## ⚙️ Configurations and Batch Runs
-
-### 🔧 Runtime Configurations
-
-These options allow you to control performance and output:
-
-- **Live Graphs Toggle**: Click "Toggle Graphs" to enable or disable live metric plotting.
-  - Live graphs are OFF by default (faster simulation).
-  - Turning them ON shows evolving metric plots in real-time.
-- **Stop & Graph Button**: Ends the simulation and generates a **PDF summary** of all metric graphs from the current run (`final_metrics_summary.pdf`).
-- **LLM Toggle**: Switch between mechanistic and LLM-based agents at any time.
-- **LLM Model Dropdown**: Choose the LLM model used when `USE_LLM = True`.
-
----
-
-### 📦 Batch Mode Analysis
-
-Use the included `batch_run.py` to run multiple simulations and aggregate results.
-
-#### How It Works:
-
-- Runs the simulation multiple times (default = 5)
-- Collects metric values from `segregation_metrics.csv` after each run
-- Computes **mean** and **standard deviation** per timestep
-- Produces line plots with confidence intervals for each metric
-- Saves results as `batch_<metric>.pdf` (e.g., `batch_clusters.pdf`)
-
-#### To Run:
-
-```bash
-python batch_run.py
-```
-
-> Note: Currently assumes you manually close each simulation run.
-> Full `--headless` mode is planned for future automation.
-
----
-
-
-
----
-
-## 🚀 Running Comprehensive Experiments
-
-### Quick Start - Full Experiment Suite
-
-**First, check LLM connectivity:**
-```bash
-python check_llm.py
-```
-
-Then run the complete experiment comparing baseline mechanical agents with LLM agents across different social contexts:
-
-```bash
-python run_experiments.py
-```
-
-This will:
-1. Run 100 baseline simulations with mechanical agents
-2. Run 10 simulations for each LLM context scenario
-3. Analyze convergence patterns and plateau detection
-4. Generate comprehensive visualizations
-5. Perform statistical analysis comparing all scenarios
-6. Create a PDF report with all results
-
-### Custom Experiment Configuration
-
-```bash
-# Run with custom parameters
-python run_experiments.py --baseline-runs 50 --llm-runs 20 --max-steps 500
-
-# Run specific LLM scenarios only
-python run_experiments.py --scenarios baseline race_white_black income_high_low
-
-# Quick test mode (5 baseline, 2 LLM runs)
-python run_experiments.py --quick-test
-```
-
-### Available LLM Context Scenarios
-
-1. **baseline**: Red team vs blue team residents (control scenario)
-2. **race_white_black**: White middle class families vs Black families
-3. **race_asian_hispanic**: Asian American families vs Hispanic/Latino families  
-4. **income_high_low**: High-income households vs working-class households
-5. **political_liberal_conservative**: Politically liberal vs politically conservative households
-
-Each scenario prompts the LLM to act as a real resident of that demographic, considering authentic factors like cultural connections, economic priorities, family needs, and social comfort when deciding whether to move.
-
-### Running Individual Components
-
-```bash
-# Run baseline experiments only
-python baseline_runner.py --runs 100
-
-# Run LLM experiments with specific scenario
-python llm_runner.py --scenario race_white_black --runs 10
-
-# Analyze existing results
-python visualization.py --baseline-dir experiments/baseline_[timestamp] --llm-dirs experiments/llm_*
-```
-
----
-
-## 📊 Analysis Capabilities
-
-### Plateau Detection
-- Automatically detects when metrics stabilize
-- Calculates convergence rates and half-life
-- Compares speed of segregation across scenarios
-
-### Statistical Analysis
-- Descriptive statistics for all metrics
-- Normality tests (Shapiro-Wilk)
-- ANOVA/Kruskal-Wallis for multi-group comparisons
-- Post-hoc tests (Tukey HSD, Dunn)
-- Effect size calculations (Cohen's d)
-- Multivariate analysis (PCA)
-
-### Visualization Features
-- Evolution of metrics over time with confidence intervals
-- Convergence time distributions
-- Scenario comparison bar charts
-- Comprehensive PDF reports
-- Real-time plotting capabilities
-
----
-
-## 🧰 Tools and Enhancements
-
-### 🟦 Simulation Progress Bar
-The simulation now includes a visual **progress bar** that fills as the simulation proceeds through its defined number of steps (`max_steps`). This is useful for monitoring run progress at a glance.
-
----
-
-### 📊 Real-Time CSV Visualizer
-Run this script in a separate terminal to monitor the evolving metrics:
-
-```bash
-python realtime_csv_plot.py
-```
-
-This visualizer watches the `segregation_metrics.csv` file and updates live metric plots every second.
-
----
-
-### 📈 Batch Summary Dashboard
-
-If you've run multiple simulations (e.g., `segregation_metrics_1.csv`, `segregation_metrics_2.csv`, ...), you can visualize their collective results:
-
-```bash
-python batch_summary_dashboard.py
-```
-
-This tool computes the **mean** and **standard deviation** over time across all simulations and produces line plots with shaded confidence regions for:
-
-- Cluster count
-- Switch rate
-- Distance to unlike agents
-- Mix deviation
-- Share of same-type neighbors
-- Ghetto rate
-
----
-
-
-
----
-
-## 🖼 Interface Overview
-
-The simulation features a GUI-based layout with the following controls:
-
-- 🔘 **Start Button**: Begins the simulation.
-- ⏹ **Stop & Graph**: Ends the simulation and generates PDF plots of segregation metrics.
-- 🔄 **LLM Toggle**: Enables or disables large language model agent logic.
-- 📥 **Model Dropdown**: Choose among LLM models if LLM is active.
-- 📊 **Progress Bar**: Shows percentage progress through the run.
-
-### Layout Screenshot (Placeholder)
-Replace the image below with a screenshot of your simulation GUI:
-
-![Simulation GUI Layout](images/gui_layout_placeholder.png)
-*Fig. 1: Main window with grid and control panel.*
-
----
-
-## 📈 Output Visualizations
-
-Once the simulation is stopped, it creates the following:
-
-- `segregation_metrics.csv`: Time series of segregation metrics
-- `final_metrics_summary.pdf`: PDF of plots showing evolution of:
-  - Clusters
-  - Switch Rate
-  - Distance to Unlike
-  - Mix Deviation
-  - Share of Same-Type Neighbors
-  - Ghetto Rate
-
-### Sample Metric Graph (Placeholder)
-
-![Metric Evolution Plot](images/metrics_plot_placeholder.png)
-*Fig. 2: Example of plotted segregation metrics over simulation time.*
-
----
-
-## 🧪 Running in Batch Mode & LLM Experiments
-
-### 🔁 Batch Runs
-
-To compare performance across multiple runs (e.g., with and without LLMs), execute:
-
-```bash
-for i in {1..10}; do python SchellingSim.py; done
-```
-
-Each run will log its convergence step in `convergence_summary.csv`, including:
-
-- Step (timestep when convergence occurred)
-- Whether LLM was used (`USE_LLM`)
-- Model name (`OLLAMA_MODEL`)
-- Total number of agents
-
-You can analyze these using:
-
-```python
-import pandas as pd
-df = pd.read_csv("convergence_summary.csv")
-df.groupby("Model")["Step"].describe()
-```
-
----
-
-### 🤖 LLM-Driven Behavior
-
-To activate LLM decision-making:
-
-1. Set `USE_LLM = True` in `config.py`.
-2. Select a model from the dropdown in the GUI.
-3. Ensure your Ollama server is running and the model is available.
-
----
-
-### 🧠 Customizing LLM Queries
-
-Modify `LLMAgent.py` to explore new agent preferences:
-
-```python
-prompt = f"What would an agent who values {context_theme} prefer as a neighborhood? Current neighborhood: {context}"
-```
-
-Replace `context_theme` with:
-
-- `"racial composition"`
-- `"ethnic background"`
-- `"musical taste"`
-- `"language spoken"`
-
-This lets you simulate preferences for cultural affinity, communication compatibility, or lifestyle similarity.
-
----
-
-## 🛠 Tips for Enhancing Visuals
-
-To get good screenshots:
-- Use ⌘ + Shift + 4 (Mac) or Snipping Tool (Windows)
-- Place images in an `images/` folder
-- Update the README paths to reflect your screenshot filenames
-
----
-
+**Ready to explore how artificial intelligence makes housing decisions compared to traditional economic models? Start your experiments today!**
