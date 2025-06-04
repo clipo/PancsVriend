@@ -247,7 +247,8 @@ class LLMAgent(Agent):
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                     "temperature": 0.3,  # Lower temperature for more consistent responses
-                    "timeout": 15000  # 15 second timeout in milliseconds
+                    "max_tokens": 50,    # Limit response length
+                    "timeout": 10000     # 10 second timeout in milliseconds
                 }
                 
                 headers = {
@@ -256,7 +257,7 @@ class LLMAgent(Agent):
                 }
                 
                 # Shorter timeout for individual requests
-                response = requests.post(cfg.OLLAMA_URL, headers=headers, json=payload, timeout=10)
+                response = requests.post(cfg.OLLAMA_URL, headers=headers, json=payload, timeout=8)
                 response.raise_for_status()
                 data = response.json()
                 text = data["choices"][0]["message"]["content"]
@@ -308,6 +309,11 @@ class LLMSimulation:
         self.llm_call_count = 0
         self.llm_call_times = []
         
+        # Circuit breaker for LLM failures
+        self.llm_failure_count = 0
+        self.max_llm_failures = 20  # After 20 failures, switch to mechanical only
+        self.llm_circuit_open = False
+        
         self.populate_grid()
         self.setup_llm_worker()
     
@@ -323,32 +329,66 @@ class LLMSimulation:
     def setup_llm_worker(self):
         def worker():
             while True:
-                task = self.query_queue.get()
-                if task is None:
-                    break
-                agent, r, c = task
                 try:
+                    # Use timeout to prevent hanging
+                    task = self.query_queue.get(timeout=1.0)
+                    if task is None:  # Shutdown signal
+                        break
+                    
+                    agent, r, c, task_id = task
                     start_time = time.time()
-                    if np.random.random() < self.use_llm_probability:
-                        move_to = agent.get_llm_decision(r, c, self.grid)
-                        self.llm_call_count += 1
-                    else:
+                    
+                    try:
+                        # Check circuit breaker
+                        use_llm = (not self.llm_circuit_open and 
+                                 np.random.random() < self.use_llm_probability)
+                        
+                        if use_llm:
+                            move_to = agent.get_llm_decision(r, c, self.grid)
+                            self.llm_call_count += 1
+                            success = True
+                        else:
+                            move_to = agent.best_response(r, c, self.grid)
+                            success = True
+                        
+                        elapsed = time.time() - start_time
+                        self.llm_call_times.append(elapsed)
+                        
+                        # Add task_id to track which request this is
+                        self.result_queue.put((agent, r, c, move_to, task_id, success))
+                        
+                    except Exception as e:
+                        print(f"[LLM Worker Error] Agent ({r},{c}): {e}")
+                        self.llm_failure_count += 1
+                        
+                        # Open circuit breaker if too many failures
+                        if self.llm_failure_count >= self.max_llm_failures and not self.llm_circuit_open:
+                            self.llm_circuit_open = True
+                            print(f"[Circuit Breaker] Too many LLM failures ({self.llm_failure_count}), switching to mechanical agents only")
+                        
+                        # Fallback to mechanical behavior
                         move_to = agent.best_response(r, c, self.grid)
+                        elapsed = time.time() - start_time
+                        self.llm_call_times.append(elapsed)
+                        self.result_queue.put((agent, r, c, move_to, task_id, False))
                     
-                    elapsed = time.time() - start_time
-                    self.llm_call_times.append(elapsed)
+                    finally:
+                        self.query_queue.task_done()
+                        
+                except queue.Empty:
+                    # No tasks available, check if we should shutdown
+                    if hasattr(self, '_shutdown_requested') and self._shutdown_requested:
+                        break
+                    continue
                     
-                    self.result_queue.put((agent, r, c, move_to))
                 except Exception as e:
-                    print(f"[LLM Worker Error] {e}")
-                    # Fallback to mechanical behavior
-                    move_to = agent.best_response(r, c, self.grid)
-                    self.result_queue.put((agent, r, c, move_to))
-                finally:
-                    self.query_queue.task_done()
+                    print(f"[LLM Worker Critical Error] {e}")
+                    break
         
-        self.query_queue = queue.Queue()
-        self.result_queue = queue.Queue()
+        self.query_queue = queue.Queue(maxsize=100)  # Limit queue size
+        self.result_queue = queue.Queue(maxsize=100)
+        self._shutdown_requested = False
+        self._task_counter = 0
         self.llm_thread = threading.Thread(target=worker, daemon=True)
         self.llm_thread.start()
     
@@ -356,38 +396,78 @@ class LLMSimulation:
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
         np.random.shuffle(all_positions)
         
-        # Process agents in batches to limit concurrent LLM calls
-        batch_size = min(10, len(all_positions))  # Limit batch size
+        # Limit batch size to prevent overwhelming the LLM
+        batch_size = min(5, len(all_positions))  # Reduced from 10 to 5
         moved = False
+        max_retries = 2
         
         for i in range(0, len(all_positions), batch_size):
             batch = all_positions[i:i+batch_size]
+            task_ids = []
             
-            # Queue batch
+            # Queue batch with task IDs for tracking
             for r, c in batch:
                 agent = self.grid[r][c]
-                self.query_queue.put((agent, r, c))
+                if agent is not None:  # Double-check agent still exists
+                    task_id = self._task_counter
+                    self._task_counter += 1
+                    task_ids.append(task_id)
+                    
+                    try:
+                        self.query_queue.put((agent, r, c, task_id), timeout=5.0)
+                    except queue.Full:
+                        print(f"[Warning] Query queue full, skipping agent at ({r},{c})")
+                        # Fallback to mechanical agent
+                        move_to = agent.best_response(r, c, self.grid)
+                        self._process_move(agent, r, c, move_to)
+                        if move_to and move_to != (r, c):
+                            moved = True
             
-            # Wait for results
+            # Wait for results with timeout and retry logic
             results = []
-            for _ in range(len(batch)):
+            expected_results = len(task_ids)
+            timeout_per_result = 15.0  # 15 seconds per result
+            
+            start_wait = time.time()
+            while len(results) < expected_results:
+                time_elapsed = time.time() - start_wait
+                remaining_timeout = max(1.0, timeout_per_result - time_elapsed)
+                
                 try:
-                    result = self.result_queue.get(timeout=30)
+                    result = self.result_queue.get(timeout=remaining_timeout)
                     results.append(result)
                 except queue.Empty:
-                    print("[Warning] Timeout waiting for LLM response")
+                    print(f"[Warning] Timeout waiting for LLM responses. Got {len(results)}/{expected_results}")
+                    break
+                
+                # Safety check - don't wait forever
+                if time_elapsed > timeout_per_result * expected_results:
+                    print(f"[Warning] Maximum wait time exceeded. Got {len(results)}/{expected_results}")
+                    break
             
             # Process moves
-            for agent, r, c, move_to in results:
-                if move_to and move_to != (r, c):
-                    r_new, c_new = move_to
-                    if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE:
-                        if self.grid[r_new][c_new] is None:
-                            self.grid[r_new][c_new] = agent
-                            self.grid[r][c] = None
-                            moved = True
+            for result in results:
+                if len(result) >= 6:  # New format with task_id and success flag
+                    agent, r, c, move_to, task_id, success = result
+                else:  # Old format fallback
+                    agent, r, c, move_to = result[:4]
+                    success = True
+                
+                if self._process_move(agent, r, c, move_to):
+                    moved = True
         
         return moved
+    
+    def _process_move(self, agent, r, c, move_to):
+        """Helper method to process a single agent move"""
+        if move_to and move_to != (r, c):
+            r_new, c_new = move_to
+            if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE:
+                if self.grid[r_new][c_new] is None and self.grid[r][c] == agent:
+                    self.grid[r_new][c_new] = agent
+                    self.grid[r][c] = None
+                    return True
+        return False
     
     def run_step(self):
         moved = self.update_agents()
@@ -424,9 +504,19 @@ class LLMSimulation:
         
         progress_bar.close()
         
-        # Clean up worker thread
-        self.query_queue.put(None)
-        self.llm_thread.join()
+        # Clean up worker thread safely
+        self._shutdown_requested = True
+        try:
+            # Send shutdown signal
+            self.query_queue.put(None, timeout=1.0)
+            # Wait for thread to finish, but not forever
+            self.llm_thread.join(timeout=5.0)
+            if self.llm_thread.is_alive():
+                print("[Warning] LLM worker thread did not shut down cleanly")
+        except queue.Full:
+            print("[Warning] Could not send shutdown signal to LLM worker")
+        except Exception as e:
+            print(f"[Warning] Error during LLM worker cleanup: {e}")
         
         return {
             'run_id': self.run_id,

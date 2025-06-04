@@ -88,7 +88,14 @@ This will test:
 - Load handling capability
 - Context-aware decision making
 
-If the check fails, the script will provide specific troubleshooting steps.
+**Optional: Test Parallel Processing**
+```bash
+python test_llm_parallel.py
+```
+
+This tests the robustness of parallel LLM processing and failure handling.
+
+If the checks fail, the scripts will provide specific troubleshooting steps.
 
 ### 4. Start the Simulation
 
