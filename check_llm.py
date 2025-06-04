@@ -125,14 +125,23 @@ def comprehensive_llm_check():
     try:
         context_payload = {
             "model": cfg.OLLAMA_MODEL,
-            "messages": [{"role": "user", "content": """You are a red agent in a 3x3 grid:
+            "messages": [{"role": "user", "content": """You are a red team resident living in a neighborhood, considering whether to move to a different house.
+
+You are looking at your immediate 3x3 neighborhood:
 S O E
 O S E  
 E E E
 
-Where S=same type (red), O=opposite type (blue), E=empty.
-Choose the best empty cell to move to as (row, col) or respond 'None'.
-Only respond with coordinates or None."""}],
+Where:
+- 'S' = neighbors who are also red team residents like you
+- 'O' = neighbors from the blue team resident community  
+- 'E' = empty houses you could move to
+
+As a real person, think about where you'd genuinely want to live, then respond with ONLY:
+- The coordinates (row, col) of the empty house you'd move to, OR
+- None (if you prefer to stay where you are)
+
+Your choice:"""}],
             "stream": False,
             "temperature": 0.3
         }

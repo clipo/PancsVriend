@@ -109,7 +109,13 @@ python SchellingSim.py
 
 ## 🧠 LLM Agent Behavior
 
-The LLM agents receive a 3x3 local neighborhood context like:
+The LLM agents are prompted to act as **real residents** of their demographic group, making authentic housing decisions based on their background and circumstances.
+
+### How LLM Agents Make Decisions
+
+1. **Personal Identity**: Each agent is told they are a specific type of resident (e.g., "You are a white middle class family" or "You are a working-class household")
+
+2. **Neighborhood Context**: They see their 3x3 neighborhood like:
 
 ```
 [
@@ -263,11 +269,13 @@ python run_experiments.py --quick-test
 
 ### Available LLM Context Scenarios
 
-1. **baseline**: Simple red vs blue agents
-2. **race_white_black**: White middle class vs predominantly black neighborhoods
-3. **race_asian_hispanic**: Asian vs Hispanic neighborhoods
-4. **income_high_low**: High-income vs low-income households
-5. **political_liberal_conservative**: Liberal vs conservative households
+1. **baseline**: Red team vs blue team residents (control scenario)
+2. **race_white_black**: White middle class families vs Black families
+3. **race_asian_hispanic**: Asian American families vs Hispanic/Latino families  
+4. **income_high_low**: High-income households vs working-class households
+5. **political_liberal_conservative**: Politically liberal vs politically conservative households
+
+Each scenario prompts the LLM to act as a real resident of that demographic, considering authentic factors like cultural connections, economic priorities, family needs, and social comfort when deciding whether to move.
 
 ### Running Individual Components
 

@@ -89,104 +89,116 @@ def check_llm_connection(timeout=10):
 # Define context scenarios
 CONTEXT_SCENARIOS = {
     'baseline': {
-        'type_a': 'red',
-        'type_b': 'blue',
-        'prompt_template': """You are a {agent_type} agent deciding where to move in a 3x3 grid.
-Each cell contains:
-- 'S' for same-type ({agent_type}) neighbor
-- 'O' for opposite-type ({opposite_type}) neighbor
-- 'E' for empty space
-- 'X' for out-of-bounds
+        'type_a': 'red team resident',
+        'type_b': 'blue team resident',
+        'prompt_template': """You are a {agent_type} living in a neighborhood, considering whether to move to a different house.
 
-You prefer to live near others like you but not in complete isolation.
+You are looking at your immediate 3x3 neighborhood:
+{context}
 
-Only respond with the coordinates of the best empty cell to move to, formatted exactly as (row, col).
-If you choose not to move, respond only with: None
+Where:
+- 'S' = neighbors who are also {agent_type}s like you
+- 'O' = neighbors from the {opposite_type} community  
+- 'E' = empty houses you could move to
+- 'X' = area outside the neighborhood
 
-DO NOT provide any explanation. DO NOT include anything else.
+As a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.
 
-Here is your 3x3 grid (centered on you):
-{context}"""
+Think about where you'd genuinely want to live, then respond with ONLY:
+- The coordinates (row, col) of the empty house you'd move to, OR
+- None (if you prefer to stay where you are)
+
+Do not explain your reasoning. Just give your decision.
+
+Your choice:"""
     },
     'race_white_black': {
         'type_a': 'white middle class family',
-        'type_b': 'predominantly black neighborhood family',
-        'prompt_template': """You are a {agent_type} deciding where to move in a neighborhood grid.
-Each cell contains:
-- 'S' for same demographic ({agent_type})
-- 'O' for different demographic ({opposite_type})
-- 'E' for empty house
-- 'X' for out-of-bounds
+        'type_b': 'Black family',
+        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
-Consider your housing preferences based on neighborhood composition.
+Your immediate 3x3 neighborhood looks like this:
+{context}
 
-Only respond with the coordinates of the best empty cell to move to, formatted exactly as (row, col).
-If you choose not to move, respond only with: None
+Where:
+- 'S' = neighbors who are {agent_type}s like you
+- 'O' = neighbors who are {opposite_type}s
+- 'E' = empty houses available to move to  
+- 'X' = outside the immediate area
 
-DO NOT provide any explanation. DO NOT include anything else.
+As a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live. Consider factors like community comfort, children's friendships, cultural connections, safety perceptions, and social dynamics that matter to you.
 
-Here is your 3x3 neighborhood grid (centered on you):
-{context}"""
+Respond with ONLY:
+- The coordinates (row, col) of an empty house you'd move to, OR  
+- None (if you'd rather stay put)
+
+No explanation needed. Just your decision:"""
     },
     'race_asian_hispanic': {
-        'type_a': 'Asian neighborhood family',
-        'type_b': 'Hispanic neighborhood family',
-        'prompt_template': """You are an {agent_type} deciding where to move in a neighborhood grid.
-Each cell contains:
-- 'S' for same cultural background ({agent_type})
-- 'O' for different cultural background ({opposite_type})
-- 'E' for empty house
-- 'X' for out-of-bounds
+        'type_a': 'Asian American family',
+        'type_b': 'Hispanic/Latino family',
+        'prompt_template': """You are a {agent_type} considering moving to a different house in your neighborhood.
 
-Consider your housing preferences based on neighborhood composition.
+Your immediate 3x3 neighborhood currently looks like:
+{context}
 
-Only respond with the coordinates of the best empty cell to move to, formatted exactly as (row, col).
-If you choose not to move, respond only with: None
+Where:
+- 'S' = neighbors who are {agent_type}s with similar backgrounds
+- 'O' = neighbors who are {opposite_type}s  
+- 'E' = empty houses you could potentially move to
+- 'X' = outside your immediate area
 
-DO NOT provide any explanation. DO NOT include anything else.
+As a real person with your own cultural background, family needs, and community connections, consider where you would actually want to live. Think about factors like cultural familiarity, language communities, children's social connections, extended family proximity, and your comfort level in different neighborhood compositions.
 
-Here is your 3x3 neighborhood grid (centered on you):
-{context}"""
+Respond with ONLY:
+- The coordinates (row, col) of an empty house you'd move to, OR
+- None (if you prefer staying where you are)
+
+Just your decision:"""
     },
     'income_high_low': {
         'type_a': 'high-income household',
-        'type_b': 'low-income household',
-        'prompt_template': """You are a {agent_type} deciding where to move in a neighborhood grid.
-Each cell contains:
-- 'S' for same income level ({agent_type})
-- 'O' for different income level ({opposite_type})
-- 'E' for empty house
-- 'X' for out-of-bounds
+        'type_b': 'working-class household',
+        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
-Consider your housing preferences based on neighborhood economic composition.
+Looking at your immediate 3x3 neighborhood:
+{context}
 
-Only respond with the coordinates of the best empty cell to move to, formatted exactly as (row, col).
-If you choose not to move, respond only with: None
+Where:
+- 'S' = neighbors who are also {agent_type}s in a similar economic situation  
+- 'O' = neighbors who are {opposite_type}s with different economic circumstances
+- 'E' = empty houses available for you to move to
+- 'X' = outside your immediate area
 
-DO NOT provide any explanation. DO NOT include anything else.
+As a real person with your own financial situation, lifestyle preferences, and family priorities, think about where you would genuinely want to live. Consider factors like property values, school quality expectations, social comfort levels, shared community values, and the kind of neighborhood environment you want for your family.
 
-Here is your 3x3 neighborhood grid (centered on you):
-{context}"""
+Respond with ONLY:
+- The coordinates (row, col) of an empty house you'd move to, OR
+- None (if you'd rather stay where you are)
+
+Your decision:"""
     },
     'political_liberal_conservative': {
-        'type_a': 'liberal-leaning household',
-        'type_b': 'conservative-leaning household',
-        'prompt_template': """You are a {agent_type} deciding where to move in a neighborhood grid.
-Each cell contains:
-- 'S' for same political leaning ({agent_type})
-- 'O' for different political leaning ({opposite_type})
-- 'E' for empty house
-- 'X' for out-of-bounds
+        'type_a': 'politically liberal household',
+        'type_b': 'politically conservative household',
+        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
-Consider your housing preferences based on neighborhood political composition.
+Your immediate 3x3 neighborhood situation:
+{context}
 
-Only respond with the coordinates of the best empty cell to move to, formatted exactly as (row, col).
-If you choose not to move, respond only with: None
+Where:
+- 'S' = neighbors who are also {agent_type}s with similar political views
+- 'O' = neighbors who are {opposite_type}s with different political perspectives  
+- 'E' = empty houses you could move to
+- 'X' = beyond your immediate area
 
-DO NOT provide any explanation. DO NOT include anything else.
+As a real person with your own political beliefs, social values, and family considerations, think about where you would actually want to live. Consider factors like community discussions, local politics, school board dynamics, social comfort at neighborhood gatherings, shared values around children's upbringing, and day-to-day interactions with neighbors.
 
-Here is your 3x3 neighborhood grid (centered on you):
-{context}"""
+Respond with ONLY:
+- The coordinates (row, col) of an empty house you'd move to, OR
+- None (if you prefer to stay put)
+
+Your choice:"""
     }
 }
 
