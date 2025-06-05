@@ -14,6 +14,10 @@ import queue
 from datetime import datetime
 import pandas as pd
 
+# Define your own direction constants
+DIRECTION_LTR = 0  # Left-to-right
+DIRECTION_RTL = 1  # Right-to-left
+
 def check_llm_connection():
     import requests
     try:

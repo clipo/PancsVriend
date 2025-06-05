@@ -25,3 +25,7 @@ GRID_LINE_COLOR = (180, 180, 180)        # grid line color (RGB light gray)
 COLOR_A = (255, 0, 0)                    # color for Type A agents (RGB red)
 COLOR_B = (0, 0, 255)                    # color for Type B agents (RGB blue)
 VACANT_COLOR = (200, 200, 200)           # color for empty cells (RGB gray)
+
+# Define your own direction constants
+DIRECTION_LTR = 0  # Left-to-right
+DIRECTION_RTL = 1  # Right-to-left
