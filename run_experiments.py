@@ -211,8 +211,9 @@ if __name__ == "__main__":
     parser.add_argument('--quick-test', action='store_true',
                         help='Run quick test with reduced parameters')
     
-    args = parser.parse_args()
-    
+    # args = parser.parse_args()
+    args, _ = parser.parse_known_args()
+
     if args.quick_test:
         run_quick_test()
     else:
