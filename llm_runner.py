@@ -3,7 +3,6 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
 import config as cfg
 from Agent import Agent
 from Metrics import calculate_all_metrics
@@ -14,7 +13,6 @@ import argparse
 import time
 import threading
 import queue
-import sys
 
 def check_llm_connection(timeout=10):
     """
@@ -73,7 +71,7 @@ def check_llm_connection(timeout=10):
         return False
         
     except requests.exceptions.ConnectionError as e:
-        print(f"❌ LLM connection failed - Connection error")
+        print("❌ LLM connection failed - Connection error")
         print(f"Error: {e}")
         print("\nPlease check:")
         print("1. Is the Ollama server running?")
@@ -82,7 +80,7 @@ def check_llm_connection(timeout=10):
         return False
         
     except Exception as e:
-        print(f"❌ LLM connection failed - Unexpected error")
+        print("❌ LLM connection failed - Unexpected error")
         print(f"Error: {type(e).__name__}: {e}")
         return False
 
@@ -211,7 +209,7 @@ class LLMAgent(Agent):
         self.opposite_type = self.context_info['type_b'] if type_id == 0 else self.context_info['type_a']
     
     def get_llm_decision(self, r, c, grid, max_retries=2):
-        """Get movement decision from LLM with retry logic"""
+        """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Construct 3x3 neighborhood context
         context = []
         for dr in [-1, 0, 1]:
@@ -282,7 +280,7 @@ class LLMAgent(Agent):
                     time.sleep(1)  # Brief pause before retry
                     continue
                 else:
-                    print(f"[LLM Error] Max retries exceeded for agent at ({r},{c})")
+                    print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c})")
                     return self.best_response(r, c, grid)
                     
             except Exception as e:
@@ -315,6 +313,8 @@ class LLMSimulation:
         self.llm_circuit_open = False
         
         self.populate_grid()
+        # Initialize integer states list after population
+        self.states = [self._grid_to_int()]
         self.setup_llm_worker()
     
     def populate_grid(self):
@@ -346,16 +346,14 @@ class LLMSimulation:
                         if use_llm:
                             move_to = agent.get_llm_decision(r, c, self.grid)
                             self.llm_call_count += 1
-                            success = True
                         else:
                             move_to = agent.best_response(r, c, self.grid)
-                            success = True
                         
                         elapsed = time.time() - start_time
                         self.llm_call_times.append(elapsed)
                         
                         # Add task_id to track which request this is
-                        self.result_queue.put((agent, r, c, move_to, task_id, success))
+                        self.result_queue.put((agent, r, c, move_to, task_id))
                         
                     except Exception as e:
                         print(f"[LLM Worker Error] Agent ({r},{c}): {e}")
@@ -370,7 +368,7 @@ class LLMSimulation:
                         move_to = agent.best_response(r, c, self.grid)
                         elapsed = time.time() - start_time
                         self.llm_call_times.append(elapsed)
-                        self.result_queue.put((agent, r, c, move_to, task_id, False))
+                        self.result_queue.put((agent, r, c, move_to, task_id))
                     
                     finally:
                         self.query_queue.task_done()
@@ -392,6 +390,20 @@ class LLMSimulation:
         self.llm_thread = threading.Thread(target=worker, daemon=True)
         self.llm_thread.start()
     
+    def _grid_to_int(self):
+        """
+        Convert self.grid of Agent objects/None into int grid:
+        -1 for empty, agent.type_id for occupied.
+        """
+        size = cfg.GRID_SIZE
+        int_grid = np.full((size, size), -1, dtype=int)
+        for r in range(size):
+            for c in range(size):
+                cell = self.grid[r][c]
+                if cell is not None:
+                    int_grid[r, c] = cell.type_id
+        return int_grid
+
     def update_agents(self):
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
         np.random.shuffle(all_positions)
@@ -399,7 +411,6 @@ class LLMSimulation:
         # Limit batch size to prevent overwhelming the LLM
         batch_size = min(5, len(all_positions))  # Reduced from 10 to 5
         moved = False
-        max_retries = 2
         
         for i in range(0, len(all_positions), batch_size):
             batch = all_positions[i:i+batch_size]
@@ -447,11 +458,10 @@ class LLMSimulation:
             
             # Process moves
             for result in results:
-                if len(result) >= 6:  # New format with task_id and success flag
-                    agent, r, c, move_to, task_id, success = result
+                if len(result) >= 4:  # New format with task_id
+                    agent, r, c, move_to, task_id = result
                 else:  # Old format fallback
                     agent, r, c, move_to = result[:4]
-                    success = True
                 
                 if self._process_move(agent, r, c, move_to):
                     moved = True
@@ -474,9 +484,9 @@ class LLMSimulation:
         metrics = calculate_all_metrics(self.grid)
         metrics['step'] = self.step
         metrics['run_id'] = self.run_id
-        metrics['scenario'] = self.scenario
-        metrics['llm_calls'] = self.llm_call_count
         self.metrics_history.append(metrics)
+        # Record integer snapshot of current grid
+        self.states.append(self._grid_to_int())
         
         # Check convergence
         if not moved:
@@ -527,6 +537,7 @@ class LLMSimulation:
             'metrics_history': self.metrics_history,
             'llm_call_count': self.llm_call_count,
             'avg_llm_call_time': np.mean(self.llm_call_times) if self.llm_call_times else 0
+           , 'states': self.states
         }
 
 def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_probability=1.0):
@@ -612,6 +623,14 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
     
     step_stats.columns = ['_'.join(col).strip() if col[1] else col[0] for col in step_stats.columns.values]
     step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
+    # Save grid timeseries for each run
+    # create a 'states' subfolder in the experiment directory
+    states_dir = os.path.join(output_dir, "states")
+    os.makedirs(states_dir, exist_ok=True)
+    for result in results:
+        arr = np.stack(result['states'])
+        # Save time-series grid snapshot per run inside 'states'
+        np.savez_compressed(os.path.join(states_dir, f"states_run_{result['run_id']}.npz"), arr)
     
     print(f"\nExperiment completed. Results saved to: {output_dir}")
     print(f"Scenario: {scenario}")

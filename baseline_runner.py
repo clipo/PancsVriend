@@ -21,12 +21,17 @@ class BaselineSimulation:
         self.no_move_threshold = 20
         self.metrics_history = []
         
+        # Initialize list to store grid snapshot per step
+    
         # Apply any config overrides
         if config_override:
             for key, value in config_override.items():
                 setattr(cfg, key, value)
         
         self.populate_grid()
+        # Initialize list to store grid snapshot per step (after population)
+        # Initialize integer states list after population
+        self.states = [self._grid_to_int()]
     
     def populate_grid(self):
         agents = [Agent(type_id) for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
@@ -61,6 +66,8 @@ class BaselineSimulation:
         metrics['step'] = self.step
         metrics['run_id'] = self.run_id
         self.metrics_history.append(metrics)
+        # Record integer snapshot of current grid
+        self.states.append(self._grid_to_int())
         
         # Check convergence
         if not moved:
@@ -84,8 +91,23 @@ class BaselineSimulation:
             'converged': self.converged,
             'convergence_step': self.convergence_step,
             'final_step': self.step,
-            'metrics_history': self.metrics_history
+            'metrics_history': self.metrics_history,
+            'states': self.states
         }
+    
+    def _grid_to_int(self):
+        """
+        Convert self.grid of Agent objects/None into int grid:
+        -1 for empty, agent.type_id for occupied.
+        """
+        size = cfg.GRID_SIZE
+        int_grid = np.full((size, size), -1, dtype=int)
+        for r in range(size):
+            for c in range(size):
+                agent = self.grid[r][c]
+                if agent is not None:
+                    int_grid[r, c] = agent.type_id
+        return int_grid
 
 def run_single_simulation(args):
     run_id, config_override = args
@@ -168,7 +190,15 @@ def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, pa
     
     step_stats.columns = ['_'.join(col).strip() if col[1] else col[0] for col in step_stats.columns.values]
     step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
-    
+    # Save grid timeseries for each run
+    # create a 'states' subfolder in the experiment directory
+    states_dir = os.path.join(output_dir, "states")
+    os.makedirs(states_dir, exist_ok=True)
+    for result in results:
+        arr = np.stack(result['states'])
+        # Save time-series grid snapshot per run inside 'states'
+        np.savez_compressed(os.path.join(states_dir, f"states_run_{result['run_id']}.npz"), arr)
+
     print(f"\nExperiment completed. Results saved to: {output_dir}")
     print(f"Total runs: {n_runs}")
     print(f"Converged runs: {sum(1 for r in convergence_data if r['converged'])}")

@@ -4,12 +4,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import os
+import json
 from Agent import Agent
 from Metrics import calculate_all_metrics
 from LLMAgent import maybe_use_llm_agent
 import config as cfg
 import threading
 import queue
+from datetime import datetime
+import pandas as pd
 
 def check_llm_connection():
     import requests
@@ -47,6 +50,13 @@ class Simulation:
         self.clock = pygame.time.Clock()
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
         self.populate_grid()
+        # Initialize integer states list after population
+        self.states = [self._grid_to_int()]
+        # record timestamp for this simulation run
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # set up experiment folder for this simulation run
+        self.sim_dir = f"experiments/simulation_{self.timestamp}"
+        os.makedirs(self.sim_dir, exist_ok=True)
         self.running = True
         self.step = 0
         self.simulation_started = False
@@ -137,7 +147,9 @@ class Simulation:
         )
 
     def setup_csv(self):
-        self.csv_file = 'segregation_metrics.csv'
+        # Save segregation metrics per-step into the simulation folder
+        # Use experiment folder for segregation metrics
+        self.csv_file = os.path.join(self.sim_dir, f"segregation_metrics_{self.timestamp}.csv")
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, mode='w', newline='') as file:
                 writer = csv.writer(file)
@@ -278,6 +290,20 @@ class Simulation:
                 except queue.Empty:
                     break
 
+    def _grid_to_int(self):
+        """
+        Convert self.grid of Agent objects/None into int grid:
+        -1 for empty, agent.type_id for occupied.
+        """
+        size = cfg.GRID_SIZE
+        int_grid = np.full((size, size), -1, dtype=int)
+        for r in range(size):
+            for c in range(size):
+                agent = self.grid[r][c]
+                if agent is not None:
+                    int_grid[r, c] = agent.type_id
+        return int_grid
+
     def log_metrics(self):
         metrics = calculate_all_metrics(self.grid)
         with open(self.csv_file, mode='a', newline='') as file:
@@ -293,11 +319,12 @@ class Simulation:
             ])
         for key in self.metrics_history:
             self.metrics_history[key].append(metrics[key])
+        # Store integer snapshot of current grid
+        self.states.append(self._grid_to_int())
         self.step += 1
 
     def plot_final_metrics(self):
         print(f"Converged at step: {self.convergence_step}")
-        import matplotlib.backends.backend_pdf
         plt.ioff()
         fig, axs = plt.subplots(3, 2, figsize=(12, 8))
         for idx, key in enumerate(self.metrics_history.keys()):
@@ -307,12 +334,51 @@ class Simulation:
             ax.set_xlabel("Step")
             ax.set_ylabel("Value")
         plt.tight_layout()
-        pdf = matplotlib.backends.backend_pdf.PdfPages("final_metrics_summary.pdf")
+        from matplotlib.backends.backend_pdf import PdfPages
+        # Save final metrics summary PDF into experiment folder
+        sim_dir = f"experiments/simulation_{self.timestamp}"
+        os.makedirs(sim_dir, exist_ok=True)
+        pdf_path = os.path.join(sim_dir, f"final_metrics_summary_{self.timestamp}.pdf")
+        pdf = PdfPages(pdf_path)
         pdf.savefig(fig)
         pdf.close()
+        print(f"Saved final metrics summary to {pdf_path}")
+        # Save all integer grid states as a numpy array
+        states_array = np.stack(self.states)
+        # save states
+        np.savez_compressed(os.path.join(sim_dir, f"states_{self.timestamp}.npz"), states_array)
+        print(f"Saved integer grid states to {sim_dir}/states_{self.timestamp}.npz (shape={states_array.shape})")
+        # save metrics history
+        df = pd.DataFrame(self.metrics_history)
+        df.to_csv(os.path.join(sim_dir, f"metrics_history_{self.timestamp}.csv"), index=False)
+        print(f"Saved metrics history to {self.sim_dir}/metrics_history_{self.timestamp}.csv")
+        # save config for reproducibility
+        config = {
+            'timestamp': self.timestamp,
+            'grid_size': cfg.GRID_SIZE,
+            'max_steps': self.max_steps,
+            'use_llm': cfg.USE_LLM,
+            'llm_model': cfg.OLLAMA_MODEL if hasattr(cfg, 'OLLAMA_MODEL') else None
+        }
+        with open(os.path.join(sim_dir, f"config_{self.timestamp}.json"), 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"Saved config to {self.sim_dir}/config_{self.timestamp}.json")
+        # write convergence summary inside simulation folder
+        cs_file = os.path.join(sim_dir, f"convergence_summary_{self.timestamp}.csv")
+        if not os.path.exists(cs_file):
+            with open(cs_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['Step', 'USE_LLM', 'Model', 'Total Agents'])
+
+        with open(cs_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                self.step,
+                cfg.USE_LLM,
+                cfg.OLLAMA_MODEL,
+                cfg.NUM_TYPE_A + cfg.NUM_TYPE_B
+            ])
         plt.show()
-
-
 
     def check_convergence(self):
         if not hasattr(self, 'last_agent_moved') or not self.result_queue.empty() or not self.query_queue.empty():
@@ -331,12 +397,14 @@ class Simulation:
             self.plot_final_metrics()
             self.running = False
 
-            if not os.path.exists('convergence_summary.csv'):
-                with open('convergence_summary.csv', 'w', newline='') as f:
+            # write convergence summary inside simulation folder
+            cs_file = os.path.join(self.sim_dir, f"convergence_summary_{self.timestamp}.csv")
+            if not os.path.exists(cs_file):
+                with open(cs_file, 'w', newline='') as f:
                     writer = csv.writer(f)
                     writer.writerow(['Step', 'USE_LLM', 'Model', 'Total Agents'])
 
-            with open('convergence_summary.csv', 'a', newline='') as f:
+            with open(cs_file, 'a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([
                     self.step,
