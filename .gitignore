@@ -113,3 +113,8 @@ ehthumbs.db
 # Project generated directories
 experiments/
 reports/
+
+# Project specific files
+*.pdf
+*.csv
+assign_runs.txt
