@@ -234,6 +234,160 @@ python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs exper
 python SchellingSim.py
 ```
 
+## 🔬 Research Guide: Comparing LLMs and Social Contexts
+
+### 📊 Comparing Different LLMs
+
+When comparing how different LLMs handle residential decisions, follow this structured approach:
+
+#### 1. **Baseline Comparison Setup**
+```bash
+# First, always run mechanical baseline for reference
+python baseline_runner.py --runs 100
+
+# Then test each LLM with identical parameters
+# OpenAI GPT-4
+python run_experiments.py --baseline-runs 0 --llm-runs 20 --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "sk-..."
+
+# Anthropic Claude
+python run_experiments.py --baseline-runs 0 --llm-runs 20 --llm-model "claude-3-sonnet-20240229" --llm-url "https://api.anthropic.com/v1/messages" --llm-api-key "sk-ant-..."
+
+# Local Llama2
+python run_experiments.py --baseline-runs 0 --llm-runs 20 --llm-model "llama2:13b" --llm-url "http://localhost:11434/api/chat/completions"
+```
+
+#### 2. **Consistent Testing Protocol**
+- Use **same number of runs** (recommend 20-50 per LLM)
+- Keep **grid size and agent counts** constant
+- Test **all social contexts** with each LLM
+- Record **response times** for cost/performance analysis
+
+#### 3. **Performance Metrics to Track**
+- **Convergence speed**: How quickly segregation emerges
+- **Final segregation levels**: Steady-state metrics
+- **Decision consistency**: Variance across runs
+- **Response time**: API latency impacts
+- **Failure rates**: Robustness of each LLM
+
+### 🌍 Modifying Social Contexts
+
+To add new social contexts or modify existing ones:
+
+#### 1. **Edit Social Context Scenarios**
+Open `llm_runner.py` and find `CONTEXT_SCENARIOS`:
+
+```python
+CONTEXT_SCENARIOS = {
+    'your_new_context': {
+        'type_a': 'Group A description',
+        'type_b': 'Group B description', 
+        'prompt_template': """You are a {agent_type} considering whether to move...
+        
+        [Your context-specific prompt that shapes decision-making]
+        
+        Respond with ONLY coordinates or None."""
+    }
+}
+```
+
+#### 2. **Design Effective Context Prompts**
+Key elements for realistic contexts:
+- **Authentic identity**: "You are a [specific demographic]"
+- **Real motivations**: Family, culture, economics, safety
+- **Decision factors**: What this group actually considers
+- **No bias injection**: Let LLM express natural preferences
+
+#### 3. **Example: Adding Economic Contexts**
+```python
+'economic_tech_service': {
+    'type_a': 'tech industry professional',
+    'type_b': 'service industry worker',
+    'prompt_template': """You are a {agent_type} considering housing options.
+    
+    Your neighborhood ({context}) reflects different economic realities.
+    As someone in your economic situation, consider:
+    - Commute to work locations
+    - Cost of living pressures  
+    - Access to amenities you need
+    - Community support systems
+    
+    Where would you genuinely prefer to live?"""
+}
+```
+
+### 📈 Systematic Comparison Workflow
+
+#### 1. **Planning Phase**
+- Define research questions
+- Select 3-5 LLMs to compare
+- Choose relevant social contexts
+- Set consistent parameters
+
+#### 2. **Execution Phase**
+```bash
+# Create experiment plan
+mkdir experiments_gpt4 experiments_claude experiments_llama
+
+# Run each LLM systematically
+for context in baseline race_white_black economic_high_low; do
+    python llm_runner.py --scenario $context --runs 30 --llm-model "gpt-4" ...
+done
+```
+
+#### 3. **Analysis Phase**
+```bash
+# Generate comparative analysis
+python statistical_analysis.py
+
+# Create visualization comparing all LLMs
+python visualization.py --baseline-dir experiments/baseline_* \
+    --llm-dirs experiments/llm_gpt4_* experiments/llm_claude_* experiments/llm_llama_*
+```
+
+### 🎯 Best Practices for LLM Comparison
+
+1. **Control Variables**
+   - Same random seeds for reproducibility
+   - Identical grid initialization
+   - Consistent temperature settings (0.3 recommended)
+
+2. **Statistical Rigor**
+   - Minimum 20-30 runs per condition
+   - Report confidence intervals
+   - Use appropriate statistical tests (in `statistical_analysis.py`)
+
+3. **Document Everything**
+   - LLM version/date (models update!)
+   - Exact prompts used
+   - Any failures or anomalies
+   - Total API costs
+
+### 💡 Research Questions to Explore
+
+1. **LLM Behavioral Differences**
+   - Do larger models show more nuanced segregation patterns?
+   - How do open vs. closed source models differ?
+   - What biases emerge across different LLMs?
+
+2. **Context Sensitivity**
+   - Which contexts produce fastest segregation?
+   - How do economic vs. racial contexts differ?
+   - Do LLMs reflect real-world segregation data?
+
+3. **Prompt Engineering Effects**
+   - How sensitive are results to prompt wording?
+   - Can prompts reduce or increase segregation?
+   - What happens with ambiguous identities?
+
+### 📊 Publishing Results
+
+When sharing findings:
+1. Report **all** model configurations
+2. Include **convergence plots** for each LLM/context
+3. Show **statistical comparisons** with effect sizes
+4. Discuss **cost/performance tradeoffs**
+5. Share **reproducible code** with exact versions
+
 ## 🔧 Advanced Configuration
 
 ### Parallel Processing Tuning:
@@ -251,6 +405,65 @@ python SchellingSim.py
 - Add new metrics to track
 - Modify plateau detection sensitivity
 
+## ⏱️ Timing and Cost Considerations
+
+### Simulation Duration Estimates
+
+#### **Baseline Mechanical Agents**
+- **Per run**: ~30 seconds
+- **100 runs**: ~50 minutes
+- **Cost**: Free (no LLM calls)
+
+#### **LLM Simulations**
+Time depends on LLM response speed and grid size:
+
+| Configuration | Agents | Steps to Converge | LLM Calls | Time per Run | 
+|--------------|--------|-------------------|-----------|--------------|
+| Default (20x20) | 300 | ~30-50 | ~10,000-15,000 | 2-5 minutes |
+| Small (10x10) | 50 | ~20-30 | ~1,000-1,500 | 1-2 minutes |
+| Tiny (5x5) | 10 | ~10-20 | ~100-200 | 30-60 seconds |
+
+#### **Full Experiment Suite**
+- **Quick test**: 10-20 minutes
+- **Standard (100 baseline + 50 LLM)**: 2-4 hours  
+- **Comprehensive (100 baseline + 200 LLM)**: 8-12 hours
+
+### 💰 API Cost Estimates
+
+Approximate costs per run (default 20x20 grid):
+
+| LLM Provider | Cost per 1K tokens | Est. tokens per run | Cost per run | 30 runs |
+|--------------|-------------------|---------------------|--------------|---------|
+| GPT-3.5-turbo | $0.001 | ~500K | $0.50 | $15 |
+| GPT-4 | $0.03 | ~500K | $15.00 | $450 |
+| Claude-3-Haiku | $0.00025 | ~500K | $0.125 | $3.75 |
+| Claude-3-Sonnet | $0.003 | ~500K | $1.50 | $45 |
+| Local Models | Free | - | $0 | $0 |
+
+### 🚀 Performance Optimization Tips
+
+1. **For Development/Testing**
+   ```bash
+   # Use smaller grids
+   python llm_runner.py --scenario baseline --runs 2
+   # Grid size 10x10 = 50 agents = 5x faster
+   ```
+
+2. **For Batch Experiments**
+   ```bash
+   # Run overnight
+   nohup python run_experiments.py > experiment.log 2>&1 &
+   
+   # Monitor progress
+   tail -f experiment.log
+   ```
+
+3. **For Cost Reduction**
+   - Use cheaper models (GPT-3.5, Claude-Haiku) for initial tests
+   - Reduce grid size for exploratory analysis
+   - Run fewer simulations with higher step counts
+   - Use local models (Ollama) when possible
+
 ## 📈 Expected Results
 
 ### Typical Findings:
@@ -266,7 +479,41 @@ python SchellingSim.py
 
 ## 🚨 Troubleshooting
 
-### LLM Connection Issues:
+### LLM-Specific Issues:
+
+#### **Slow Performance**
+```bash
+# Check LLM response time
+python check_llm.py --llm-model "your-model"
+
+# If slow (>1s per response), consider:
+# 1. Using a faster model
+# 2. Reducing grid size
+# 3. Implementing caching for repeated contexts
+```
+
+#### **Different LLMs Give Different Results**
+This is expected! Document the differences:
+- **Response format variations**: Some LLMs may format coordinates differently
+- **Decision patterns**: Models have different "personalities"
+- **Consistency**: Some models are more deterministic than others
+
+#### **API Rate Limits**
+```python
+# Add delays between runs in your script
+import time
+for run in range(n_runs):
+    run_simulation()
+    time.sleep(5)  # 5 second delay between runs
+```
+
+#### **Comparing Incompatible APIs**
+Some LLMs require API adapters:
+- **Anthropic**: Use their native API or a proxy
+- **Google PaLM/Gemini**: May need API wrapper
+- **Local models**: Ensure OpenAI-compatible endpoint
+
+### General Troubleshooting:
 ```bash
 # Check connectivity
 python check_llm.py
