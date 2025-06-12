@@ -4,10 +4,11 @@ Test script to verify LLM parallel processing works correctly
 """
 
 import time
+import argparse
 import config as cfg
 from llm_runner import LLMSimulation, check_llm_connection
 
-def test_parallel_processing():
+def test_parallel_processing(llm_model=None, llm_url=None, llm_api_key=None):
     """Test the parallel LLM processing with a small simulation"""
     
     print("="*60)
@@ -16,7 +17,7 @@ def test_parallel_processing():
     
     # First check if LLM is available
     print("\n1. Checking LLM connectivity...")
-    if not check_llm_connection():
+    if not check_llm_connection(llm_model, llm_url, llm_api_key):
         print("❌ LLM not available - cannot test parallel processing")
         print("Please ensure LLM is running and try again")
         return False
@@ -41,7 +42,8 @@ def test_parallel_processing():
         cfg.NUM_TYPE_B = 10
         
         # Create and run test simulation
-        sim = LLMSimulation(run_id=999, scenario='baseline', use_llm_probability=1.0)
+        sim = LLMSimulation(run_id=999, scenario='baseline', use_llm_probability=1.0, 
+                           llm_model=llm_model, llm_url=llm_url, llm_api_key=llm_api_key)
         
         print(f"\n3. Running {5} simulation steps...")
         start_time = time.time()
@@ -165,10 +167,17 @@ def test_failure_handling():
         cfg.OLLAMA_URL = original_url
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Test LLM parallel processing robustness")
+    parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
+    parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
+    parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
+    
+    args = parser.parse_args()
+    
     print("LLM Parallel Processing Test Suite")
     print("This will test the robustness of LLM parallel processing")
     
-    success1 = test_parallel_processing()
+    success1 = test_parallel_processing(args.llm_model, args.llm_url, args.llm_api_key)
     success2 = test_failure_handling()
     
     print("\n" + "="*60)

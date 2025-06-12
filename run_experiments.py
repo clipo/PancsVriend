@@ -23,7 +23,8 @@ def ensure_directories():
     os.makedirs('reports', exist_ok=True)
 
 def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000, 
-                            scenarios=None, llm_probability=1.0):
+                            scenarios=None, llm_probability=1.0, llm_model=None, 
+                            llm_url=None, llm_api_key=None):
     """
     Run complete experiment suite
     
@@ -33,6 +34,9 @@ def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000,
     - max_steps: Maximum steps per simulation
     - scenarios: List of LLM scenarios to run (None for all)
     - llm_probability: Probability of using LLM for decisions
+    - llm_model: LLM model to use (overrides config.py)
+    - llm_url: LLM API URL (overrides config.py)
+    - llm_api_key: LLM API key (overrides config.py)
     """
     
     ensure_directories()
@@ -62,17 +66,22 @@ def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000,
     
     print(f"\n2. Running LLM experiments ({llm_runs} runs per scenario)...")
     print(f"   Scenarios: {', '.join(scenarios)}")
+    if llm_model or llm_url or llm_api_key:
+        print(f"   Using custom LLM configuration:")
+        if llm_model: print(f"     Model: {llm_model}")
+        if llm_url: print(f"     URL: {llm_url}")
+        if llm_api_key: print(f"     API Key: {llm_api_key[:10]}...{llm_api_key[-4:] if len(llm_api_key) > 14 else '***'}")
     print("-"*60)
     
     # Check LLM connection before starting LLM experiments
     print("\n   Checking LLM availability...")
-    if not check_llm_connection():
+    if not check_llm_connection(llm_model, llm_url, llm_api_key):
         print("\n   ⚠️  WARNING: LLM connection check failed!")
         print("   Skipping all LLM experiments.")
         print("\n   To run LLM experiments:")
         print("   1. Ensure Ollama is running: ollama serve")
-        print(f"   2. Pull the model: ollama pull {cfg.OLLAMA_MODEL}")
-        print("   3. Verify the URL and API key in config.py")
+        print(f"   2. Pull the model: ollama pull {llm_model or cfg.OLLAMA_MODEL}")
+        print("   3. Verify the URL and API key in config.py or command line")
         llm_results = {}
     else:
         llm_results = {}
@@ -88,7 +97,10 @@ def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000,
                 scenario=scenario,
                 n_runs=llm_runs,
                 max_steps=max_steps,
-                use_llm_probability=llm_probability
+                use_llm_probability=llm_probability,
+                llm_model=llm_model,
+                llm_url=llm_url,
+                llm_api_key=llm_api_key
             )
             
             if llm_dir is None:
@@ -154,7 +166,10 @@ def run_full_experiment_suite(baseline_runs=100, llm_runs=10, max_steps=1000,
             'llm_runs': llm_runs,
             'max_steps': max_steps,
             'scenarios': scenarios,
-            'llm_probability': llm_probability
+            'llm_probability': llm_probability,
+            'llm_model': llm_model or cfg.OLLAMA_MODEL,
+            'llm_url': llm_url or cfg.OLLAMA_URL,
+            'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None
         },
         'experiments': experiment_results,
         'reports': {
@@ -208,6 +223,12 @@ if __name__ == "__main__":
                         help='LLM scenarios to run (default: all)')
     parser.add_argument('--llm-probability', type=float, default=1.0,
                         help='Probability of using LLM for agent decisions (default: 1.0)')
+    parser.add_argument('--llm-model', type=str,
+                        help='LLM model to use (overrides config.py)')
+    parser.add_argument('--llm-url', type=str,
+                        help='LLM API URL (overrides config.py)')
+    parser.add_argument('--llm-api-key', type=str,
+                        help='LLM API key (overrides config.py)')
     parser.add_argument('--quick-test', action='store_true',
                         help='Run quick test with reduced parameters')
     
@@ -222,5 +243,8 @@ if __name__ == "__main__":
             llm_runs=args.llm_runs,
             max_steps=args.max_steps,
             scenarios=args.scenarios,
-            llm_probability=args.llm_probability
+            llm_probability=args.llm_probability,
+            llm_model=args.llm_model,
+            llm_url=args.llm_url,
+            llm_api_key=args.llm_api_key
         )

@@ -52,7 +52,8 @@ pip install -r requirements.txt
 
 ### 2. Configuration
 
-Edit `config.py` with your LLM settings:
+#### Default Configuration (config.py)
+Edit `config.py` with your default LLM settings:
 
 ```python
 # LLM Configuration
@@ -66,27 +67,50 @@ NUM_TYPE_A = 150
 NUM_TYPE_B = 150
 ```
 
+#### Command-Line LLM Override
+All experiment scripts support command-line LLM configuration that overrides `config.py`:
+
+```bash
+# Use OpenAI GPT-4
+python run_experiments.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-openai-key"
+
+# Use Anthropic Claude (via proxy)
+python run_experiments.py --llm-model "claude-3-sonnet" --llm-url "https://api.anthropic.com/v1/messages" --llm-api-key "your-anthropic-key"
+
+# Use different local model
+python run_experiments.py --llm-model "llama2:13b" --llm-url "http://localhost:11434/api/chat/completions"
+```
+
 ### 3. Verify LLM Connection
 
 ```bash
-# Test basic connectivity
+# Test basic connectivity (uses config.py)
 python check_llm.py
+
+# Test with custom LLM configuration
+python check_llm.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
 
 # Test parallel processing robustness (optional)
 python test_llm_parallel.py
+
+# Test parallel processing with custom LLM
+python test_llm_parallel.py --llm-model "claude-3-sonnet" --llm-url "https://api.anthropic.com/v1/messages"
 ```
 
 ### 4. Run Complete Experiment Suite
 
 ```bash
-# Full experiment: 100 baseline + 10 runs per LLM scenario
+# Full experiment: 100 baseline + 10 runs per LLM scenario (uses config.py)
 python run_experiments.py
+
+# Full experiment with custom LLM
+python run_experiments.py --llm-model "gpt-4o" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
 
 # Quick test: 5 baseline + 2 runs per scenario
 python run_experiments.py --quick-test
 
-# Custom configuration
-python run_experiments.py --baseline-runs 50 --llm-runs 20 --scenarios baseline race_white_black
+# Custom configuration with different LLM
+python run_experiments.py --baseline-runs 50 --llm-runs 20 --scenarios baseline race_white_black --llm-model "claude-3-sonnet"
 ```
 
 ## 📋 Experiment Workflow
@@ -112,6 +136,40 @@ reports/
 ├── comprehensive_report_[timestamp].pdf  # Visual analysis
 ├── statistical_analysis_[timestamp].txt  # Statistical tests
 └── experiment_summary_[timestamp].json   # Master summary
+```
+
+## 🤖 Supported LLM Providers
+
+The framework works with any **OpenAI-compatible API**, making it flexible for different LLM providers:
+
+### 🌐 **Cloud Providers**
+- **OpenAI**: GPT-4, GPT-4o, GPT-3.5-turbo
+- **Anthropic**: Claude-3-sonnet, Claude-3-haiku (via proxy)
+- **Azure OpenAI**: Enterprise GPT models
+- **AWS Bedrock**: Claude, Llama (via proxy)
+
+### 🏠 **Local Models**
+- **Ollama**: Any model (llama2, mistral, qwen, etc.)
+- **LM Studio**: Local model serving
+- **vLLM**: High-performance inference server
+- **Text Generation WebUI**: Gradio-based local serving
+
+### 📋 **Command-Line Options**
+All experiment scripts support these LLM configuration flags:
+- `--llm-model`: Model name/identifier
+- `--llm-url`: API endpoint URL
+- `--llm-api-key`: Authentication key (if required)
+
+### 💡 **Usage Examples**
+```bash
+# OpenAI GPT-4
+--llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "sk-..."
+
+# Local Ollama model
+--llm-model "llama2:13b" --llm-url "http://localhost:11434/api/chat/completions"
+
+# Azure OpenAI
+--llm-model "gpt-4" --llm-url "https://your-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2023-12-01-preview" --llm-api-key "your-azure-key"
 ```
 
 ## 🧠 How LLM Agents Work

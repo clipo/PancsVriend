@@ -14,33 +14,43 @@ import time
 import threading
 import queue
 
-def check_llm_connection(timeout=10):
+def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10):
     """
     Check if LLM connection is active and working
+    
+    Parameters:
+    - llm_model: Model to use (overrides config.py)
+    - llm_url: API URL (overrides config.py)
+    - llm_api_key: API key (overrides config.py)
+    - timeout: Connection timeout in seconds
     
     Returns:
     - True if connection successful
     - False if connection failed
     """
+    model = llm_model or cfg.OLLAMA_MODEL
+    url = llm_url or cfg.OLLAMA_URL
+    api_key = llm_api_key or cfg.OLLAMA_API_KEY
+    
     print("\nChecking LLM connection...")
-    print(f"URL: {cfg.OLLAMA_URL}")
-    print(f"Model: {cfg.OLLAMA_MODEL}")
+    print(f"URL: {url}")
+    print(f"Model: {model}")
     
     try:
         test_payload = {
-            "model": cfg.OLLAMA_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": "Respond with only the word 'OK' and nothing else."}],
             "stream": False,
             "temperature": 0
         }
         
         headers = {
-            "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
         start_time = time.time()
-        response = requests.post(cfg.OLLAMA_URL, headers=headers, json=test_payload, timeout=timeout)
+        response = requests.post(url, headers=headers, json=test_payload, timeout=timeout)
         elapsed = time.time() - start_time
         
         if response.status_code != 200:
@@ -201,12 +211,15 @@ Your choice:"""
 }
 
 class LLMAgent(Agent):
-    def __init__(self, type_id, scenario='baseline'):
+    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
         self.agent_type = self.context_info['type_a'] if type_id == 0 else self.context_info['type_b']
         self.opposite_type = self.context_info['type_b'] if type_id == 0 else self.context_info['type_a']
+        self.llm_model = llm_model or cfg.OLLAMA_MODEL
+        self.llm_url = llm_url or cfg.OLLAMA_URL
+        self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
     
     def get_llm_decision(self, r, c, grid, max_retries=2):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
@@ -241,7 +254,7 @@ class LLMAgent(Agent):
         for attempt in range(max_retries + 1):
             try:
                 payload = {
-                    "model": cfg.OLLAMA_MODEL,
+                    "model": self.llm_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                     "temperature": 0.3,  # Lower temperature for more consistent responses
@@ -250,12 +263,12 @@ class LLMAgent(Agent):
                 }
                 
                 headers = {
-                    "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+                    "Authorization": f"Bearer {self.llm_api_key}",
                     "Content-Type": "application/json"
                 }
                 
                 # Shorter timeout for individual requests
-                response = requests.post(cfg.OLLAMA_URL, headers=headers, json=payload, timeout=8)
+                response = requests.post(self.llm_url, headers=headers, json=payload, timeout=8)
                 response.raise_for_status()
                 data = response.json()
                 text = data["choices"][0]["message"]["content"]
@@ -293,10 +306,14 @@ class LLMAgent(Agent):
                     return self.best_response(r, c, grid)
 
 class LLMSimulation:
-    def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0):
+    def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0, 
+                 llm_model=None, llm_url=None, llm_api_key=None):
         self.run_id = run_id
         self.scenario = scenario
         self.use_llm_probability = use_llm_probability
+        self.llm_model = llm_model
+        self.llm_url = llm_url
+        self.llm_api_key = llm_api_key
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
         self.step = 0
         self.converged = False
@@ -318,7 +335,8 @@ class LLMSimulation:
         self.setup_llm_worker()
     
     def populate_grid(self):
-        agents = [LLMAgent(type_id, self.scenario) for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
+        agents = [LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key) 
+                 for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
         np.random.shuffle(agents)
         flat_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE)]
         np.random.shuffle(flat_positions)
@@ -540,16 +558,17 @@ class LLMSimulation:
            , 'states': self.states
         }
 
-def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_probability=1.0):
+def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_probability=1.0, 
+                      llm_model=None, llm_url=None, llm_api_key=None):
     """Run LLM experiments with specified scenario"""
     
-    # Check LLM connection first
-    if not check_llm_connection():
+    # Check LLM connection first with potentially custom parameters
+    if not check_llm_connection(llm_model, llm_url, llm_api_key):
         print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
         print("Please ensure the LLM server is running and accessible.")
         print("\nTo start Ollama locally:")
         print("  ollama serve")
-        print(f"  ollama pull {cfg.OLLAMA_MODEL}")
+        print(f"  ollama pull {llm_model or cfg.OLLAMA_MODEL}")
         return None, []
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -567,7 +586,9 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
         'grid_size': cfg.GRID_SIZE,
         'num_type_a': cfg.NUM_TYPE_A,
         'num_type_b': cfg.NUM_TYPE_B,
-        'llm_model': cfg.OLLAMA_MODEL,
+        'llm_model': llm_model or cfg.OLLAMA_MODEL,
+        'llm_url': llm_url or cfg.OLLAMA_URL,
+        'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
         'timestamp': timestamp,
         'context_info': CONTEXT_SCENARIOS[scenario]
     }
@@ -579,7 +600,7 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
     results = []
     for i in range(n_runs):
         print(f"\nRunning simulation {i+1}/{n_runs} for scenario: {scenario}")
-        sim = LLMSimulation(i, scenario, use_llm_probability)
+        sim = LLMSimulation(i, scenario, use_llm_probability, llm_model, llm_url, llm_api_key)
         result = sim.run(max_steps)
         results.append(result)
         

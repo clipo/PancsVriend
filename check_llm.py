@@ -5,38 +5,45 @@ Standalone LLM connectivity checker for the Schelling segregation simulation
 
 import requests
 import time
+import argparse
 import config as cfg
 
-def comprehensive_llm_check():
+def comprehensive_llm_check(llm_model=None, llm_url=None, llm_api_key=None):
     """
     Comprehensive LLM connectivity and performance check
     """
+    model = llm_model or cfg.OLLAMA_MODEL
+    url = llm_url or cfg.OLLAMA_URL
+    api_key = llm_api_key or cfg.OLLAMA_API_KEY
+    
     print("="*60)
     print("LLM CONNECTIVITY CHECK")
     print("="*60)
     
     print(f"\nConfiguration:")
-    print(f"  URL: {cfg.OLLAMA_URL}")
-    print(f"  Model: {cfg.OLLAMA_MODEL}")
-    print(f"  API Key: {'*' * (len(cfg.OLLAMA_API_KEY) - 8) + cfg.OLLAMA_API_KEY[-8:] if len(cfg.OLLAMA_API_KEY) > 8 else 'Set'}")
+    print(f"  URL: {url}")
+    print(f"  Model: {model}")
+    print(f"  API Key: {'*' * (len(api_key) - 8) + api_key[-8:] if len(api_key) > 8 else 'Set'}")
+    if llm_model or llm_url or llm_api_key:
+        print(f"  (Using command-line override)")
     
     # Test 1: Basic connectivity
     print(f"\n1. Testing basic connectivity...")
     try:
         test_payload = {
-            "model": cfg.OLLAMA_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": "Respond with only the word 'TEST' and nothing else."}],
             "stream": False,
             "temperature": 0
         }
         
         headers = {
-            "Authorization": f"Bearer {cfg.OLLAMA_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
         start_time = time.time()
-        response = requests.post(cfg.OLLAMA_URL, headers=headers, json=test_payload, timeout=15)
+        response = requests.post(url, headers=headers, json=test_payload, timeout=15)
         elapsed = time.time() - start_time
         
         if response.status_code == 200:
@@ -68,13 +75,13 @@ def comprehensive_llm_check():
     print(f"\n2. Testing response parsing...")
     try:
         parse_test_payload = {
-            "model": cfg.OLLAMA_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": "Respond with exactly: (1, 2)"}],
             "stream": False,
             "temperature": 0
         }
         
-        response = requests.post(cfg.OLLAMA_URL, headers=headers, json=parse_test_payload, timeout=15)
+        response = requests.post(url, headers=headers, json=parse_test_payload, timeout=15)
         if response.status_code == 200:
             data = response.json()
             content = data["choices"][0]["message"]["content"].strip()
@@ -103,7 +110,7 @@ def comprehensive_llm_check():
     for i in range(5):
         try:
             start_time = time.time()
-            response = requests.post(cfg.OLLAMA_URL, headers=headers, json=test_payload, timeout=10)
+            response = requests.post(url, headers=headers, json=test_payload, timeout=10)
             elapsed = time.time() - start_time
             total_time += elapsed
             
@@ -124,7 +131,7 @@ def comprehensive_llm_check():
     print(f"\n4. Testing context-aware decision making...")
     try:
         context_payload = {
-            "model": cfg.OLLAMA_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": """You are a red team resident living in a neighborhood, considering whether to move to a different house.
 
 You are looking at your immediate 3x3 neighborhood:
@@ -146,7 +153,7 @@ Your choice:"""}],
             "temperature": 0.3
         }
         
-        response = requests.post(cfg.OLLAMA_URL, headers=headers, json=context_payload, timeout=15)
+        response = requests.post(url, headers=headers, json=context_payload, timeout=15)
         if response.status_code == 200:
             data = response.json()
             content = data["choices"][0]["message"]["content"].strip()
@@ -173,7 +180,7 @@ Your choice:"""}],
         print("OVERALL: ❌ LLM is not ready")
         print("\nPlease check:")
         print("  1. Is Ollama running? (ollama serve)")
-        print(f"  2. Is the model pulled? (ollama pull {cfg.OLLAMA_MODEL})")
+        print(f"  2. Is the model pulled? (ollama pull {model})")
         print("  3. Is the URL correct in config.py?")
         print("  4. Is the API key valid?")
     
@@ -181,4 +188,10 @@ Your choice:"""}],
     return success_count >= 4
 
 if __name__ == "__main__":
-    comprehensive_llm_check()
+    parser = argparse.ArgumentParser(description="Check LLM connectivity and performance")
+    parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
+    parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
+    parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
+    
+    args = parser.parse_args()
+    comprehensive_llm_check(args.llm_model, args.llm_url, args.llm_api_key)
