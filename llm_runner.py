@@ -169,6 +169,28 @@ Just your decision:"""
         'type_b': 'working-class household',
         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
+You are looking at your immediate 3x3 neighborhood:
+{context}
+
+Where:
+- 'S' = neighbors from households similar to yours ({agent_type}s)
+- 'O' = neighbors from {opposite_type}s
+- 'E' = empty houses you could move to
+- 'X' = area outside the neighborhood
+
+As a real person making housing decisions, consider your economic priorities: affordability, property values, proximity to work, schools, and the kind of community environment that matches your lifestyle and budget.
+
+Where would you prefer to move? Respond with ONLY:
+- Coordinates like (0,1) for a specific empty house
+- None (if you'd rather stay put)
+
+No explanation needed. Just your decision:"""
+    },
+    'economic_high_working': {
+        'type_a': 'high-income household',
+        'type_b': 'working-class household',
+        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
+
 Looking at your immediate 3x3 neighborhood:
 {context}
 
