@@ -177,7 +177,7 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
     # Create temporary config for LLM experiments
     llm_config_file = base_output_dir / "llm_experiments.yaml"
     with open(llm_config_file, 'w') as f:
-        yaml.dump(config, f)
+        yaml.dump(study_config, f)
     
     # Update config.py with LLM settings if provided
     if llm_model or llm_url or llm_api_key:

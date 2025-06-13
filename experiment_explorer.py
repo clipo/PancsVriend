@@ -67,26 +67,14 @@ class ExperimentDesignExplorer:
         
     def define_llm_configurations(self) -> List[Dict[str, str]]:
         """Define different LLM configurations to test"""
+        import config
         return [
             {
-                "name": "qwen_local",
-                "model": "qwen2.5-coder:32B",
-                "url": "https://chat.binghamton.edu/api/chat/completions",
-                "api_key": "sk-571df6eec7f5495faef553ab5cb2c67a"
-            },
-            # Add more LLM configurations here
-            # {
-            #     "name": "gpt4",
-            #     "model": "gpt-4",
-            #     "url": "https://api.openai.com/v1/chat/completions",
-            #     "api_key": "your-openai-key"
-            # },
-            # {
-            #     "name": "claude_sonnet",
-            #     "model": "claude-3-sonnet-20240229",
-            #     "url": "https://api.anthropic.com/v1/messages",
-            #     "api_key": "your-anthropic-key"
-            # }
+                "name": "default",
+                "model": config.OLLAMA_MODEL,
+                "url": config.OLLAMA_URL,
+                "api_key": config.OLLAMA_API_KEY
+            }
         ]
     
     def define_agent_configurations(self) -> List[Dict[str, Any]]:
