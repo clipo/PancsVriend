@@ -125,29 +125,86 @@ def show_menu(experiments):
         except ValueError:
             print("Please enter a valid number or 'q' to quit")
 
-def launch_dashboard(experiment):
+def find_active_experiments():
+    """Find experiments with real-time progress files"""
+    active_experiments = []
+    
+    # Look for comprehensive study directories with progress files
+    for study_dir in glob.glob("comprehensive_study_*/"):
+        if Path(f"{study_dir}/progress_realtime.json").exists():
+            active_experiments.append(study_dir.rstrip('/'))
+    
+    # Look for individual progress files
+    for progress_file in glob.glob("*/progress_realtime.json"):
+        exp_path = progress_file.replace('/progress_realtime.json', '')
+        if not exp_path.startswith('comprehensive_study_'):
+            active_experiments.append(exp_path)
+    
+    return active_experiments
+
+def launch_dashboard(experiment, dashboard_type="main"):
     """Launch dashboard for selected experiment"""
     print(f"\n🚀 Launching dashboard for: {experiment['path']}")
     print("="*70)
     
-    # Set environment variable for the dashboard to pick up
-    os.environ["DASHBOARD_DEFAULT_DIR"] = experiment['path']
+    # Choose dashboard script based on type
+    if dashboard_type == "progress":
+        dashboard_script = "dashboard_with_progress.py"
+        print("📊 Launching Real-Time Progress Dashboard...")
+        print("   This dashboard shows live progress for active experiments!")
+    else:
+        dashboard_script = "dashboard.py"
+        # Set environment variable for the dashboard to pick up
+        os.environ["DASHBOARD_DEFAULT_DIR"] = experiment['path']
     
-    # Launch streamlit directly with the main dashboard
+    # Launch streamlit directly
     print("\n💡 Dashboard will open in your browser automatically")
     print("   If not, navigate to: http://localhost:8501")
-    print(f"\n   The dashboard will default to: {experiment['path']}")
+    
+    if dashboard_type != "progress":
+        print(f"\n   The dashboard will default to: {experiment['path']}")
+    
     print("   Press Ctrl+C to stop the dashboard\n")
     
-    subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
+    subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_script])
 
 def main():
     """Main entry point"""
     experiments = find_all_experiments()
+    active_experiments = find_active_experiments()
+    
+    # Check if we have active experiments for progress dashboard
+    if active_experiments:
+        print(f"\n⚡ Found {len(active_experiments)} active experiment(s) with real-time progress!")
+        print("💡 You can use the Real-Time Progress Dashboard to monitor them.")
+        
+        # Offer quick launch for progress dashboard
+        quick_launch = input("\n🚀 Launch Real-Time Progress Dashboard now? (y/n): ").strip().lower()
+        if quick_launch in ['y', 'yes']:
+            print("\n📊 Launching Real-Time Progress Dashboard...")
+            print("   This dashboard shows live progress for active experiments!")
+            print("\n💡 Dashboard will open in your browser automatically")
+            print("   If not, navigate to: http://localhost:8501")
+            print("   Press Ctrl+C to stop the dashboard\n")
+            subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard_with_progress.py"])
+            return
+    
+    # Show regular experiment selection menu
     selected = show_menu(experiments)
     
     if selected:
-        launch_dashboard(selected)
+        # Ask which dashboard to use
+        print("\nDashboard Options:")
+        print("1. 📊 Standard Dashboard (detailed analysis)")
+        if active_experiments:
+            print("2. ⏱️  Real-Time Progress Dashboard (live monitoring)")
+        
+        dashboard_choice = input(f"\nSelect dashboard type (1{'-2' if active_experiments else ''}): ").strip()
+        
+        if dashboard_choice == "2" and active_experiments:
+            launch_dashboard(selected, "progress")
+        else:
+            launch_dashboard(selected)
     else:
         print("\nGoodbye!")
 
