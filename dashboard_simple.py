@@ -5,6 +5,7 @@ Minimal dependencies version for easy setup
 """
 
 import os
+import sys
 import json
 import glob
 from pathlib import Path
@@ -122,7 +123,7 @@ def create_simple_dashboard():
         auto_refresh = st.checkbox("Auto-refresh", True)
         
         if st.button("🔄 Refresh Now"):
-            st.experimental_rerun()
+            st.rerun()
     
     # Main content
     tab1, tab2, tab3 = st.tabs(["📊 Progress", "📈 Results", "📋 Experiments"])
@@ -247,7 +248,7 @@ def create_simple_dashboard():
     # Auto-refresh
     if auto_refresh:
         time.sleep(5)
-        st.experimental_rerun()
+        st.rerun()
 
 def main():
     """Main entry point"""

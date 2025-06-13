@@ -9,7 +9,7 @@ UTILITY_SLOPE = 1                        # slope factor in the utility calculati
 UTILITY_CUTOFF = 50                      # threshold utility for relocation decisions
 
 # ===== LLM Runner Settings (used by llm_runner.py) =====
-OLLAMA_MODEL = "qwen2.5-coder:32B"          # LLM model identifier for Ollama
+OLLAMA_MODEL = "mixtral:8x22b-instruct"    # LLM model identifier for Ollama
 OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"  # API endpoint for LLM service
 OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"  # authentication key for LLM API
 ENABLE_AGENT_MEMORY = True                   # Enable agent memory and persistent context (makes agents more human-like)
