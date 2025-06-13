@@ -284,6 +284,33 @@ python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs exper
 python SchellingSim.py
 ```
 
+### 📊 Interactive Dashboard (NEW!)
+
+Monitor experiments in real-time with a web-based dashboard:
+
+```bash
+# Install dashboard dependencies (one-time)
+pip install streamlit pandas plotly
+
+# Launch interactive dashboard
+streamlit run dashboard.py
+
+# Or use the simple dashboard (fewer dependencies)
+python dashboard_simple.py
+
+# Text-only progress monitor (no dependencies)
+python dashboard_simple.py --simple
+```
+
+**Dashboard Features:**
+- **Real-time Progress**: Live experiment tracking with progress bars
+- **Experiment Timeline**: Visual Gantt chart of running experiments  
+- **Results Analysis**: Interactive plots comparing agent types
+- **Metrics Heatmap**: Segregation patterns across all experiments
+- **Auto-refresh**: Updates every 5-10 seconds automatically
+
+Access the dashboard at: http://localhost:8501
+
 ## 🔬 Research Guide: Comparing LLMs and Social Contexts
 
 ### 📊 Comparing Different LLMs
