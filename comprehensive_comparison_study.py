@@ -54,7 +54,7 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
     
     # Load configuration
     with open(config_file) as f:
-        config = yaml.safe_load(f)
+        study_config = yaml.safe_load(f)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_output_dir = Path(f"comprehensive_study_{timestamp}")
@@ -64,10 +64,10 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
     print("\n📐 STEP 1: Organizing Mechanical Baseline Data")
     print("-" * 50)
     
-    scenarios = config["scenarios"]
-    grid_configs = config["grid_configurations"]
-    runs_per_config = config["experiment_parameters"]["runs_per_config"]
-    max_steps = config["experiment_parameters"]["max_steps"]
+    scenarios = study_config["scenarios"]
+    grid_configs = study_config["grid_configurations"]
+    runs_per_config = study_config["experiment_parameters"]["runs_per_config"]
+    max_steps = study_config["experiment_parameters"]["max_steps"]
     
     # Create mechanical results directory
     mechanical_dir = base_output_dir / "mechanical_baseline"
