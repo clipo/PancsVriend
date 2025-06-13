@@ -635,6 +635,248 @@ analyzer.create_comprehensive_report()
 
 This design space exploration system transforms your simulation from individual experiments into **systematic scientific investigation** with **statistical rigor** and **comparative analysis**! 🎯
 
+## 🏆 **Comprehensive Comparison Study (RECOMMENDED)**
+
+For **complete research**, we provide a **ready-to-run comprehensive study** that compares:
+
+### **🔬 The Complete Agent Comparison Matrix**
+1. **📐 Mechanical Baseline** - Traditional utility-maximizing Schelling agents
+2. **🤖 Standard LLM Agents** - LLM decisions based on current neighborhood only  
+3. **🧠 Memory-Enhanced LLM Agents** - Human-like agents with personal history and relationships
+
+### **🌍 Across All Social Contexts**
+- **Baseline** (Red vs Blue control)
+- **Racial** (White vs Black families)
+- **Ethnic** (Asian vs Hispanic families)  
+- **Economic** (High-income vs Working-class)
+- **Political** (Liberal vs Conservative)
+
+This gives you a **3×5×2 factorial design** = **30 experiments** with **900 total simulations** providing **publication-ready comparative analysis**!
+
+### 🚀 **Quick Start: Complete Study**
+
+```bash
+# 1. Set up your LLM credentials in the config
+cp baseline_vs_llm_study.yaml my_study.yaml
+# Edit my_study.yaml with your LLM API details
+
+# 2. Quick test first (recommended)
+python comprehensive_comparison_study.py --quick-test --config my_study.yaml
+# Takes ~2 hours, validates everything works
+
+# 3. Run full study (overnight/weekend recommended)
+python comprehensive_comparison_study.py --config my_study.yaml
+# Takes ~40 hours, generates complete dataset
+
+# 4. Results automatically analyzed and saved
+```
+
+### 📊 **Study Design Overview**
+
+#### **Research Questions Answered**
+1. **Mechanical vs LLM**: How do LLM agents differ from traditional Schelling models?
+2. **Standard vs Memory LLM**: Does memory make agents more human-like?
+3. **Social Context Effects**: Which contexts affect segregation patterns most?
+4. **Interaction Effects**: Do agent types respond differently to social contexts?
+5. **Scale Effects**: How does population size influence each agent type?
+
+#### **Experimental Matrix**
+| Agent Type | Social Contexts | Grid Sizes | Runs Each | Total Runs |
+|------------|----------------|------------|-----------|------------|
+| 📐 Mechanical | 5 scenarios | 2 sizes | 30 | 300 |
+| 🤖 Standard LLM | 5 scenarios | 2 sizes | 30 | 300 |
+| 🧠 Memory LLM | 5 scenarios | 2 sizes | 30 | 300 |
+| **TOTAL** | **5** | **2** | **30** | **900** |
+
+#### **Expected Findings**
+- **📐 Mechanical**: Fast, predictable segregation regardless of social context
+- **🤖 Standard LLM**: Context-sensitive, more variable than mechanical
+- **🧠 Memory LLM**: Slower, more stable, human-like residential patterns
+
+### 📈 **Generated Analysis & Outputs**
+
+#### **Comprehensive Comparison Analysis**
+The study automatically generates:
+
+##### **🔬 Statistical Analysis**
+- **3-way ANOVA** comparing all agent types across contexts
+- **Post-hoc tests** for pairwise comparisons  
+- **Effect size calculations** (Cohen's d) for practical significance
+- **Interaction effect analysis** between agent type and social context
+- **Convergence speed analysis** with survival curves
+
+##### **📊 Rich Visualizations**
+```
+comprehensive_study_TIMESTAMP/
+├── mechanical_baseline_results/           # Traditional Schelling results
+├── llm_results/                          # LLM experiment results  
+├── comprehensive_analysis/               # 3-way comparison analysis
+│   ├── three_way_comparison_report.md   # Main findings report
+│   ├── agent_type_comparison.png        # Side-by-side comparisons
+│   ├── social_context_effects.png       # Context sensitivity analysis
+│   ├── convergence_speed_analysis.png   # Speed comparisons
+│   ├── interaction_effects.png          # Agent×Context interactions  
+│   ├── memory_agent_stories.png         # Individual journey analysis
+│   ├── segregation_heatmaps.png         # All combinations visualized
+│   └── statistical_summary.json         # Detailed test results
+└── logs/                                # Execution logs
+```
+
+##### **📋 Individual Agent Stories** (Memory agents only)
+- **Personal identities**: Family size, profession, priorities
+- **Move histories**: Why each agent moved and when
+- **Relationship development**: How neighbor relationships evolved
+- **Satisfaction trajectories**: Happiness levels over time
+
+#### **Key Output Files**
+
+##### **Main Research Report**
+- `three_way_comparison_report.md` - Publication-ready findings summary
+- `statistical_summary.json` - All statistical test results with p-values
+
+##### **Visualizations for Papers**
+- `agent_type_comparison.png` - Main comparison figure
+- `social_context_effects.png` - Context sensitivity results  
+- `convergence_speed_analysis.png` - Speed and stability analysis
+- `interaction_effects.png` - Statistical interaction plots
+
+##### **Raw Data for Further Analysis**
+- `complete_results_dataset.csv` - All simulation outcomes  
+- `memory_agent_journeys.json` - Individual agent stories
+- `convergence_metrics.csv` - Detailed convergence analysis
+
+### 🔍 **Analyzing Your Results**
+
+#### **Reading the Main Report**
+```bash
+# Open the comprehensive findings
+open comprehensive_study_*/comprehensive_analysis/three_way_comparison_report.md
+```
+
+The report includes:
+- **Executive Summary**: Key findings and statistical significance
+- **Agent Type Comparison**: How mechanical, standard LLM, and memory LLM differ
+- **Social Context Analysis**: Which contexts produce different patterns
+- **Interaction Effects**: Unique combinations and emergent behaviors
+- **Individual Stories**: Notable memory agent journeys
+
+#### **Statistical Significance Guide**
+- **p < 0.001**: Highly significant difference (⭐⭐⭐)
+- **p < 0.01**: Very significant difference (⭐⭐)  
+- **p < 0.05**: Significant difference (⭐)
+- **Effect size d > 0.8**: Large practical difference
+- **Effect size d > 0.5**: Medium practical difference
+- **Effect size d > 0.2**: Small practical difference
+
+#### **Interpreting Visualizations**
+
+##### **Agent Type Comparison Plot**
+- **Y-axis**: Segregation metrics (clusters, switch rate, etc.)
+- **X-axis**: Social contexts
+- **Colors**: Agent types (Mechanical, Standard LLM, Memory LLM)
+- **Error bars**: 95% confidence intervals
+
+##### **Convergence Speed Analysis**
+- **Survival curves**: Show percentage unconverged over time
+- **Median convergence**: 50% convergence point
+- **Confidence bands**: Statistical uncertainty
+
+##### **Memory Agent Stories**
+- **Individual trajectories**: Each line = one agent's satisfaction over time
+- **Move markers**: Points where agents relocated
+- **Color coding**: Different family types or characteristics
+
+### 🎯 **Research Applications**
+
+#### **For Academic Papers**
+This study design supports research questions like:
+- "Do large language models exhibit realistic residential segregation patterns?"
+- "How does agent memory affect convergence speed and stability?"
+- "Are certain social contexts more segregating across different agent architectures?"
+
+#### **For Policy Analysis**
+- **Housing Policy**: Compare interventions across agent types
+- **Urban Planning**: Understand how different populations might respond
+- **Social Integration**: Test strategies for reducing segregation
+
+#### **For Model Validation**
+- **Benchmark Comparison**: Standard reference for LLM segregation models
+- **Human Realism**: Memory agents as proxy for real human behavior
+- **Context Sensitivity**: Understanding when social factors matter
+
+### 💡 **Customizing the Study**
+
+#### **Modify Social Contexts**
+Edit `baseline_vs_llm_study.yaml`:
+```yaml
+scenarios:
+  - baseline
+  - custom_context_1  # Add your contexts
+  - custom_context_2
+  # Remove contexts you don't need
+```
+
+#### **Adjust Statistical Power**
+```yaml
+experiment_parameters:
+  runs_per_config: 50    # More runs = stronger statistics
+  max_steps: 1500        # Longer runs = full convergence
+```
+
+#### **Grid Size Sensitivity**
+```yaml
+grid_configurations:
+  small: {grid_size: 10, type_a: 25, type_b: 25}
+  medium: {grid_size: 15, type_a: 75, type_b: 75}  
+  large: {grid_size: 20, type_a: 150, type_b: 150}
+  xlarge: {grid_size: 25, type_a: 200, type_b: 200}
+```
+
+### ⚠️ **Resource Planning**
+
+#### **Time Estimates**
+- **Quick Test**: 2-3 hours (validates approach)
+- **Full Study**: 35-45 hours (complete analysis)
+- **Analysis Generation**: 1-2 hours (automatic)
+
+#### **Computing Requirements**
+- **CPU**: Multi-core recommended for parallel execution
+- **Memory**: 8GB+ RAM for large grid sizes
+- **Storage**: 2-5GB for complete study results
+- **Network**: Stable connection for LLM API calls
+
+#### **Cost Estimates** (using cloud LLMs)
+| LLM Provider | Cost per Run | 900 Runs | 
+|--------------|-------------|----------|
+| Local Models | $0 | $0 |
+| GPT-3.5-turbo | $0.50 | $450 |
+| GPT-4 | $15.00 | $13,500 |
+| Claude-3-Haiku | $0.125 | $112.50 |
+
+### 🔄 **Running Studies in Parallel**
+
+For faster execution on multi-core machines:
+```bash
+# Split study across multiple processes
+python comprehensive_comparison_study.py --config my_study.yaml &
+# Start additional parallel runs with different config subsets
+```
+
+### 📚 **Citation Guidelines**
+
+When publishing results from this framework:
+```bibtex
+@software{schelling_llm_comprehensive,
+  title={Comprehensive LLM vs Mechanical Agent Segregation Study},
+  author={[Your Name]},
+  year={2024},
+  note={Framework: Schelling Segregation Model with LLM Agents},
+  url={https://github.com/clipo/PancsVriend}
+}
+```
+
+This comprehensive study design provides **the most rigorous comparison** of mechanical vs LLM segregation models available, with **statistical significance testing** and **publication-ready outputs**! 🎓
+
 ## 🔧 Advanced Configuration
 
 ### Parallel Processing Tuning:
@@ -739,6 +981,56 @@ Approximate costs per run (default 20x20 grid):
 - **Full experiment suite**: 2-4 hours total
 
 ## 🚨 Troubleshooting
+
+### 🏆 **Comprehensive Study Troubleshooting**
+
+#### **Study Fails to Start**
+```bash
+# Check configuration file
+python show_study_matrix.py  # Validates your setup
+
+# Test LLM connectivity first
+python check_llm.py --llm-model "your-model" --llm-url "your-url" --llm-api-key "your-key"
+
+# Run quick test mode first
+python comprehensive_comparison_study.py --quick-test
+```
+
+#### **Study Stops Mid-Execution**
+```bash
+# Check progress
+tail -f comprehensive_study_*/logs/progress_*.json
+
+# Resume from last checkpoint (experiments save continuously)
+python comprehensive_comparison_study.py --config my_study.yaml
+# Will skip completed experiments automatically
+```
+
+#### **Memory Issues with Large Studies**
+```bash
+# Reduce grid sizes temporarily
+# Edit baseline_vs_llm_study.yaml:
+grid_configurations:
+  medium: {grid_size: 15, type_a: 75, type_b: 75}  # Remove 'large'
+
+# Or run in smaller batches
+python run_design_space_exploration.py --run --max-experiments 10
+```
+
+#### **Analysis Generation Fails**
+```bash
+# Run analysis separately after experiments complete
+python design_space_analyzer.py --input-dir comprehensive_study_TIMESTAMP/llm_results
+
+# Check for missing dependencies
+pip install -r requirements.txt
+```
+
+#### **Unexpected Results**
+- **All agent types look similar**: Check if LLM is actually being used (should see LLM call counts > 0)
+- **Memory agents identical to standard**: Verify `ENABLE_AGENT_MEMORY = True` in config.py
+- **No convergence**: Increase `max_steps` in configuration
+- **High variance**: Increase `runs_per_config` for better statistics
 
 ### LLM-Specific Issues:
 

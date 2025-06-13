@@ -1,0 +1,50 @@
+# BASELINE vs LLM COMPREHENSIVE STUDY CONFIGURATION
+# This configuration explores the complete comparison space:
+# 1. Pure mechanical baseline (traditional Schelling model)  
+# 2. Standard LLM agents across social contexts
+# 3. Memory-enhanced LLM agents across social contexts
+
+# LLM Configuration (using your existing setup)
+llm_configurations:
+  qwen_local:
+    model: "qwen2.5-coder:32B"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# COMPLETE AGENT COMPARISON MATRIX
+agent_types:
+  - standard    # Standard LLM agents (current snapshot decisions)
+  - memory      # Memory-enhanced LLM agents (human-like with history)
+
+# COMPLETE SOCIAL CONTEXT EXPLORATION  
+scenarios:
+  - baseline                    # Control: Red vs Blue (no social meaning)
+  - race_white_black           # Racial context: White vs Black families
+  - ethnic_asian_hispanic      # Ethnic context: Asian vs Hispanic families  
+  - economic_high_working      # Economic context: High-income vs Working-class
+  - political_liberal_conservative  # Political context: Liberal vs Conservative
+
+# Grid Configurations (recommend medium for good statistical power)
+grid_configurations:
+  medium:
+    grid_size: 15
+    type_a: 75
+    type_b: 75
+  large:
+    grid_size: 20
+    type_a: 150
+    type_b: 150
+
+# Experiment Parameters (robust statistical analysis)
+experiment_parameters:
+  runs_per_config: 30          # 30 runs per configuration for strong statistics
+  max_steps: 1000             # Full convergence
+  use_llm_probability: 1.0    # Always use LLM (pure comparison)
+
+# Quick Test Mode (for initial validation)
+quick_test:
+  enabled: false              # Set to true for fast testing
+  runs_per_config: 5
+  max_steps: 200
+  grids: ["medium"]
+  scenarios: ["baseline", "race_white_black"]
