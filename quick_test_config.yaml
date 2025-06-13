@@ -15,9 +15,9 @@ grid_configurations:
     type_a: 75
     type_b: 75
 llm_configurations:
-  qwen_local:
+  default:
     api_key: sk-571df6eec7f5495faef553ab5cb2c67a
-    model: qwen2.5-coder:32B
+    model: mixtral:8x22b-instruct
     url: https://chat.binghamton.edu/api/chat/completions
 quick_test:
   enabled: true
