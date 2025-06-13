@@ -167,12 +167,30 @@ def display_enhanced_progress_card(progress_data, experiment_name, experiment_di
         st.progress(step_progress / 100)
 
 def find_active_experiments():
-    """Find all active experiment directories"""
+    """Find all active experiment directories (only those with recent activity)"""
     experiments = []
+    
+    def is_recently_active(progress_file_path):
+        """Check if experiment has been active within last 5 minutes"""
+        try:
+            with open(progress_file_path, 'r') as f:
+                progress_data = json.load(f)
+            
+            timestamp_str = progress_data.get('timestamp', '')
+            if timestamp_str:
+                progress_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                if progress_time.tzinfo:
+                    progress_time = progress_time.replace(tzinfo=None)
+                time_diff = (datetime.now() - progress_time).total_seconds()
+                return time_diff < 300  # 5 minutes
+        except:
+            pass
+        return False
     
     # Look for comprehensive study directories
     for study_dir in glob.glob("comprehensive_study_*/"):
-        if Path(f"{study_dir}/progress_realtime.json").exists():
+        progress_file = f"{study_dir}/progress_realtime.json"
+        if Path(progress_file).exists() and is_recently_active(progress_file):
             experiments.append({
                 'name': study_dir.rstrip('/'),
                 'path': study_dir.rstrip('/'),
@@ -181,13 +199,14 @@ def find_active_experiments():
     
     # Look for individual experiment directories
     for exp_dir in glob.glob("**/progress_realtime.json", recursive=True):
-        exp_path = exp_dir.replace('/progress_realtime.json', '')
-        if not exp_path.startswith('comprehensive_study_'):
-            experiments.append({
-                'name': exp_path,
-                'path': exp_path,
-                'type': 'individual'
-            })
+        if is_recently_active(exp_dir):
+            exp_path = exp_dir.replace('/progress_realtime.json', '')
+            if not exp_path.startswith('comprehensive_study_'):
+                experiments.append({
+                    'name': exp_path,
+                    'path': exp_path,
+                    'type': 'individual'
+                })
     
     return experiments
 

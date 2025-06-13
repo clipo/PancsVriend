@@ -47,23 +47,44 @@ def analyze_experiment_status(exp_path, deletion_mode='safe'):
     info['files_count'] = files_count
     info['last_modified'] = datetime.fromtimestamp(exp_path.stat().st_mtime)
     
-    # Determine experiment type
+    # Determine experiment type (order matters - check llm_ before baseline_)
     if 'comprehensive_study' in exp_path.name:
         info['type'] = 'comprehensive_study'
         info.update(analyze_comprehensive_study(exp_path))
-    elif 'baseline_' in exp_path.name:
-        info['type'] = 'baseline'
-        info.update(analyze_baseline_experiment(exp_path))
     elif 'llm_' in exp_path.name:
         info['type'] = 'llm'
         info.update(analyze_llm_experiment(exp_path))
+    elif 'baseline_' in exp_path.name:
+        info['type'] = 'baseline'
+        info.update(analyze_baseline_experiment(exp_path))
     elif 'design_space_' in exp_path.name:
         info['type'] = 'design_space'
         info.update(analyze_design_space(exp_path))
     
     # Determine deletion eligibility based on different modes
-    age_days = (datetime.now() - info['last_modified']).days
-    age_hours = (datetime.now() - info['last_modified']).total_seconds() / 3600
+    # Use the most recent timestamp available (progress file or directory modification)
+    effective_timestamp = info['last_modified']
+    
+    # For LLM experiments, try to use the progress file timestamp if it's more recent
+    if info['type'] == 'llm':
+        progress_file = exp_path / 'progress_realtime.json'
+        if progress_file.exists():
+            try:
+                import json
+                with open(progress_file) as f:
+                    progress_data = json.load(f)
+                timestamp_str = progress_data.get('timestamp', '')
+                if timestamp_str:
+                    progress_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    if progress_time.tzinfo:
+                        progress_time = progress_time.replace(tzinfo=None)
+                    # Use progress timestamp for age calculation
+                    effective_timestamp = progress_time
+            except:
+                pass
+    
+    age_days = (datetime.now() - effective_timestamp).days
+    age_hours = (datetime.now() - effective_timestamp).total_seconds() / 3600
     
     # Safe mode (conservative)
     if info['status'] == 'failed' and age_days > 1:
@@ -80,13 +101,13 @@ def analyze_experiment_status(exp_path, deletion_mode='safe'):
         info['reason'] = f'Very small experiment (<0.1MB) older than 1 day'
     
     # Aggressive mode (less conservative)
-    if info['status'] == 'failed' and age_hours > 2:
+    if info['status'] == 'failed' and age_hours > 1:
         info['can_delete_aggressive'] = True
-    elif info['status'] == 'incomplete' and age_hours > 12:
+    elif info['status'] == 'incomplete' and age_hours > 0.5:  # Very aggressive: 30 minutes for incomplete
         info['can_delete_aggressive'] = True
     elif info['status'] == 'empty':
         info['can_delete_aggressive'] = True
-    elif info['size_mb'] < 1.0 and age_hours > 6:
+    elif info['size_mb'] < 1.0 and age_hours > 2:
         info['can_delete_aggressive'] = True
     
     # Force mode (delete anything that's not currently running)
@@ -160,11 +181,27 @@ def analyze_llm_experiment(exp_path):
             status = progress.get('status', 'unknown')
             current_run = progress.get('current_run', 0)
             total_runs = progress.get('total_runs', 0)
+            timestamp_str = progress.get('timestamp', '')
+            
+            # Check if timestamp is recent (within last 5 minutes) to determine if truly running
+            is_recently_active = False
+            if timestamp_str:
+                try:
+                    progress_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    # Remove timezone info for comparison if present
+                    if progress_time.tzinfo:
+                        progress_time = progress_time.replace(tzinfo=None)
+                    time_diff = (datetime.now() - progress_time).total_seconds()
+                    is_recently_active = time_diff < 300  # 5 minutes
+                except:
+                    pass
             
             if status == 'completed' or (current_run >= total_runs and total_runs > 0):
                 info['status'] = 'completed'
-            elif status == 'running':
+            elif status == 'running' and is_recently_active:
                 info['status'] = 'running'
+            elif status == 'running' and not is_recently_active:
+                info['status'] = 'incomplete'  # Stale "running" status
             elif status == 'failed':
                 info['status'] = 'failed'
         except:
