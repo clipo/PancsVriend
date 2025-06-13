@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 import yaml
+import shutil
 from datetime import datetime
 import pandas as pd
 import config
@@ -59,22 +60,72 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
     base_output_dir = Path(f"comprehensive_study_{timestamp}")
     base_output_dir.mkdir(exist_ok=True)
     
-    # Step 1: Run mechanical baseline for all scenarios
-    print("\n📐 STEP 1: Running Mechanical Baseline")
-    print("-" * 40)
+    # Step 1: Organize mechanical baseline data
+    print("\n📐 STEP 1: Organizing Mechanical Baseline Data")
+    print("-" * 50)
     
     scenarios = config["scenarios"]
     grid_configs = config["grid_configurations"]
     runs_per_config = config["experiment_parameters"]["runs_per_config"]
     max_steps = config["experiment_parameters"]["max_steps"]
     
+    # Create mechanical results directory
+    mechanical_dir = base_output_dir / "mechanical_baseline"
+    mechanical_dir.mkdir(exist_ok=True)
+    
     mechanical_results = {}
     
-    for scenario in scenarios:
-        for grid_name, grid_config in grid_configs.items():
-            print(f"\nRunning mechanical baseline: {scenario} on {grid_name} grid")
+    for grid_name, grid_config in grid_configs.items():
+        print(f"\n🔍 Checking for existing mechanical baseline: {grid_name} grid")
+        print(f"   Looking for: grid_size={grid_config['grid_size']}, agents={grid_config['type_a'] + grid_config['type_b']}")
+        
+        # Look for existing mechanical baseline experiments
+        matching_experiments = []
+        for exp_dir in Path("experiments").glob("baseline_*"):
+            if not exp_dir.is_dir():
+                continue
+                
+            config_file = exp_dir / "config.json"
+            if config_file.exists():
+                try:
+                    with open(config_file) as f:
+                        exp_config = json.load(f)
+                    
+                    # Check if this experiment matches our requirements
+                    if (exp_config.get("grid_size") == grid_config["grid_size"] and
+                        exp_config.get("num_type_a") == grid_config["type_a"] and
+                        exp_config.get("num_type_b") == grid_config["type_b"] and
+                        exp_config.get("n_runs") >= runs_per_config and
+                        exp_config.get("max_steps") >= max_steps):
+                        
+                        # Check that all required files exist
+                        required_files = ["convergence_summary.csv", "metrics_history.csv", "step_statistics.csv"]
+                        if all((exp_dir / f).exists() for f in required_files):
+                            matching_experiments.append(exp_dir)
+                            
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        
+        if matching_experiments:
+            # Use the most recent matching experiment
+            latest_exp = max(matching_experiments, key=lambda x: x.name)
+            target_dir = mechanical_dir / f"baseline_{grid_name}"
             
-            # Temporarily set grid configuration
+            print(f"   ✅ Found existing data: {latest_exp.name}")
+            print(f"   📁 Copying to: {target_dir}")
+            
+            # Copy the experiment data
+            if target_dir.exists():
+                shutil.rmtree(target_dir)
+            shutil.copytree(latest_exp, target_dir)
+            
+            mechanical_results[grid_name] = str(target_dir)
+            
+        else:
+            print(f"   ❌ No suitable mechanical baseline found for {grid_name} grid")
+            print(f"   🚀 Running new mechanical baseline...")
+            
+            # Run new mechanical baseline
             original_grid = None
             original_a = None  
             original_b = None
@@ -99,11 +150,18 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 
                 if result.returncode == 0:
-                    print(f"  ✅ Completed mechanical baseline for {scenario}")
-                    # Store result directory for later analysis
-                    mechanical_results[f"{scenario}_{grid_name}"] = "completed"
+                    print(f"      ✅ Completed new mechanical baseline")
+                    # Find and copy the newly created experiment
+                    newest_exp = max(Path("experiments").glob("baseline_*"), key=lambda x: x.stat().st_mtime)
+                    target_dir = mechanical_dir / f"baseline_{grid_name}"
+                    
+                    if target_dir.exists():
+                        shutil.rmtree(target_dir)
+                    shutil.copytree(newest_exp, target_dir)
+                    
+                    mechanical_results[grid_name] = str(target_dir)
                 else:
-                    print(f"  ❌ Failed: {result.stderr}")
+                    print(f"      ❌ Failed: {result.stderr}")
                     
             finally:
                 # Restore original config
@@ -217,10 +275,25 @@ def generate_three_way_comparison(base_output_dir, mechanical_results, scenarios
         f.write("- **Memory LLM agents**: Slower, more stable, human-like patterns\n")
         f.write("- **Social context effects**: Different scenarios produce different patterns\n\n")
         
+        f.write("## Data Organization\n")
+        f.write("All data for this comprehensive study is organized in this directory:\n\n")
+        f.write("```\n")
+        f.write(f"comprehensive_study_[timestamp]/\n")
+        f.write("├── mechanical_baseline/     # Mechanical agent results (copied from existing or new)\n")
+        for grid_name in grid_configs.keys():
+            f.write(f"│   └── baseline_{grid_name}/\n")
+        f.write("├── llm_results/            # LLM experiment results (standard + memory)\n")
+        f.write("│   ├── experiments/        # Individual experiment data\n")
+        f.write("│   ├── analysis/           # Aggregated analysis\n")
+        f.write("│   └── comparisons/        # Cross-scenario comparisons\n")
+        f.write("└── comprehensive_analysis/ # Three-way comparison analysis\n")
+        f.write("```\n\n")
+        
         f.write("## Analysis Files\n")
-        f.write("- Mechanical baseline results: experiments/baseline_*/\n")
-        f.write("- LLM results: llm_results/\n")
-        f.write("- Comparative analysis: comprehensive_analysis/\n")
+        f.write("- **Mechanical baseline**: `mechanical_baseline/baseline_*/`\n")
+        f.write("- **LLM experiments**: `llm_results/experiments/`\n")
+        f.write("- **Three-way comparison**: `comprehensive_analysis/`\n")
+        f.write("- **This report**: `comprehensive_analysis/three_way_comparison_report.md`\n")
     
     print(f"📄 Three-way comparison report created: {report_file}")
 
