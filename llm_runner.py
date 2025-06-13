@@ -329,13 +329,14 @@ class LLMAgent(Agent):
 
 class LLMSimulation:
     def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0, 
-                 llm_model=None, llm_url=None, llm_api_key=None):
+                 llm_model=None, llm_url=None, llm_api_key=None, progress_file=None):
         self.run_id = run_id
         self.scenario = scenario
         self.use_llm_probability = use_llm_probability
         self.llm_model = llm_model
         self.llm_url = llm_url
         self.llm_api_key = llm_api_key
+        self.progress_file = progress_file
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
         self.step = 0
         self.converged = False
@@ -601,6 +602,21 @@ class LLMSimulation:
             self.convergence_step = self.step
         
         self.step += 1
+        
+        # Update progress file if available (every 10 steps to avoid too frequent writes)
+        if self.progress_file and self.step % 10 == 0:
+            try:
+                with open(self.progress_file, 'r') as f:
+                    progress_data = json.load(f)
+                progress_data["current_step"] = self.step
+                progress_data["step_progress_percent"] = (self.step / progress_data["max_steps"]) * 100
+                progress_data["converged"] = self.converged
+                progress_data["timestamp"] = datetime.now().isoformat()
+                with open(self.progress_file, 'w') as f:
+                    json.dump(progress_data, f, indent=2)
+            except Exception as e:
+                pass  # Don't let progress file errors break the simulation
+        
         return self.converged
     
     def run(self, max_steps=1000):
@@ -680,13 +696,38 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
     with open(f"{output_dir}/config.json", 'w') as f:
         json.dump(config_dict, f, indent=2)
     
+    # Create progress file for real-time monitoring
+    progress_file = f"{output_dir}/progress_realtime.json"
+    
     # Run simulations (sequential due to LLM rate limits)
     results = []
     for i in range(n_runs):
         print(f"\nRunning simulation {i+1}/{n_runs} for scenario: {scenario}")
-        sim = LLMSimulation(i, scenario, use_llm_probability, llm_model, llm_url, llm_api_key)
+        
+        # Update progress file before starting run
+        progress_data = {
+            "scenario": scenario,
+            "current_run": i + 1,
+            "total_runs": n_runs,
+            "current_step": 0,
+            "max_steps": max_steps,
+            "status": "running",
+            "timestamp": datetime.now().isoformat(),
+            "run_progress_percent": (i / n_runs) * 100,
+            "step_progress_percent": 0
+        }
+        with open(progress_file, 'w') as f:
+            json.dump(progress_data, f, indent=2)
+        
+        sim = LLMSimulation(i, scenario, use_llm_probability, llm_model, llm_url, llm_api_key, progress_file)
         result = sim.run(max_steps)
         results.append(result)
+        
+        # Update progress file after completing run
+        progress_data["run_progress_percent"] = ((i + 1) / n_runs) * 100
+        progress_data["step_progress_percent"] = 100 if result['converged'] else (result['final_step'] / max_steps) * 100
+        with open(progress_file, 'w') as f:
+            json.dump(progress_data, f, indent=2)
         
         # Small delay between runs to avoid overwhelming the LLM
         time.sleep(2)
