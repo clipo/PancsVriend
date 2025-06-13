@@ -465,6 +465,176 @@ When sharing findings:
 4. Discuss **cost/performance tradeoffs**
 5. Share **reproducible code** with exact versions
 
+## 🔬 Design Space Exploration (NEW!)
+
+For **comprehensive research**, the framework includes a powerful design space exploration system that systematically tests different combinations of:
+
+- **LLM Models**: GPT-4, Claude, local models, etc.
+- **Agent Types**: Standard vs memory-enhanced
+- **Social Contexts**: All scenarios (racial, economic, political)
+- **Grid Sizes**: Small to extra-large populations
+- **Multiple Runs**: Statistical significance testing
+
+### 🚀 **Quick Start: Full Design Space**
+
+```bash
+# 1. Configure your experiment matrix
+cp experiment_configs.yaml my_experiment.yaml
+# Edit my_experiment.yaml with your LLM credentials
+
+# 2. Run complete exploration (plan + execute + analyze)
+python run_design_space_exploration.py --all --config my_experiment.yaml
+
+# 3. Results automatically saved with comparative analysis
+```
+
+### 📋 **Step-by-Step Workflow**
+
+#### **1. Plan Experiments**
+```bash
+# Generate experimental design matrix
+python run_design_space_exploration.py --plan \
+    --llms qwen_local gpt4 claude_sonnet \
+    --agents standard memory \
+    --scenarios baseline race_white_black economic_high_working \
+    --grids small medium large
+
+# Output: experiment_plan_TIMESTAMP.json with all combinations
+```
+
+#### **2. Estimate Resources**
+The planner automatically estimates:
+- **Runtime**: 2-48 hours (depending on scope)
+- **API Costs**: $0-$2000+ (depending on LLMs used)
+- **Storage**: 100MB-10GB of results
+
+#### **3. Run Experiments**
+```bash
+# Run all planned experiments
+python run_design_space_exploration.py --run
+
+# Or run in batches for large experiments
+python run_design_space_exploration.py --run --max-experiments 50
+
+# Monitor progress with generated logs
+tail -f design_space_exploration/progress_*.json
+```
+
+#### **4. Analyze Results**
+```bash
+# Generate comprehensive comparative analysis
+python run_design_space_exploration.py --analyze
+
+# Creates visualizations, statistical tests, and reports
+```
+
+### 📊 **Generated Analysis**
+
+The system automatically creates:
+
+#### **Visualizations**
+- **Convergence Analysis**: Speed and patterns across configurations
+- **Segregation Metrics**: All 6 metrics compared systematically  
+- **Memory vs Standard**: Direct comparison of agent types
+- **PCA Analysis**: Principal components of experimental variance
+
+#### **Statistical Tests**
+- **Significance Testing**: ANOVA, Kruskal-Wallis across conditions
+- **Effect Sizes**: Practical significance of differences
+- **Confidence Intervals**: Uncertainty quantification
+
+#### **Reports**
+- **Comprehensive Report**: `comprehensive_report.md` with key findings
+- **Raw Statistics**: `summary_statistics.json` with detailed breakdowns
+- **Test Results**: `statistical_tests.json` with p-values and effect sizes
+
+### 🎯 **Example Research Questions**
+
+The design space explorer helps answer:
+
+1. **LLM Comparison**: "Does GPT-4 show different segregation patterns than Claude?"
+2. **Memory Effects**: "Do memory agents segregate more slowly than standard agents?"
+3. **Context Sensitivity**: "Which social contexts produce fastest segregation?"
+4. **Scale Effects**: "How does population size affect convergence speed?"
+5. **Interaction Effects**: "Do memory benefits vary by LLM model?"
+
+### 📁 **Output Structure**
+
+```
+design_space_exploration/
+├── experiment_plan_TIMESTAMP.json     # Full experimental design
+├── experiments/                       # Individual experiment results
+│   ├── exp_0001/                     # First experiment
+│   │   ├── experiment_config.json    # Configuration
+│   │   └── results.json              # Raw results
+│   └── exp_NNNN/                     # Additional experiments
+├── analysis/                         # Comparative analysis
+│   ├── comprehensive_report.md       # Main findings report
+│   ├── convergence_analysis.png      # Convergence visualizations
+│   ├── segregation_metrics_comparison.png  # Metrics comparison
+│   ├── memory_vs_standard_analysis.png     # Agent type comparison
+│   ├── pca_analysis.png              # Principal component analysis
+│   ├── summary_statistics.json       # Detailed statistics
+│   ├── statistical_tests.json        # Significance tests
+│   └── pca_loadings.csv              # PCA component loadings
+└── logs/                             # Execution logs
+    └── progress_TIMESTAMP.json       # Real-time progress
+```
+
+### 💡 **Configuration Tips**
+
+#### **For Development/Testing**
+```yaml
+# experiment_configs.yaml
+quick_test:
+  enabled: true           # Enable quick mode
+  runs_per_config: 3      # Fewer runs
+  max_steps: 100          # Shorter simulations
+  grids: ["small"]        # Smaller populations
+  scenarios: ["baseline"] # Single scenario
+```
+
+#### **For Production Research**
+```yaml
+experiment_parameters:
+  runs_per_config: 50     # More runs for significance
+  max_steps: 1000         # Full convergence
+  
+grid_configurations:
+  small: {grid_size: 10, type_a: 25, type_b: 25}    # Quick
+  medium: {grid_size: 15, type_a: 75, type_b: 75}   # Moderate  
+  large: {grid_size: 20, type_a: 150, type_b: 150}  # Realistic
+```
+
+### 🚨 **Resource Planning**
+
+Before running large explorations:
+
+1. **Estimate costs**: Check generated `estimates_TIMESTAMP.json`
+2. **Plan time**: Large studies take 12-48 hours
+3. **Monitor progress**: Use progress logs for batch management
+4. **Backup results**: Experiments save continuously
+
+### 📈 **Advanced Usage**
+
+#### **Parallel Execution** (for large machines)
+```bash
+# Split large experiments across multiple processes
+python run_design_space_exploration.py --run --start-idx 0 --max-experiments 25 &
+python run_design_space_exploration.py --run --start-idx 25 --max-experiments 25 &
+python run_design_space_exploration.py --run --start-idx 50 --max-experiments 25 &
+```
+
+#### **Custom Analysis**
+```python
+# Use analyzer directly for custom analysis
+from design_space_analyzer import DesignSpaceAnalyzer
+analyzer = DesignSpaceAnalyzer("my_experiment_results")
+analyzer.create_comprehensive_report()
+```
+
+This design space exploration system transforms your simulation from individual experiments into **systematic scientific investigation** with **statistical rigor** and **comparative analysis**! 🎯
+
 ## 🔧 Advanced Configuration
 
 ### Parallel Processing Tuning:
