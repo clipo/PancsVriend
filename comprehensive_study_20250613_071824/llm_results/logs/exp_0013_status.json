@@ -1,0 +1,21 @@
+{
+  "experiment_id": "exp_0013",
+  "name": "qwen_local_standard_economic_high_working_small",
+  "description": "LLM: qwen_local, Agents: standard, Scenario: economic_high_working, Grid: small",
+  "agent_type": "standard",
+  "scenario": "economic_high_working",
+  "grid_size": 10,
+  "num_type_a": 25,
+  "num_type_b": 25,
+  "llm_model": "qwen2.5-coder:32B",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key": "sk-571df6eec7f5495faef553ab5cb2c67a",
+  "n_runs": 5,
+  "max_steps": 1000,
+  "use_llm_probability": 1.0,
+  "timestamp": "2025-06-13T07:20:21.366968",
+  "status": "failed",
+  "output_dir": "comprehensive_study_20250613_071824/llm_results/experiments/exp_0013",
+  "runtime_seconds": 0.6206321716308594,
+  "error_message": "usage: llm_runner.py [-h]\n                     [--scenario {baseline,race_white_black,race_asian_hispanic,income_high_low,political_liberal_conservative}]\n                     [--runs RUNS] [--max-steps MAX_STEPS]\n                     [--llm-probability LLM_PROBABILITY]\nllm_runner.py: error: argument --scenario: invalid choice: 'economic_high_working' (choose from 'baseline', 'race_white_black', 'race_asian_hispanic', 'income_high_low', 'political_liberal_conservative')\n"
+}

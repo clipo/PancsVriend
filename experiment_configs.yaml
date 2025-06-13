@@ -34,7 +34,7 @@ scenarios:
   - baseline
   - race_white_black
   - ethnic_asian_hispanic
-  - economic_high_working
+  - income_high_low
   - political_liberal_conservative
 
 # Grid Configurations to test

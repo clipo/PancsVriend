@@ -142,7 +142,7 @@ Respond with ONLY:
 
 No explanation needed. Just your decision:"""
     },
-    'race_asian_hispanic': {
+    'ethnic_asian_hispanic': {
         'type_a': 'Asian American family',
         'type_b': 'Hispanic/Latino family',
         'prompt_template': """You are a {agent_type} considering moving to a different house in your neighborhood.
@@ -673,6 +673,9 @@ if __name__ == "__main__":
     parser.add_argument('--max-steps', type=int, default=1000, help='Maximum steps per simulation')
     parser.add_argument('--llm-probability', type=float, default=1.0, 
                         help='Probability of using LLM for each agent (vs mechanical)')
+    parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
+    parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
+    parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
     
     args = parser.parse_args()
     
@@ -680,5 +683,8 @@ if __name__ == "__main__":
         scenario=args.scenario,
         n_runs=args.runs,
         max_steps=args.max_steps,
-        use_llm_probability=args.llm_probability
+        use_llm_probability=args.llm_probability,
+        llm_model=args.llm_model,
+        llm_url=args.llm_url,
+        llm_api_key=args.llm_api_key
     )

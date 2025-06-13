@@ -21,7 +21,7 @@ scenarios:
   - baseline                    # Control: Red vs Blue (no social meaning)
   - race_white_black           # Racial context: White vs Black families
   - ethnic_asian_hispanic      # Ethnic context: Asian vs Hispanic families  
-  - economic_high_working      # Economic context: High-income vs Working-class
+  - income_high_low            # Economic context: High-income vs Working-class
   - political_liberal_conservative  # Political context: Liberal vs Conservative
 
 # Grid Configurations (recommend medium for good statistical power)
