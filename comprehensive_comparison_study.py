@@ -121,6 +121,28 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
     with open(llm_config_file, 'w') as f:
         yaml.dump(config, f)
     
+    # Update config.py with LLM settings if provided
+    if llm_model or llm_url or llm_api_key:
+        print(f"📝 Updating LLM configuration...")
+        if llm_model:
+            print(f"   Model: {llm_model}")
+        if llm_url:
+            print(f"   URL: {llm_url}")
+        if llm_api_key:
+            print(f"   API Key: {llm_api_key[-4:]}...")
+        
+        update_cmd = ["python", "update_default_llm.py"]
+        if llm_model:
+            update_cmd.extend(["--model", llm_model])
+        if llm_url:
+            update_cmd.extend(["--url", llm_url])
+        if llm_api_key:
+            update_cmd.extend(["--api-key", llm_api_key])
+        
+        result = subprocess.run(update_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"⚠️  Warning: Failed to update LLM config: {result.stderr}")
+    
     # Run LLM design space exploration
     cmd = [
         "python", "run_design_space_exploration.py", 
@@ -128,14 +150,6 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
         "--config", str(llm_config_file),
         "--output-dir", str(base_output_dir / "llm_results")
     ]
-    
-    # Add LLM configuration arguments if provided
-    if llm_model:
-        cmd.extend(["--llm-model", llm_model])
-    if llm_url:
-        cmd.extend(["--llm-url", llm_url])
-    if llm_api_key:
-        cmd.extend(["--llm-api-key", llm_api_key])
     
     print("Starting LLM design space exploration...")
     result = subprocess.run(cmd)
