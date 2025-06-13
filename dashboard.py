@@ -210,6 +210,15 @@ def create_convergence_comparison(metrics_df, selected_experiments):
     
     return fig
 
+def is_experiment_active(exp_dir):
+    """Check if experiment is still running"""
+    progress_data = load_progress_data(exp_dir)
+    if progress_data:
+        completed = progress_data.get('completed', 0)
+        total = progress_data.get('total_planned', 1)
+        return completed < total
+    return False
+
 def create_agent_type_comparison(df):
     """Create comparison of metrics by agent type"""
     if df.empty:
@@ -247,12 +256,60 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
         
-        # Directory selection
-        experiment_dir = st.text_input(
-            "Experiment Directory",
-            value="design_space_exploration",
-            help="Path to experiment results directory"
+        # Find all available experiment directories
+        comp_dirs = glob.glob("comprehensive_study_*/llm_results")
+        design_dirs = glob.glob("design_space_exploration")
+        exp_dirs = glob.glob("experiments/llm_*")
+        
+        # Combine and sort by modification time
+        all_dirs = comp_dirs + design_dirs + exp_dirs
+        all_dirs = [d for d in all_dirs if Path(d).exists()]
+        all_dirs.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
+        
+        # Add default if no directories found
+        if not all_dirs:
+            all_dirs = ["design_space_exploration"]
+        
+        # Show directory count
+        st.caption(f"Found {len(all_dirs)} experiment directories")
+        
+        # Directory selection dropdown
+        experiment_dir = st.selectbox(
+            "Select Experiment Directory",
+            options=all_dirs,
+            index=0,
+            format_func=lambda x: f"{x} ({'Active' if is_experiment_active(x) else 'Complete'})",
+            help="Choose from available experiment directories"
         )
+        
+        # Show experiment info
+        if experiment_dir and Path(experiment_dir).exists():
+            progress_data = load_progress_data(experiment_dir)
+            if progress_data:
+                st.markdown("**Experiment Info:**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Progress", f"{progress_data.get('progress_percent', 0):.0f}%")
+                with col2:
+                    st.metric("Completed", f"{progress_data.get('completed', 0)}/{progress_data.get('total_planned', 0)}")
+                
+                # Last update time
+                progress_files = glob.glob(f"{experiment_dir}/progress_*.json")
+                if progress_files:
+                    latest_file = max(progress_files, key=lambda x: Path(x).stat().st_mtime)
+                    mtime = Path(latest_file).stat().st_mtime
+                    from datetime import datetime
+                    last_update = datetime.fromtimestamp(mtime)
+                    time_ago = (datetime.now() - last_update).total_seconds()
+                    
+                    if time_ago < 60:
+                        st.caption(f"Updated {int(time_ago)}s ago")
+                    elif time_ago < 3600:
+                        st.caption(f"Updated {int(time_ago/60)}m ago")
+                    else:
+                        st.caption(f"Updated {int(time_ago/3600)}h ago")
+        
+        st.markdown("---")
         
         # Auto-refresh toggle
         auto_refresh = st.checkbox("Auto-refresh", value=True)

@@ -93,7 +93,32 @@ def create_simple_dashboard():
     # Sidebar
     with st.sidebar:
         st.header("Settings")
-        experiment_dir = st.text_input("Experiment Directory", "design_space_exploration")
+        
+        # Find all available experiment directories
+        comp_dirs = glob.glob("comprehensive_study_*/llm_results")
+        design_dirs = glob.glob("design_space_exploration")
+        exp_dirs = glob.glob("experiments/llm_*")
+        
+        # Combine and sort by modification time
+        all_dirs = comp_dirs + design_dirs + exp_dirs
+        all_dirs = [d for d in all_dirs if Path(d).exists()]
+        all_dirs.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
+        
+        # Add default if no directories found
+        if not all_dirs:
+            all_dirs = ["design_space_exploration"]
+            st.warning("No experiment directories found")
+        else:
+            st.success(f"Found {len(all_dirs)} experiment(s)")
+        
+        # Directory selection dropdown
+        experiment_dir = st.selectbox(
+            "Select Experiment",
+            options=all_dirs,
+            index=0,
+            help="Choose from available experiment directories"
+        )
+        
         auto_refresh = st.checkbox("Auto-refresh", True)
         
         if st.button("🔄 Refresh Now"):
