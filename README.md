@@ -292,22 +292,40 @@ Monitor experiments in real-time with a web-based dashboard:
 # Install dashboard dependencies (one-time)
 pip install streamlit pandas plotly
 
-# Launch interactive dashboard
+# Launch interactive dashboard with auto-detected experiments
 streamlit run dashboard.py
 
-# Or use the simple dashboard (fewer dependencies)
+# Or use interactive menu to select specific experiment
+python launch_dashboard_menu.py
+
+# Simple dashboard (fewer dependencies)
 python dashboard_simple.py
 
 # Text-only progress monitor (no dependencies)
-python dashboard_simple.py --simple
+python monitor_latest.py
 ```
 
 **Dashboard Features:**
-- **Real-time Progress**: Live experiment tracking with progress bars
-- **Experiment Timeline**: Visual Gantt chart of running experiments  
-- **Results Analysis**: Interactive plots comparing agent types
-- **Metrics Heatmap**: Segregation patterns across all experiments
-- **Auto-refresh**: Updates every 5-10 seconds automatically
+- **🎯 Auto-Detection**: Automatically finds all experiment directories
+- **📁 Dropdown Menu**: Select from comprehensive studies, design space explorations, etc.
+- **⏱️ Real-time Progress**: Live experiment tracking with progress bars and status
+- **📊 Experiment Timeline**: Visual Gantt chart of running experiments  
+- **📈 Results Analysis**: Interactive plots comparing agent types
+- **🔥 Metrics Heatmap**: Segregation patterns across all experiments
+- **🔄 Auto-refresh**: Updates every 5-10 seconds automatically
+- **📍 Smart Defaults**: Most recent experiments appear first
+
+**Quick Status Commands:**
+```bash
+# Quick overview of all experiments
+python show_status.py
+
+# Monitor latest experiment automatically  
+python monitor_latest.py
+
+# Check progress once without continuous monitoring
+python monitor_progress.py --once
+```
 
 Access the dashboard at: http://localhost:8501
 
@@ -543,14 +561,17 @@ python run_design_space_exploration.py --run
 # Or run in batches for large experiments
 python run_design_space_exploration.py --run --max-experiments 50
 
-# Monitor progress in real-time (separate terminal)
-python monitor_progress.py
+# Monitor progress automatically (finds latest experiment)
+python monitor_latest.py
 
-# Or check current status once
-python monitor_progress.py --once
+# Or launch the interactive dashboard
+streamlit run dashboard.py
 
-# View raw progress logs
-tail -f design_space_exploration/progress_*.json
+# Or get a quick status overview
+python show_status.py
+
+# Monitor specific directory
+python monitor_progress.py --output-dir design_space_exploration
 ```
 
 #### **4. Analyze Results**
@@ -1005,13 +1026,19 @@ Approximate costs per run (default 20x20 grid):
    # Grid size 10x10 = 50 agents = 5x faster
    ```
 
-2. **For Batch Experiments**
+2. **For Monitoring Long Experiments**
    ```bash
-   # Run overnight
-   nohup python run_experiments.py > experiment.log 2>&1 &
+   # Start experiment in one terminal
+   python comprehensive_comparison_study.py
    
-   # Monitor progress
-   tail -f experiment.log
+   # Monitor in another terminal with auto-detection
+   python monitor_latest.py
+   
+   # Or use the web dashboard
+   streamlit run dashboard.py
+   
+   # Quick status check anytime
+   python show_status.py
    ```
 
 3. **For Cost Reduction**
@@ -1051,23 +1078,27 @@ python comprehensive_comparison_study.py --quick-test
 
 #### **Study Stops Mid-Execution or No Progress Visible**
 ```bash
-# Monitor progress in real-time (separate terminal)
-python monitor_progress.py
+# Get overview of all experiments (RECOMMENDED)
+python show_status.py
 
-# Check specific progress file
-python monitor_progress.py --once
+# Monitor latest experiment automatically
+python monitor_latest.py
 
-# Check raw progress logs
-tail -f comprehensive_study_*/logs/progress_*.json
+# Use interactive dashboard
+streamlit run dashboard.py
+
+# Check specific experiment progress  
+python monitor_progress.py --output-dir comprehensive_study_20250613_072502/llm_results
 
 # Resume from last checkpoint (experiments save continuously)
-python comprehensive_comparison_study.py --config my_study.yaml
-# Will skip completed experiments automatically
+python comprehensive_comparison_study.py
+# Will automatically skip completed experiments
 ```
 
 **If you see "🚀 Running experimental design space" but no progress**:
-- The experiments are running but output is buffered
-- Open a **second terminal** and run `python monitor_progress.py`
+- The experiments are running - monitoring tools will auto-detect them
+- Open a **second terminal** and run `python monitor_latest.py`
+- Or use `python show_status.py` for a quick overview
 - This will show real-time progress: `Progress: 5/30 (16.7%) | ✅ 4 | ❌ 1`
 - Large experiments can take 2-5 minutes per experiment to start showing progress
 
