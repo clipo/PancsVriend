@@ -130,43 +130,16 @@ def launch_dashboard(experiment):
     print(f"\n🚀 Launching dashboard for: {experiment['path']}")
     print("="*70)
     
-    # Create temporary launcher script
-    launcher_code = f'''
-import streamlit as st
-import sys
-sys.path.append(".")
-from dashboard import *
-
-# Override default directory
-DEFAULT_DIR = "{experiment['path']}"
-
-if __name__ == "__main__":
-    st.set_page_config(
-        page_title="Schelling Experiments - {experiment['type']}",
-        page_icon="🏘️",
-        layout="wide"
-    )
+    # Set environment variable for the dashboard to pick up
+    os.environ["DASHBOARD_DEFAULT_DIR"] = experiment['path']
     
-    # Run main with modified sidebar
-    main()
-'''
+    # Launch streamlit directly with the main dashboard
+    print("\n💡 Dashboard will open in your browser automatically")
+    print("   If not, navigate to: http://localhost:8501")
+    print(f"\n   The dashboard will default to: {experiment['path']}")
+    print("   Press Ctrl+C to stop the dashboard\n")
     
-    # Save temporary launcher
-    temp_file = "temp_dashboard_launcher.py"
-    with open(temp_file, 'w') as f:
-        f.write(launcher_code)
-    
-    try:
-        # Launch streamlit
-        print("\n💡 Dashboard will open in your browser automatically")
-        print("   If not, navigate to: http://localhost:8501")
-        print("\n   Press Ctrl+C to stop the dashboard\n")
-        
-        subprocess.run([sys.executable, "-m", "streamlit", "run", temp_file])
-    finally:
-        # Clean up
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+    subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
 
 def main():
     """Main entry point"""

@@ -270,6 +270,14 @@ def main():
         if not all_dirs:
             all_dirs = ["design_space_exploration"]
         
+        # Check for environment variable override
+        import os
+        default_dir = os.environ.get("DASHBOARD_DEFAULT_DIR")
+        if default_dir and default_dir in all_dirs:
+            # Move the specified directory to the front
+            all_dirs.remove(default_dir)
+            all_dirs.insert(0, default_dir)
+        
         # Show directory count
         st.caption(f"Found {len(all_dirs)} experiment directories")
         
