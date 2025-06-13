@@ -1,0 +1,247 @@
+{
+  "total_experiments": 40,
+  "estimated_runtime_hours": 18.4375,
+  "estimated_cost_usd": 0.0,
+  "breakdown_by_experiment": [
+    {
+      "experiment_id": "exp_0001",
+      "name": "qwen_local_standard_baseline_small",
+      "estimated_time_minutes": 3.75,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0002",
+      "name": "qwen_local_standard_baseline_medium",
+      "estimated_time_minutes": 10.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0003",
+      "name": "qwen_local_standard_baseline_large",
+      "estimated_time_minutes": 25.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0004",
+      "name": "qwen_local_standard_baseline_xlarge",
+      "estimated_time_minutes": 50.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0005",
+      "name": "qwen_local_standard_race_white_black_small",
+      "estimated_time_minutes": 3.75,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0006",
+      "name": "qwen_local_standard_race_white_black_medium",
+      "estimated_time_minutes": 10.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0007",
+      "name": "qwen_local_standard_race_white_black_large",
+      "estimated_time_minutes": 25.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0008",
+      "name": "qwen_local_standard_race_white_black_xlarge",
+      "estimated_time_minutes": 50.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0009",
+      "name": "qwen_local_standard_ethnic_asian_hispanic_small",
+      "estimated_time_minutes": 3.75,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0010",
+      "name": "qwen_local_standard_ethnic_asian_hispanic_medium",
+      "estimated_time_minutes": 10.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0011",
+      "name": "qwen_local_standard_ethnic_asian_hispanic_large",
+      "estimated_time_minutes": 25.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0012",
+      "name": "qwen_local_standard_ethnic_asian_hispanic_xlarge",
+      "estimated_time_minutes": 50.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0013",
+      "name": "qwen_local_standard_economic_high_working_small",
+      "estimated_time_minutes": 3.75,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0014",
+      "name": "qwen_local_standard_economic_high_working_medium",
+      "estimated_time_minutes": 10.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0015",
+      "name": "qwen_local_standard_economic_high_working_large",
+      "estimated_time_minutes": 25.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0016",
+      "name": "qwen_local_standard_economic_high_working_xlarge",
+      "estimated_time_minutes": 50.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0017",
+      "name": "qwen_local_standard_political_liberal_conservative_small",
+      "estimated_time_minutes": 3.75,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0018",
+      "name": "qwen_local_standard_political_liberal_conservative_medium",
+      "estimated_time_minutes": 10.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0019",
+      "name": "qwen_local_standard_political_liberal_conservative_large",
+      "estimated_time_minutes": 25.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0020",
+      "name": "qwen_local_standard_political_liberal_conservative_xlarge",
+      "estimated_time_minutes": 50.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0021",
+      "name": "qwen_local_memory_baseline_small",
+      "estimated_time_minutes": 5.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0022",
+      "name": "qwen_local_memory_baseline_medium",
+      "estimated_time_minutes": 15.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0023",
+      "name": "qwen_local_memory_baseline_large",
+      "estimated_time_minutes": 37.5,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0024",
+      "name": "qwen_local_memory_baseline_xlarge",
+      "estimated_time_minutes": 75.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0025",
+      "name": "qwen_local_memory_race_white_black_small",
+      "estimated_time_minutes": 5.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0026",
+      "name": "qwen_local_memory_race_white_black_medium",
+      "estimated_time_minutes": 15.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0027",
+      "name": "qwen_local_memory_race_white_black_large",
+      "estimated_time_minutes": 37.5,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0028",
+      "name": "qwen_local_memory_race_white_black_xlarge",
+      "estimated_time_minutes": 75.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0029",
+      "name": "qwen_local_memory_ethnic_asian_hispanic_small",
+      "estimated_time_minutes": 5.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0030",
+      "name": "qwen_local_memory_ethnic_asian_hispanic_medium",
+      "estimated_time_minutes": 15.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0031",
+      "name": "qwen_local_memory_ethnic_asian_hispanic_large",
+      "estimated_time_minutes": 37.5,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0032",
+      "name": "qwen_local_memory_ethnic_asian_hispanic_xlarge",
+      "estimated_time_minutes": 75.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0033",
+      "name": "qwen_local_memory_economic_high_working_small",
+      "estimated_time_minutes": 5.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0034",
+      "name": "qwen_local_memory_economic_high_working_medium",
+      "estimated_time_minutes": 15.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0035",
+      "name": "qwen_local_memory_economic_high_working_large",
+      "estimated_time_minutes": 37.5,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0036",
+      "name": "qwen_local_memory_economic_high_working_xlarge",
+      "estimated_time_minutes": 75.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0037",
+      "name": "qwen_local_memory_political_liberal_conservative_small",
+      "estimated_time_minutes": 5.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0038",
+      "name": "qwen_local_memory_political_liberal_conservative_medium",
+      "estimated_time_minutes": 15.0,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0039",
+      "name": "qwen_local_memory_political_liberal_conservative_large",
+      "estimated_time_minutes": 37.5,
+      "estimated_cost_usd": 0.0
+    },
+    {
+      "experiment_id": "exp_0040",
+      "name": "qwen_local_memory_political_liberal_conservative_xlarge",
+      "estimated_time_minutes": 75.0,
+      "estimated_cost_usd": 0.0
+    }
+  ]
+}

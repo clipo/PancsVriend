@@ -10,6 +10,9 @@ import sys
 from pathlib import Path
 import yaml
 import json
+import time
+import threading
+import glob
 
 def load_config(config_file="experiment_configs.yaml"):
     """Load experiment configuration from YAML file"""
@@ -27,17 +30,12 @@ def run_command(cmd, description):
     print("-" * 60)
     
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-        print(result.stdout)
-        if result.stderr:
-            print("Warnings:", result.stderr)
+        # Run without capturing output to show real-time progress
+        result = subprocess.run(cmd, shell=True, check=True)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error: {e}")
-        if e.stdout:
-            print("Output:", e.stdout)
-        if e.stderr:
-            print("Error:", e.stderr)
+        print(f"❌ Error: Command failed with exit code {e.returncode}")
+        print(f"Command: {cmd}")
         return False
 
 def plan_experiments(config, args):
@@ -74,8 +72,42 @@ def plan_experiments(config, args):
     cmd = " ".join(cmd_parts)
     return run_command(cmd, "Planning experimental design space")
 
+def monitor_progress(output_dir, stop_event):
+    """Monitor and display progress from JSON files"""
+    progress_pattern = f"{output_dir}/progress_*.json"
+    last_progress = None
+    
+    while not stop_event.is_set():
+        try:
+            # Find latest progress file
+            progress_files = glob.glob(progress_pattern)
+            if progress_files:
+                latest_file = max(progress_files, key=lambda x: Path(x).stat().st_mtime)
+                
+                with open(latest_file) as f:
+                    progress = json.load(f)
+                
+                # Only update if progress changed
+                if progress != last_progress:
+                    completed = progress.get("completed", 0)
+                    total = progress.get("total_planned", 0)
+                    successful = progress.get("successful", 0)
+                    failed = progress.get("failed", 0)
+                    percent = progress.get("progress_percent", 0)
+                    
+                    if total > 0:
+                        print(f"\r📊 Progress: {completed}/{total} experiments ({percent:.1f}%) | ✅ {successful} | ❌ {failed}", end="", flush=True)
+                    last_progress = progress
+                    
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+        
+        time.sleep(5)  # Check every 5 seconds
+    
+    print()  # New line when done
+
 def run_experiments(args):
-    """Run the planned experiments"""
+    """Run the planned experiments with progress monitoring"""
     
     cmd_parts = ["python experiment_explorer.py --mode run"]
     
@@ -89,7 +121,31 @@ def run_experiments(args):
         cmd_parts.append(f"--output-dir {args.output_dir}")
         
     cmd = " ".join(cmd_parts)
-    return run_command(cmd, "Running experimental design space")
+    
+    # Start progress monitoring in background
+    stop_event = threading.Event()
+    progress_thread = threading.Thread(target=monitor_progress, args=(args.output_dir, stop_event))
+    progress_thread.daemon = True
+    progress_thread.start()
+    
+    print(f"\n🚀 Running experimental design space")
+    print("-" * 60)
+    print("💡 Real-time progress will be shown below...")
+    
+    try:
+        # Run experiments with real-time output
+        result = subprocess.run(cmd, shell=True, check=True)
+        success = True
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Error: Command failed with exit code {e.returncode}")
+        print(f"Command: {cmd}")
+        success = False
+    finally:
+        # Stop progress monitoring
+        stop_event.set()
+        progress_thread.join(timeout=1)
+    
+    return success
 
 def analyze_results(args):
     """Analyze the experimental results"""

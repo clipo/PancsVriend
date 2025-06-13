@@ -1,0 +1,21 @@
+{
+  "experiment_id": "exp_0025",
+  "name": "qwen_local_memory_race_white_black_small",
+  "description": "LLM: qwen_local, Agents: memory, Scenario: race_white_black, Grid: small",
+  "agent_type": "memory",
+  "scenario": "race_white_black",
+  "grid_size": 10,
+  "num_type_a": 25,
+  "num_type_b": 25,
+  "llm_model": "qwen2.5-coder:32B",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key": "sk-571df6eec7f5495faef553ab5cb2c67a",
+  "n_runs": 5,
+  "max_steps": 1000,
+  "use_llm_probability": 1.0,
+  "timestamp": "2025-06-13T04:27:38.227096",
+  "status": "failed",
+  "output_dir": "comprehensive_study_20250612_205640/llm_results/experiments/exp_0025",
+  "runtime_seconds": 7200.024506807327,
+  "error_message": "Timeout after 2 hours"
+}

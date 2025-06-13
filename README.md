@@ -516,7 +516,13 @@ python run_design_space_exploration.py --run
 # Or run in batches for large experiments
 python run_design_space_exploration.py --run --max-experiments 50
 
-# Monitor progress with generated logs
+# Monitor progress in real-time (separate terminal)
+python monitor_progress.py
+
+# Or check current status once
+python monitor_progress.py --once
+
+# View raw progress logs
 tail -f design_space_exploration/progress_*.json
 ```
 
@@ -1016,15 +1022,27 @@ python check_llm.py --llm-model "your-model" --llm-url "your-url" --llm-api-key 
 python comprehensive_comparison_study.py --quick-test
 ```
 
-#### **Study Stops Mid-Execution**
+#### **Study Stops Mid-Execution or No Progress Visible**
 ```bash
-# Check progress
+# Monitor progress in real-time (separate terminal)
+python monitor_progress.py
+
+# Check specific progress file
+python monitor_progress.py --once
+
+# Check raw progress logs
 tail -f comprehensive_study_*/logs/progress_*.json
 
 # Resume from last checkpoint (experiments save continuously)
 python comprehensive_comparison_study.py --config my_study.yaml
 # Will skip completed experiments automatically
 ```
+
+**If you see "🚀 Running experimental design space" but no progress**:
+- The experiments are running but output is buffered
+- Open a **second terminal** and run `python monitor_progress.py`
+- This will show real-time progress: `Progress: 5/30 (16.7%) | ✅ 4 | ❌ 1`
+- Large experiments can take 2-5 minutes per experiment to start showing progress
 
 #### **Memory Issues with Large Studies**
 ```bash
