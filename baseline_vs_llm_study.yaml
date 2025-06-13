@@ -4,12 +4,12 @@
 # 2. Standard LLM agents across social contexts
 # 3. Memory-enhanced LLM agents across social contexts
 
-# LLM Configuration (using your existing setup)
+# LLM Configuration (uses config.py defaults, can be overridden via command line)
 llm_configurations:
-  qwen_local:
-    model: "qwen2.5-coder:32B"
-    url: "https://chat.binghamton.edu/api/chat/completions"
-    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+  default:
+    model: "mixtral:8x22b-instruct"  # Uses config.py OLLAMA_MODEL by default
+    url: "https://chat.binghamton.edu/api/chat/completions"  # Uses config.py OLLAMA_URL by default
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"  # Uses config.py OLLAMA_API_KEY by default
 
 # COMPLETE AGENT COMPARISON MATRIX
 agent_types:

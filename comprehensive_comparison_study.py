@@ -11,8 +11,10 @@ from pathlib import Path
 import yaml
 from datetime import datetime
 import pandas as pd
+import config
+from llm_presets import LLM_PRESETS, validate_preset, get_preset_args
 
-def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml"):
+def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=None, llm_url=None, llm_api_key=None, llm_preset=None):
     """Run the complete 3-way comparison study"""
     
     print("🔬 COMPREHENSIVE COMPARISON STUDY")
@@ -22,6 +24,31 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml"):
     print("2. 🤖 Standard LLM Agents (current context only)")  
     print("3. 🧠 Memory LLM Agents (human-like with history)")
     print("4. 🌍 All Social Contexts (5 scenarios)")
+    print("=" * 60)
+    
+    # Handle LLM configuration
+    if llm_preset:
+        valid, message = validate_preset(llm_preset)
+        if not valid:
+            print(f"❌ Error with preset '{llm_preset}': {message}")
+            return False
+        preset_args = get_preset_args(llm_preset)
+        llm_model = preset_args['llm_model']
+        llm_url = preset_args['llm_url'] 
+        llm_api_key = preset_args['llm_api_key']
+        print(f"🔧 Using LLM preset: {llm_preset} ({LLM_PRESETS[llm_preset]['name']})")
+    elif llm_model or llm_url or llm_api_key:
+        print("🔧 Using custom LLM configuration:")
+        if llm_model: print(f"   Model: {llm_model}")
+        if llm_url: print(f"   URL: {llm_url}")
+        if llm_api_key: print(f"   API Key: {llm_api_key[:10]}...")
+    else:
+        # Use defaults from config.py
+        llm_model = config.OLLAMA_MODEL
+        llm_url = config.OLLAMA_URL
+        llm_api_key = config.OLLAMA_API_KEY
+        print(f"🔧 Using default LLM configuration: {llm_model}")
+    
     print("=" * 60)
     
     # Load configuration
@@ -102,6 +129,14 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml"):
         "--output-dir", str(base_output_dir / "llm_results")
     ]
     
+    # Add LLM configuration arguments if provided
+    if llm_model:
+        cmd.extend(["--llm-model", llm_model])
+    if llm_url:
+        cmd.extend(["--llm-url", llm_url])
+    if llm_api_key:
+        cmd.extend(["--llm-api-key", llm_api_key])
+    
     print("Starting LLM design space exploration...")
     result = subprocess.run(cmd)
     
@@ -178,11 +213,34 @@ def generate_three_way_comparison(base_output_dir, mechanical_results, scenarios
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="Comprehensive Comparison Study")
+    parser = argparse.ArgumentParser(
+        description="Comprehensive Comparison Study: Mechanical vs LLM Agents",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                                    # Use default configuration (Mixtral)
+  %(prog)s --preset mixtral                   # Use Mixtral preset
+  %(prog)s --preset qwen                      # Use Qwen preset
+  %(prog)s --quick-test                       # Quick test with defaults
+  %(prog)s --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
+        """
+    )
+    
     parser.add_argument("--config", default="baseline_vs_llm_study.yaml",
                        help="Configuration file")
     parser.add_argument("--quick-test", action="store_true",
                        help="Run in quick test mode")
+    
+    # LLM Configuration
+    llm_group = parser.add_argument_group('LLM Configuration')
+    llm_group.add_argument("--preset", type=str,
+                          help="Use LLM preset (mixtral, qwen, gpt4, etc.). See: python llm_presets.py")
+    llm_group.add_argument("--llm-model", type=str,
+                          help="LLM model to use (overrides config.py)")
+    llm_group.add_argument("--llm-url", type=str,
+                          help="LLM API URL (overrides config.py)")
+    llm_group.add_argument("--llm-api-key", type=str,
+                          help="LLM API key (overrides config.py)")
     
     args = parser.parse_args()
     
@@ -197,7 +255,13 @@ def main():
             yaml.dump(config, f)
         args.config = quick_config_file
     
-    success = run_comprehensive_study(args.config)
+    success = run_comprehensive_study(
+        args.config,
+        llm_model=args.llm_model,
+        llm_url=args.llm_url,
+        llm_api_key=args.llm_api_key,
+        llm_preset=args.preset
+    )
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
