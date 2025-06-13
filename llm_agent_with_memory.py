@@ -49,20 +49,22 @@ class LLMAgentWithMemory(Agent):
         
         elif scenario == 'race_white_black':
             if type_id == 0:
+                children_count = random.choice([0, 1, 2, 3])
                 self.identity = {
                     'type': 'white middle class family',
-                    'children': random.choice([0, 1, 2, 3]),
-                    'children_ages': self._generate_children_ages(),
+                    'children': children_count,
+                    'children_ages': self._generate_children_ages(children_count),
                     'homeowner_status': random.choice(['owner', 'renter']),
                     'years_in_area': random.randint(0, 20),
                     'extended_family_nearby': random.choice([True, False]),
                     'primary_concerns': random.sample(['schools', 'property_values', 'safety', 'community'], 2)
                 }
             else:
+                children_count = random.choice([0, 1, 2, 3])
                 self.identity = {
                     'type': 'Black family',
-                    'children': random.choice([0, 1, 2, 3]),
-                    'children_ages': self._generate_children_ages(),
+                    'children': children_count,
+                    'children_ages': self._generate_children_ages(children_count),
                     'homeowner_status': random.choice(['owner', 'renter', 'seeking_to_buy']),
                     'church_affiliation': random.choice([True, False]),
                     'extended_family_nearby': random.choice([True, False]),
@@ -86,6 +88,14 @@ class LLMAgentWithMemory(Agent):
                     'support_network_importance': random.choice(['critical', 'very_important', 'important']),
                     'financial_stress': random.choice(['high', 'moderate', 'manageable'])
                 }
+        
+        else:
+            # Default fallback
+            self.identity = {
+                'type': 'resident',
+                'tolerance_level': random.choice(['low', 'moderate', 'high']),
+                'stability_preference': random.choice(['likes_change', 'neutral', 'prefers_stability'])
+            }
                 
         # Add personality traits common to all
         self.identity.update({
@@ -94,11 +104,11 @@ class LLMAgentWithMemory(Agent):
             'neighbor_memory_strength': random.choice(['excellent', 'good', 'average'])
         })
         
-    def _generate_children_ages(self):
+    def _generate_children_ages(self, children_count=None):
         """Generate realistic children ages if applicable"""
-        if not hasattr(self.identity, 'children') or self.identity.get('children', 0) == 0:
+        if children_count is None or children_count == 0:
             return []
-        return sorted([random.randint(0, 18) for _ in range(self.identity.get('children', 0))])
+        return sorted([random.randint(0, 18) for _ in range(children_count)])
     
     def remember_move(self, from_pos, to_pos, reason, neighborhood_snapshot):
         """Record a move in agent's memory"""
