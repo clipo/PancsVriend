@@ -1,0 +1,37 @@
+# MINIMAL TEST CONFIGURATION FOR QUICK VALIDATION
+# This runs just 2 experiments to test the framework
+
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# Just one agent type for testing
+agent_types:
+  - standard
+
+# Just baseline scenario  
+scenarios:
+  - baseline
+
+# Just small grid
+grid_configurations:
+  small:
+    grid_size: 10
+    type_a: 25
+    type_b: 25
+
+# Minimal parameters for fast testing
+experiment_parameters:
+  runs_per_config: 2          # Just 2 runs
+  max_steps: 20               # Only 20 steps
+  use_llm_probability: 0.2    # Only 20% LLM usage
+
+# Quick test already enabled
+quick_test:
+  enabled: true
+  runs_per_config: 2
+  max_steps: 20
+  grids: ["small"]
+  scenarios: ["baseline"]
