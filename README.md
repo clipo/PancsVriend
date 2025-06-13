@@ -655,20 +655,25 @@ This gives you a **3×5×2 factorial design** = **30 experiments** with **900 to
 
 ### 🚀 **Quick Start: Complete Study**
 
+The comprehensive study uses your existing LLM configuration from `config.py` automatically:
+
 ```bash
-# 1. Set up your LLM credentials in the config
+# 1. Quick test first (recommended - 2 hours)
+python comprehensive_comparison_study.py --quick-test
+
+# 2. Run full study (overnight/weekend - 40 hours) 
+python comprehensive_comparison_study.py
+
+# 3. View study design matrix
+python show_study_matrix.py
+```
+
+**Advanced configuration**:
+```bash
+# Use custom LLM settings
 cp baseline_vs_llm_study.yaml my_study.yaml
-# Edit my_study.yaml with your LLM API details
-
-# 2. Quick test first (recommended)
-python comprehensive_comparison_study.py --quick-test --config my_study.yaml
-# Takes ~2 hours, validates everything works
-
-# 3. Run full study (overnight/weekend recommended)
+# Edit my_study.yaml with different LLM credentials
 python comprehensive_comparison_study.py --config my_study.yaml
-# Takes ~40 hours, generates complete dataset
-
-# 4. Results automatically analyzed and saved
 ```
 
 ### 📊 **Study Design Overview**
@@ -687,6 +692,21 @@ python comprehensive_comparison_study.py --config my_study.yaml
 | 🤖 Standard LLM | 5 scenarios | 2 sizes | 30 | 300 |
 | 🧠 Memory LLM | 5 scenarios | 2 sizes | 30 | 300 |
 | **TOTAL** | **5** | **2** | **30** | **900** |
+
+#### **Complete Design Matrix**
+View the full experimental design:
+```bash
+# See complete 30-experiment matrix with details
+python show_study_matrix.py
+```
+
+**3×5×2 Factorial Design**: 
+- **3 Agent Types**: Mechanical, Standard LLM, Memory LLM
+- **5 Social Contexts**: baseline, race_white_black, ethnic_asian_hispanic, economic_high_working, political_liberal_conservative  
+- **2 Grid Sizes**: medium (15×15, 150 agents), large (20×20, 300 agents)
+- **30 Runs Each**: Statistical significance with confidence intervals
+
+This generates **900 total simulations** systematically comparing how different agent architectures respond to social contexts.
 
 #### **Expected Findings**
 - **📐 Mechanical**: Fast, predictable segregation regardless of social context
