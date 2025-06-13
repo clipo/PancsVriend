@@ -174,6 +174,56 @@ All experiment scripts support these LLM configuration flags:
 
 ## 🧠 How LLM Agents Work
 
+### 🆕 Enhanced Agents with Memory (NEW!)
+
+The framework now supports **memory-enhanced agents** that act more like real humans by maintaining:
+
+#### **Personal Identity & Characteristics**
+Each agent has persistent traits:
+- **Demographics**: Family size, children's ages, profession, income level
+- **Personality**: Tolerance level, decision style, stability preference
+- **Priorities**: Schools, safety, community, affordability
+- **Background**: Years in area, homeowner status, extended family nearby
+
+#### **Memory Systems**
+Agents remember and learn from experiences:
+- **Move History**: Past relocations with reasons and outcomes
+- **Neighborhood Experiences**: Memorable events and their impact
+- **Neighbor Relationships**: Quality of interactions over time  
+- **Satisfaction Tracking**: How happy they've been in each location
+- **Time Awareness**: How long they've lived in current location
+
+#### **Human-like Decision Making**
+Memory agents consider:
+- "I've moved 3 times already and want stability for my children"
+- "My neighbors have been friendly, why risk moving?"
+- "I've lived here 8 years and built strong community ties"
+- "Previous moves didn't improve my situation much"
+
+#### **Usage**
+```bash
+# Enable memory in config.py
+ENABLE_AGENT_MEMORY = True
+
+# Or use the enhanced runner directly
+from llm_runner_with_memory import LLMSimulationWithMemory
+sim = LLMSimulationWithMemory(run_id=1, enable_memory=True)
+
+# Demo the difference
+python demo_memory_agents.py
+```
+
+#### **Memory vs Standard Comparison**
+| Feature | Standard Agents | Memory Agents |
+|---------|----------------|---------------|
+| **Decision basis** | Current neighbors only | History + neighbors + identity |
+| **Stability** | Reactive to changes | Consider moving costs/benefits |
+| **Realism** | Game-theoretic | Human psychological factors |
+| **Relationships** | None | Build neighbor familiarity |
+| **Context** | 3x3 grid snapshot | Life history and experiences |
+
+### Traditional LLM Agents
+
 ### Authentic Resident Personas
 LLM agents are prompted to act as **real people** making housing decisions:
 
@@ -379,6 +429,33 @@ python visualization.py --baseline-dir experiments/baseline_* \
    - Can prompts reduce or increase segregation?
    - What happens with ambiguous identities?
 
+4. **Memory and Human-like Behavior** 🆕
+   - Do agents with memory show more realistic stability?
+   - How does relationship-building affect segregation speed?
+   - Do family considerations reduce reactive moving?
+   - Which memories matter most for housing decisions?
+
+### 🧠 Comparing Memory vs Standard Agents
+
+To study the effect of memory on segregation patterns:
+
+```bash
+# Run standard agents
+python run_experiments.py --llm-runs 20 --scenarios baseline
+
+# Run memory-enhanced agents  
+ENABLE_AGENT_MEMORY=True python run_experiments.py --llm-runs 20 --scenarios baseline
+
+# Demo the differences
+python demo_memory_agents.py
+```
+
+**Expected differences with memory**:
+- **Slower segregation**: Agents consider moving costs
+- **Higher stability**: Less reactive behavior
+- **More realistic patterns**: Family/relationship factors
+- **Individual stories**: Each agent has unique journey
+
 ### 📊 Publishing Results
 
 When sharing findings:
@@ -415,12 +492,14 @@ When sharing findings:
 - **Cost**: Free (no LLM calls)
 
 #### **LLM Simulations**
-Time depends on LLM response speed and grid size:
+Time depends on LLM response speed, grid size, and memory settings:
 
 | Configuration | Agents | Steps to Converge | LLM Calls | Time per Run | 
 |--------------|--------|-------------------|-----------|--------------|
 | Default (20x20) | 300 | ~30-50 | ~10,000-15,000 | 2-5 minutes |
+| Default + Memory | 300 | ~40-60 | ~12,000-18,000 | 3-7 minutes |
 | Small (10x10) | 50 | ~20-30 | ~1,000-1,500 | 1-2 minutes |
+| Small + Memory | 50 | ~25-35 | ~1,250-1,750 | 1.5-3 minutes |
 | Tiny (5x5) | 10 | ~10-20 | ~100-200 | 30-60 seconds |
 
 #### **Full Experiment Suite**
@@ -432,6 +511,7 @@ Time depends on LLM response speed and grid size:
 
 Approximate costs per run (default 20x20 grid):
 
+#### Standard Agents
 | LLM Provider | Cost per 1K tokens | Est. tokens per run | Cost per run | 30 runs |
 |--------------|-------------------|---------------------|--------------|---------|
 | GPT-3.5-turbo | $0.001 | ~500K | $0.50 | $15 |
@@ -439,6 +519,17 @@ Approximate costs per run (default 20x20 grid):
 | Claude-3-Haiku | $0.00025 | ~500K | $0.125 | $3.75 |
 | Claude-3-Sonnet | $0.003 | ~500K | $1.50 | $45 |
 | Local Models | Free | - | $0 | $0 |
+
+#### Memory-Enhanced Agents (+20-40% tokens)
+| LLM Provider | Cost per 1K tokens | Est. tokens per run | Cost per run | 30 runs |
+|--------------|-------------------|---------------------|--------------|---------|
+| GPT-3.5-turbo | $0.001 | ~650K | $0.65 | $19.50 |
+| GPT-4 | $0.03 | ~650K | $19.50 | $585 |
+| Claude-3-Haiku | $0.00025 | ~650K | $0.16 | $4.88 |
+| Claude-3-Sonnet | $0.003 | ~650K | $1.95 | $58.50 |
+| Local Models | Free | - | $0 | $0 |
+
+*Memory agents use more tokens due to personal history and relationship context in prompts*
 
 ### 🚀 Performance Optimization Tips
 

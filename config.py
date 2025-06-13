@@ -12,6 +12,7 @@ UTILITY_CUTOFF = 50                      # threshold utility for relocation deci
 OLLAMA_MODEL = "qwen2.5-coder:32B"          # LLM model identifier for Ollama
 OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"  # API endpoint for LLM service
 OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"  # authentication key for LLM API
+ENABLE_AGENT_MEMORY = True                   # Enable agent memory and persistent context (makes agents more human-like)
 
 # ===== GUI Simulation Settings (used by SchellingSim.py) =====
 USE_LLM = False                          # toggle LLM-based decisions (True) vs mechanical (False)
