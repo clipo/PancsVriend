@@ -1,8 +1,8 @@
 {
   "session_id": "20250613_072652",
   "total_planned": 40,
-  "completed": 20,
+  "completed": 21,
   "successful": 16,
-  "failed": 4,
-  "progress_percent": 50.0
+  "failed": 5,
+  "progress_percent": 52.5
 }

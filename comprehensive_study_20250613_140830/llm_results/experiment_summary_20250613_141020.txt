@@ -1,0 +1,173 @@
+EXPERIMENTAL DESIGN SPACE EXPLORATION
+Session ID: 20250613_141020
+Created: 2025-06-13T14:10:20.948848
+Total Experiments: 40
+
+CONFIGURATION BREAKDOWN:
+LLM Models: {'qwen2.5-coder:32B': 40}
+Agent Types: {'standard': 20, 'memory': 20}
+Scenarios: {'baseline': 8, 'race_white_black': 8, 'ethnic_asian_hispanic': 8, 'economic_high_working': 8, 'political_liberal_conservative': 8}
+Grid Sizes: {'10x10': 10, '15x15': 10, '20x20': 10, '25x25': 10}
+
+DETAILED EXPERIMENT LIST:
+--------------------------------------------------------------------------------
+exp_0001: qwen_local_standard_baseline_small
+  Description: LLM: qwen_local, Agents: standard, Scenario: baseline, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0002: qwen_local_standard_baseline_medium
+  Description: LLM: qwen_local, Agents: standard, Scenario: baseline, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0003: qwen_local_standard_baseline_large
+  Description: LLM: qwen_local, Agents: standard, Scenario: baseline, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0004: qwen_local_standard_baseline_xlarge
+  Description: LLM: qwen_local, Agents: standard, Scenario: baseline, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0005: qwen_local_standard_race_white_black_small
+  Description: LLM: qwen_local, Agents: standard, Scenario: race_white_black, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0006: qwen_local_standard_race_white_black_medium
+  Description: LLM: qwen_local, Agents: standard, Scenario: race_white_black, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0007: qwen_local_standard_race_white_black_large
+  Description: LLM: qwen_local, Agents: standard, Scenario: race_white_black, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0008: qwen_local_standard_race_white_black_xlarge
+  Description: LLM: qwen_local, Agents: standard, Scenario: race_white_black, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0009: qwen_local_standard_ethnic_asian_hispanic_small
+  Description: LLM: qwen_local, Agents: standard, Scenario: ethnic_asian_hispanic, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0010: qwen_local_standard_ethnic_asian_hispanic_medium
+  Description: LLM: qwen_local, Agents: standard, Scenario: ethnic_asian_hispanic, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0011: qwen_local_standard_ethnic_asian_hispanic_large
+  Description: LLM: qwen_local, Agents: standard, Scenario: ethnic_asian_hispanic, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0012: qwen_local_standard_ethnic_asian_hispanic_xlarge
+  Description: LLM: qwen_local, Agents: standard, Scenario: ethnic_asian_hispanic, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0013: qwen_local_standard_economic_high_working_small
+  Description: LLM: qwen_local, Agents: standard, Scenario: economic_high_working, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0014: qwen_local_standard_economic_high_working_medium
+  Description: LLM: qwen_local, Agents: standard, Scenario: economic_high_working, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0015: qwen_local_standard_economic_high_working_large
+  Description: LLM: qwen_local, Agents: standard, Scenario: economic_high_working, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0016: qwen_local_standard_economic_high_working_xlarge
+  Description: LLM: qwen_local, Agents: standard, Scenario: economic_high_working, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0017: qwen_local_standard_political_liberal_conservative_small
+  Description: LLM: qwen_local, Agents: standard, Scenario: political_liberal_conservative, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0018: qwen_local_standard_political_liberal_conservative_medium
+  Description: LLM: qwen_local, Agents: standard, Scenario: political_liberal_conservative, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0019: qwen_local_standard_political_liberal_conservative_large
+  Description: LLM: qwen_local, Agents: standard, Scenario: political_liberal_conservative, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0020: qwen_local_standard_political_liberal_conservative_xlarge
+  Description: LLM: qwen_local, Agents: standard, Scenario: political_liberal_conservative, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0021: qwen_local_memory_baseline_small
+  Description: LLM: qwen_local, Agents: memory, Scenario: baseline, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0022: qwen_local_memory_baseline_medium
+  Description: LLM: qwen_local, Agents: memory, Scenario: baseline, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0023: qwen_local_memory_baseline_large
+  Description: LLM: qwen_local, Agents: memory, Scenario: baseline, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0024: qwen_local_memory_baseline_xlarge
+  Description: LLM: qwen_local, Agents: memory, Scenario: baseline, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0025: qwen_local_memory_race_white_black_small
+  Description: LLM: qwen_local, Agents: memory, Scenario: race_white_black, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0026: qwen_local_memory_race_white_black_medium
+  Description: LLM: qwen_local, Agents: memory, Scenario: race_white_black, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0027: qwen_local_memory_race_white_black_large
+  Description: LLM: qwen_local, Agents: memory, Scenario: race_white_black, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0028: qwen_local_memory_race_white_black_xlarge
+  Description: LLM: qwen_local, Agents: memory, Scenario: race_white_black, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0029: qwen_local_memory_ethnic_asian_hispanic_small
+  Description: LLM: qwen_local, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0030: qwen_local_memory_ethnic_asian_hispanic_medium
+  Description: LLM: qwen_local, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0031: qwen_local_memory_ethnic_asian_hispanic_large
+  Description: LLM: qwen_local, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0032: qwen_local_memory_ethnic_asian_hispanic_xlarge
+  Description: LLM: qwen_local, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0033: qwen_local_memory_economic_high_working_small
+  Description: LLM: qwen_local, Agents: memory, Scenario: economic_high_working, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0034: qwen_local_memory_economic_high_working_medium
+  Description: LLM: qwen_local, Agents: memory, Scenario: economic_high_working, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0035: qwen_local_memory_economic_high_working_large
+  Description: LLM: qwen_local, Agents: memory, Scenario: economic_high_working, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0036: qwen_local_memory_economic_high_working_xlarge
+  Description: LLM: qwen_local, Agents: memory, Scenario: economic_high_working, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+
+exp_0037: qwen_local_memory_political_liberal_conservative_small
+  Description: LLM: qwen_local, Agents: memory, Scenario: political_liberal_conservative, Grid: small
+  Runs: 5, Max Steps: 1000
+
+exp_0038: qwen_local_memory_political_liberal_conservative_medium
+  Description: LLM: qwen_local, Agents: memory, Scenario: political_liberal_conservative, Grid: medium
+  Runs: 5, Max Steps: 1000
+
+exp_0039: qwen_local_memory_political_liberal_conservative_large
+  Description: LLM: qwen_local, Agents: memory, Scenario: political_liberal_conservative, Grid: large
+  Runs: 5, Max Steps: 1000
+
+exp_0040: qwen_local_memory_political_liberal_conservative_xlarge
+  Description: LLM: qwen_local, Agents: memory, Scenario: political_liberal_conservative, Grid: xlarge
+  Runs: 5, Max Steps: 1000
+

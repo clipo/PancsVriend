@@ -366,6 +366,14 @@ class LLMSimulation:
             r, c = pos
             self.grid[r][c] = agent
     
+    def restart_worker_if_needed(self):
+        """Restart worker thread if it died"""
+        if not self.llm_thread.is_alive():
+            print("[Warning] Worker thread died, restarting...")
+            self.setup_llm_worker()
+            return True
+        return False
+    
     def setup_llm_worker(self):
         def worker():
             while True:
@@ -384,8 +392,24 @@ class LLMSimulation:
                                  np.random.random() < self.use_llm_probability)
                         
                         if use_llm:
-                            move_to = agent.get_llm_decision(r, c, self.grid)
-                            self.llm_call_count += 1
+                            # Use threading timeout for LLM calls
+                            move_to = None
+                            call_start = time.time()
+                            
+                            try:
+                                move_to = agent.get_llm_decision(r, c, self.grid)
+                                call_elapsed = time.time() - call_start
+                                
+                                # Check if call took too long
+                                if call_elapsed > 20.0:  # 20 second warning
+                                    print(f"[LLM Warning] Slow response ({call_elapsed:.1f}s) for agent at ({r},{c})")
+                                
+                                self.llm_call_count += 1
+                            except Exception as e:
+                                call_elapsed = time.time() - call_start
+                                print(f"[LLM Error] Failed after {call_elapsed:.1f}s for agent at ({r},{c}): {e}")
+                                move_to = agent.best_response(r, c, self.grid)
+                                self.llm_failure_count += 1
                         else:
                             move_to = agent.best_response(r, c, self.grid)
                         
@@ -465,7 +489,29 @@ class LLMSimulation:
                     task_ids.append(task_id)
                     
                     try:
-                        self.query_queue.put((agent, r, c, task_id), timeout=5.0)
+                        # Check if worker thread is alive before queuing
+                        if not self.llm_thread.is_alive():
+                            print(f"[Error] Worker thread died, attempting restart...")
+                            if self.restart_worker_if_needed():
+                                # Try queuing again after restart
+                                try:
+                                    self.query_queue.put((agent, r, c, task_id), timeout=2.0)
+                                except:
+                                    print(f"[Error] Failed to queue after restart, using mechanical for ({r},{c})")
+                                    move_to = agent.best_response(r, c, self.grid)
+                                    self._process_move(agent, r, c, move_to)
+                                    if move_to and move_to != (r, c):
+                                        moved = True
+                                    continue
+                            else:
+                                print(f"[Error] Could not restart worker, using mechanical for ({r},{c})")
+                                move_to = agent.best_response(r, c, self.grid)
+                                self._process_move(agent, r, c, move_to)
+                                if move_to and move_to != (r, c):
+                                    moved = True
+                                continue
+                        
+                        self.query_queue.put((agent, r, c, task_id), timeout=2.0)  # Reduced timeout
                     except queue.Full:
                         print(f"[Warning] Query queue full, skipping agent at ({r},{c})")
                         # Fallback to mechanical agent
@@ -474,27 +520,43 @@ class LLMSimulation:
                         if move_to and move_to != (r, c):
                             moved = True
             
-            # Wait for results with timeout and retry logic
+            # Wait for results with proper timeout handling
             results = []
             expected_results = len(task_ids)
-            timeout_per_result = 15.0  # 15 seconds per result
+            timeout_per_batch = 30.0  # 30 seconds total for entire batch
             
             start_wait = time.time()
             while len(results) < expected_results:
                 time_elapsed = time.time() - start_wait
-                remaining_timeout = max(1.0, timeout_per_result - time_elapsed)
+                
+                # Check if we've exceeded total batch timeout
+                if time_elapsed > timeout_per_batch:
+                    print(f"[Warning] Batch timeout exceeded. Got {len(results)}/{expected_results} results in {time_elapsed:.1f}s")
+                    break
+                
+                # Calculate remaining time for this get() call
+                remaining_time = timeout_per_batch - time_elapsed
+                individual_timeout = min(5.0, remaining_time)  # Max 5s per individual result
+                
+                if individual_timeout <= 0:
+                    print(f"[Warning] No time remaining for more results. Got {len(results)}/{expected_results}")
+                    break
                 
                 try:
-                    result = self.result_queue.get(timeout=remaining_timeout)
+                    result = self.result_queue.get(timeout=individual_timeout)
                     results.append(result)
                 except queue.Empty:
-                    print(f"[Warning] Timeout waiting for LLM responses. Got {len(results)}/{expected_results}")
-                    break
-                
-                # Safety check - don't wait forever
-                if time_elapsed > timeout_per_result * expected_results:
-                    print(f"[Warning] Maximum wait time exceeded. Got {len(results)}/{expected_results}")
-                    break
+                    # Check if worker thread is still alive
+                    if not self.llm_thread.is_alive():
+                        print(f"[Error] Worker thread died. Got {len(results)}/{expected_results} results")
+                        break
+                    
+                    # Continue waiting if thread is alive and we have time
+                    if time_elapsed < timeout_per_batch * 0.8:  # Give up at 80% of total timeout
+                        continue
+                    else:
+                        print(f"[Warning] Timeout waiting for remaining results. Got {len(results)}/{expected_results}")
+                        break
             
             # Process moves
             for result in results:
