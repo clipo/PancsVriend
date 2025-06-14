@@ -113,26 +113,100 @@ time_series_data <- expand_grid(
 
 ## Agent Implementations
 
-### Mechanical Baseline
-Traditional agents use a utility function based on the proportion of like neighbors:
+### Mechanical Baseline Agents
+
+Traditional Schelling agents operate as pure utility maximizers using a deterministic threshold function. Each agent continuously evaluates their current position based on neighborhood composition:
+
 $$U_i = \begin{cases} 
 1 & \text{if } p_i \geq \tau \\
 0 & \text{otherwise}
 \end{cases}$$
-where $p_i$ is the proportion of like neighbors and $\tau = 0.5$ is the satisfaction threshold.
 
-### LLM Agents
-LLM agents receive contextual prompts describing their current neighborhood and make decisions based on the generated response. For Standard LLM agents:
+where $p_i$ is the proportion of like neighbors within Moore neighborhood (8 adjacent cells) and $\tau = 0.5$ is the satisfaction threshold. Agents with $U_i = 0$ immediately relocate to the nearest available cell that satisfies their threshold, following a best-response dynamic that guarantees utility improvement with each move.
+
+This approach represents classical rational choice theory: agents have perfect information, consistent preferences, and make optimal decisions to maximize their utility function. While computationally efficient and theoretically elegant, it reduces complex human residential decisions to simple mathematical optimization.
+
+### Standard LLM Agents
+
+LLM agents replace mathematical utility functions with natural language reasoning. Each agent receives contextual prompts describing their current situation and must make residential decisions through linguistic reasoning. For baseline (red/blue) scenarios, the prompt structure is:
 
 ```
-You are a [Type A/B] resident. Your current neighborhood has:
-- X Type A neighbors
-- Y Type B neighbors  
-- Z empty houses nearby
-Would you prefer to stay or move? If move, which empty house?
+You are a [red/blue] resident in a neighborhood simulation. 
+Current situation:
+- Your neighborhood has [X] red neighbors and [Y] blue neighbors
+- There are [Z] empty houses within moving distance
+- You have been living here for [N] time steps
+
+Based on your preferences as a [red/blue] resident, would you:
+1. Stay in your current location
+2. Move to a different available house
+
+If moving, consider factors like neighborhood composition, 
+proximity to similar residents, and overall comfort level.
 ```
 
-Memory LLM agents receive additional context about their residential history and past interactions.
+The LLM generates a natural language response that is parsed to extract the agent's decision. This approach captures nuanced reasoning that may include:
+- Gradual comfort with diversity vs. strong segregation preferences  
+- Consideration of neighborhood trends and stability
+- Social factors beyond pure numerical thresholds
+- Context-dependent preferences that may vary over time
+
+### Social Context vs. Nominal Measures
+
+Unlike traditional Schelling models that use abstract "red/blue" or "Type A/Type B" labels, our LLM implementation enables testing with realistic social contexts that carry cultural meaning and implicit associations. We implemented several social scenarios:
+
+**Baseline Control**: Generic "red vs blue" teams without social connotations, serving as a neutral control condition.
+
+**Racial Context**: "White middle-class families" vs "Black families" - capturing historical patterns of residential segregation with embedded cultural associations about neighborhood preferences, school quality concerns, and social comfort.
+
+**Economic Context**: "High-income professionals" vs "working-class families" - exploring how economic segregation emerges from preferences about property values, amenities, and social status.
+
+**Political Context**: "Liberal households" vs "Conservative households" - investigating ideological clustering and how political identity affects residential choices.
+
+These contexts enable the LLM to draw upon cultural knowledge embedded in training data, producing more realistic responses than arbitrary labels. For example, when prompted as a "White middle-class family," the LLM may express concerns about school quality or property values that wouldn't emerge from "Type A" framing.
+
+### Memory-Enhanced LLM Agents
+
+Memory-enhanced agents extend standard LLM agents with persistent episodic memory, more closely approximating human decision-making where past experiences shape current choices. Each agent maintains a detailed history including:
+
+**Residential History**: Complete record of past locations, duration at each address, and reasons for moving
+**Social Interactions**: Memory of positive/negative encounters with neighbors of different types
+**Neighborhood Evolution**: Observations of how local composition changed over time
+**Personal Relationships**: Development of attachments to specific neighbors or locations
+
+The prompt structure includes this historical context:
+
+```
+You are a [identity] resident with the following history:
+RESIDENTIAL HISTORY:
+- Previously lived at [locations] for [durations]
+- Moved because: [recorded reasons]
+
+SOCIAL MEMORY:
+- Positive interactions: [specific neighbor relationships]
+- Concerns about: [negative experiences or observations]
+
+CURRENT SITUATION:
+- Living at current location for [duration]
+- Neighborhood has [composition and trends]
+- Available moving options: [locations with contexts]
+
+Given your personal history and relationships, what would you do?
+```
+
+**Theoretical Expectations for Memory Effects:**
+
+1. **Reduced Volatility**: Agents with established relationships should move less frequently, reducing overall system dynamics and leading to faster convergence.
+
+2. **Path Dependence**: Early positive experiences with diversity should make agents more tolerant of mixed neighborhoods, while negative experiences should increase segregation preferences.
+
+3. **Stabilization Effects**: As agents develop local social ties, they become less likely to abandon neighborhoods even when composition changes slightly.
+
+4. **Realistic Inertia**: Memory should introduce the residential inertia observed in real populations, where moving decisions involve substantial social and emotional costs beyond simple preference satisfaction.
+
+5. **Reduced Extreme Segregation**: Strong social memories should prevent the formation of completely homogeneous neighborhoods ("ghettos") by maintaining some agents who value established relationships over perfect homophily.
+
+These expectations are based on urban sociology research showing that residential decisions involve complex tradeoffs between preferences for similar neighbors and attachment to place, social networks, and personal history [@sampson1988local; @massey2001residential].
 
 ## Metrics
 
@@ -376,16 +450,17 @@ While LLM agents provide behavioral realism, they come with computational costs.
 Several limitations warrant consideration:
 
 1. **Sample Size**: With only 2 runs per condition, statistical power is limited
-2. **Single Context**: We tested only the baseline (red/blue) scenario
-3. **Grid Size**: Results may differ for larger neighborhoods or different densities
-4. **LLM Variability**: Results may depend on the specific LLM used (Mixtral:8x22b)
+2. **Single Context**: While our framework supports multiple social contexts (race, income, political affiliation), this paper focuses on the baseline (red/blue) scenario to establish proof-of-concept
+3. **Grid Size**: Results may differ for larger neighborhoods or different densities (our 15×15 grid with 22.2% density)
+4. **LLM Variability**: Results may depend on the specific LLM used (Mixtral:8x22b) and could vary with different model architectures or training approaches
 
 Future research directions include:
-- Testing with diverse social contexts (race, income, political affiliation)
-- Scaling to realistic city sizes
-- Incorporating multiple decision factors simultaneously
-- Comparing different LLM architectures
-- Developing hybrid models that balance realism with computational efficiency
+- **Social Context Analysis**: Systematic comparison across racial, economic, and political scenarios to understand how cultural contexts affect segregation dynamics
+- **Scale Effects**: Testing with realistic city sizes and varying population densities
+- **Multi-factor Models**: Incorporating multiple social identities simultaneously (e.g., race + income)
+- **LLM Architecture Studies**: Comparing different language models and prompting strategies
+- **Hybrid Approaches**: Developing computationally efficient models that balance LLM realism with mechanical agent scalability
+- **Longitudinal Validation**: Comparing model predictions with real-world residential mobility data
 
 # Conclusion
 
