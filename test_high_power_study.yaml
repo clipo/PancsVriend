@@ -1,0 +1,37 @@
+# TEST VERSION of High Statistical Power Study
+# Quick validation with 3 replicates before running full 20-replicate study
+
+# LLM Configuration
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# Three agent types for comprehensive comparison
+agent_types:
+  - standard    # Pure LLM agents (current context only)
+  - memory      # Pure LLM agents with persistent memory
+
+# Focus on baseline scenario
+scenarios:
+  - baseline    # Red vs Blue control scenario
+
+# Optimized grid configuration (22.2% density - same as paper)
+grid_configurations:
+  optimized:
+    grid_size: 15              # 225 total cells
+    type_a: 25                 # 25 Type A agents  
+    type_b: 25                 # 25 Type B agents (50 total = 22.2% density)
+
+# Test parameters - quick validation
+experiment_parameters:
+  runs_per_config: 3           # 3 replicates for testing
+  max_steps: 1000             # Max limit, expect early convergence
+  use_llm_probability: 1.0    # Pure LLM agents
+
+# Timeline Estimates for TEST (3 replicates):
+# - Mechanical baseline: 3 runs × 187 steps × 0.02 sec/step = ~0.2 minutes
+# - Standard LLM: 3 runs × 99 steps × 19 sec/step = ~1.6 hours  
+# - Memory LLM: 3 runs × 84 steps × 19 sec/step = ~1.3 hours
+# - Total Runtime: ~3 hours (perfect for testing)

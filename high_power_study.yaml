@@ -1,0 +1,49 @@
+# HIGH STATISTICAL POWER STUDY CONFIGURATION
+# Comprehensive comparison with 20 replicates for robust statistical analysis
+# This study will provide the statistical power needed for publication-quality results
+
+# LLM Configuration
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# Three agent types for comprehensive comparison
+agent_types:
+  - standard    # Pure LLM agents (current context only)
+  - memory      # Pure LLM agents with persistent memory
+
+# Focus on baseline scenario for proof-of-concept with high statistical power
+scenarios:
+  - baseline    # Red vs Blue control scenario (most comparable to traditional Schelling)
+
+# Optimized grid configuration (22.2% density - same as paper)
+grid_configurations:
+  optimized:
+    grid_size: 15              # 225 total cells
+    type_a: 25                 # 25 Type A agents  
+    type_b: 25                 # 25 Type B agents (50 total = 22.2% density)
+
+# High statistical power parameters
+experiment_parameters:
+  runs_per_config: 20          # 20 replicates for robust statistical analysis
+  max_steps: 1000             # Max limit, but expect early convergence (~80-200 steps)
+  use_llm_probability: 1.0    # Pure LLM agents (no mixing with mechanical)
+
+# Timeline Estimates with 20 replicates (based on observed convergence patterns):
+# - Mechanical baseline: 20 runs × 187 steps × 0.02 sec/step = ~1.2 hours
+# - Standard LLM: 20 runs × 99 steps × 19 sec/step = ~10.4 hours  
+# - Memory LLM: 20 runs × 84 steps × 19 sec/step = ~8.8 hours
+# - Total Runtime: ~20 hours (weekend run, but with plateau detection will be faster)
+
+# Statistical Power Analysis:
+# - 20 replicates provides 80% power to detect medium effect sizes (d=0.5)
+# - Sufficient for robust t-tests, Mann-Whitney U tests, and effect size calculations
+# - Enables confident conclusions about convergence differences and segregation patterns
+
+# Expected Outputs:
+# 1. Mechanical baseline: 20 runs with full convergence data
+# 2. Standard LLM: 20 runs with human-like decision patterns
+# 3. Memory LLM: 20 runs with historical context effects
+# 4. Comprehensive statistical comparison with publication-quality power
