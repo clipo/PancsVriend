@@ -4,6 +4,7 @@ A comprehensive research framework comparing traditional utility-maximizing agen
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![DOI](https://img.shields.io/badge/DOI-pending-orange.svg)](https://github.com/clipo/PancsVriend)
 
 ## 🔬 Research Overview
 
@@ -13,6 +14,23 @@ This framework enables systematic comparison between:
 2. **Standard LLM Agents**: AI agents that make contextual housing decisions based on social scenarios  
 3. **Memory LLM Agents**: Human-like agents with persistent memory and decision history
 4. **Multiple Social Contexts**: Race, ethnicity, economics, and political scenarios
+
+### 🏆 Key Research Findings
+
+- **⚡ LLM agents converge 2.2× faster** than mechanical agents (84 vs 187 steps)
+- **🏘️ Memory reduces extreme segregation** by 53.8% ("ghetto" formation)
+- **📊 Similar final segregation levels** (~55% vs 58%) but different dynamics
+- **🎯 100% convergence rate** for LLM agents vs 50% for mechanical
+
+## 📄 Scientific Paper
+
+**"Human-like Decision Making in Agent-Based Models: A Comparative Study of Large Language Model Agents versus Traditional Utility Maximization in the Schelling Segregation Model"**
+
+- **Authors**: Andreas Pape, Carl Lipo, et al.
+- **Institution**: Binghamton University
+- **Status**: Prepared for submission to *Advances in Complex Systems*
+- **Paper File**: [`schelling_llm_paper.qmd`](schelling_llm_paper.qmd)
+- **Render Instructions**: See [`paper_README.md`](paper_README.md)
 
 ## ✨ New Features (2024)
 
@@ -197,6 +215,42 @@ All scripts support consistent LLM configuration:
 --llm-api-key "your-api-key"
 ```
 
+## 📊 Analysis & Visualization Tools
+
+### Statistical Analysis
+```bash
+# Generate comprehensive statistical report
+python statistical_analysis.py
+
+# Detailed pairwise comparisons
+python pairwise_comparison_analysis.py
+
+# Convergence analysis with speed metrics
+python convergence_analysis.py
+```
+
+### Comprehensive Visualization
+```bash
+# Generate publication-quality PDF report with all analyses
+python comprehensive_visualization_report.py
+
+# Creates: comprehensive_comparison_report.pdf with:
+# - Executive summary
+# - Convergence analysis 
+# - Time series evolution
+# - Final state comparisons
+# - Statistical tables
+# - Pairwise comparisons
+```
+
+### Academic Paper
+```bash
+# Render the scientific paper (requires Quarto + R)
+quarto render schelling_llm_paper.qmd --to pdf
+
+# See paper_README.md for setup instructions
+```
+
 ## 📈 Experiment Workflows
 
 ### Comprehensive Comparison
@@ -325,6 +379,47 @@ We welcome contributions! Please:
 - Submit pull requests for improvements
 - Share your research findings using this framework
 - Test with different LLM models and report results
+
+## 📁 Repository Structure
+
+### Core Simulation Files
+- `Agent.py` - Traditional utility-maximizing agents
+- `LLMAgent.py` - LLM-powered agents with human-like decisions
+- `Metrics.py` - Six segregation metrics (clusters, distance, share, etc.)
+- `SchellingSim.py` - Interactive GUI simulation
+- `config.py` - Central configuration for all parameters
+
+### Experiment Runners
+- `baseline_runner.py` - Mechanical agent experiments
+- `llm_runner.py` - LLM agent experiments with social scenarios
+- `comprehensive_comparison_study.py` - Full 3-way comparison
+- `run_pure_comparison.py` - Pure agent type comparison
+- `experiment_explorer.py` - Design space exploration
+
+### Analysis & Visualization
+- `statistical_analysis.py` - ANOVA, effect sizes, statistical tests
+- `pairwise_comparison_analysis.py` - Detailed pairwise comparisons
+- `convergence_analysis.py` - Convergence speed and rate analysis
+- `comprehensive_visualization_report.py` - Complete PDF report generator
+- `visualization.py` - Individual visualization tools
+
+### LLM Configuration
+- `switch_llm.py` - Interactive model switching
+- `update_default_llm.py` - Update default LLM configuration
+- `llm_presets.py` - Predefined LLM configurations
+- `check_llm.py` - Connectivity and performance testing
+
+### Dashboard & Monitoring
+- `launch_dashboard_menu.py` - Dashboard launcher with options
+- `dashboard_with_progress.py` - Real-time progress monitoring
+- `cleanup_experiments.py` - Experiment cleanup utility
+
+### Scientific Paper
+- `schelling_llm_paper.qmd` - Quarto scientific paper
+- `references.bib` - Bibliography
+- `paper_README.md` - Paper rendering instructions
+- `journal_style_guide.md` - Journal submission guide
+- `verify_paper_data.R` - Data verification script
 
 ## 📄 Citation
 

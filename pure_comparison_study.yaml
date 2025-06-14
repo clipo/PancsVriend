@@ -1,0 +1,46 @@
+# PURE COMPARISON STUDY CONFIGURATION
+# Clean comparison of Mechanical vs Pure LLM vs Pure LLM+Memory agents
+# Optimized for reasonable runtime (~15 hours total)
+
+# LLM Configuration
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# Three pure agent types for clean comparison
+agent_types:
+  - standard    # Pure LLM agents (current context only)
+  - memory      # Pure LLM agents with persistent memory
+
+# Focus on key scenarios for meaningful comparison
+scenarios:
+  - baseline                    # Control: Red vs Blue (no social context)
+  - race_white_black           # Most studied social context in segregation research
+
+# Optimized grid configuration (37.5% density)
+grid_configurations:
+  optimized:
+    grid_size: 20              # 400 total cells
+    type_a: 75                 # 75 Type A agents  
+    type_b: 75                 # 75 Type B agents (150 total = 37.5% density)
+
+# Balanced parameters for meaningful results in reasonable time
+experiment_parameters:
+  runs_per_config: 3           # 3 runs for statistical validity
+  max_steps: 50               # Sufficient to see segregation patterns
+  use_llm_probability: 1.0    # Pure LLM agents (no mixing with mechanical)
+
+# Timeline Estimates:
+# - Total Experiments: 2 agent types × 2 scenarios × 1 grid = 4 experiments
+# - Standard LLM: ~50 minutes per experiment × 2 = ~1.7 hours
+# - Memory LLM: ~75 minutes per experiment × 2 = ~2.5 hours  
+# - Plus mechanical baseline: ~5 minutes
+# - Total Runtime: ~4-5 hours (manageable for overnight or weekend run)
+
+# This gives pure comparison data:
+# 1. Mechanical baseline (traditional Schelling model)
+# 2. Standard LLM agents (human-like decisions, current context)
+# 3. Memory LLM agents (human-like decisions with historical context)
+# 4. Across control and racial segregation scenarios

@@ -29,7 +29,7 @@ def plot_metric_evolution(experiments_data, metric, save_path=None):
         df = pd.read_csv(f"{exp_dir}/step_statistics.csv")
         
         # Plot mean with confidence interval
-        steps = df['step_']
+        steps = df['step']
         mean_col = f'{metric}_mean'
         std_col = f'{metric}_std'
         

@@ -1,0 +1,20 @@
+agent_types:
+- standard
+- memory
+experiment_parameters:
+  max_steps: 50
+  runs_per_config: 3
+  use_llm_probability: 1.0
+grid_configurations:
+  optimized:
+    grid_size: 20
+    type_a: 75
+    type_b: 75
+llm_configurations:
+  default:
+    api_key: sk-571df6eec7f5495faef553ab5cb2c67a
+    model: mixtral:8x22b-instruct
+    url: https://chat.binghamton.edu/api/chat/completions
+scenarios:
+- baseline
+- race_white_black

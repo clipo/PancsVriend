@@ -118,3 +118,4 @@ reports/
 *.pdf
 *.csv
 assign_runs.txt
+.Rproj.user

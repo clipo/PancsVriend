@@ -1,0 +1,39 @@
+# SCALED DOWN COMPREHENSIVE STUDY CONFIGURATION
+# Designed to complete in reasonable time (few hours instead of days)
+
+# LLM Configuration
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"
+    url: "https://chat.binghamton.edu/api/chat/completions"
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+
+# Focus on key comparisons only
+agent_types:
+  - standard    # Just standard agents (skip memory for now)
+
+# Reduced scenarios - just the most important ones  
+scenarios:
+  - baseline                    # Control
+  - race_white_black           # Most studied social context
+  - income_high_low            # Economic context
+
+# Only 2 grid sizes (skip small which is less interesting)
+grid_configurations:
+  medium:
+    grid_size: 15
+    type_a: 75
+    type_b: 75
+  large:
+    grid_size: 20
+    type_a: 150
+    type_b: 150
+
+# Dramatically reduced parameters
+experiment_parameters:
+  runs_per_config: 5           # Only 5 runs (was 30)
+  max_steps: 100              # Only 100 steps (was 1000)
+  use_llm_probability: 0.3    # Only 30% LLM usage (was 100%)
+
+# Total experiments: 1 agent type × 3 scenarios × 2 grids = 6 experiments
+# Estimated runtime: ~2-3 hours total

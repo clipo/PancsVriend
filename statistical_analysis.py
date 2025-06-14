@@ -364,12 +364,45 @@ def create_statistical_report(experiments_data, output_file='statistical_analysi
     return output_file
 
 if __name__ == "__main__":
-    # Example usage
-    experiments = {
-        'baseline': 'experiments/baseline_20240101_120000',
-        'llm_baseline': 'experiments/llm_baseline_20240101_130000',
-        'llm_race': 'experiments/llm_race_white_black_20240101_140000'
-    }
+    import sys
+    
+    if len(sys.argv) > 1:
+        # Use command line arguments
+        experiment_dirs = sys.argv[1:]
+        experiments = {}
+        for i, exp_dir in enumerate(experiment_dirs):
+            # Extract experiment type from directory name
+            if 'baseline' in exp_dir and 'llm' not in exp_dir:
+                experiments['mechanical_baseline'] = exp_dir
+            elif 'llm' in exp_dir and 'memory' not in exp_dir:
+                if 'standard' not in experiments:
+                    experiments['standard_llm'] = exp_dir
+                else:
+                    experiments[f'llm_exp_{i}'] = exp_dir
+            else:
+                experiments[f'experiment_{i}'] = exp_dir
+        
+        # If we have exactly 3 experiments from our pure comparison
+        if len(experiment_dirs) == 3:
+            experiments = {
+                'mechanical_baseline': experiment_dirs[0],
+                'standard_llm': experiment_dirs[1], 
+                'memory_llm': experiment_dirs[2]
+            }
+    else:
+        # Use our pure comparison experiments
+        experiments = {
+            'mechanical_baseline': 'experiments/baseline_20250613_210445',
+            'standard_llm': 'experiments/llm_baseline_20250613_210516',
+            'memory_llm': 'experiments/llm_baseline_20250613_211511'
+        }
+    
+    print("🔬 STATISTICAL ANALYSIS")
+    print("=" * 50)
+    print("Analyzing experiments:")
+    for name, path in experiments.items():
+        print(f"  {name}: {path}")
+    print("=" * 50)
     
     # Run analysis
     create_statistical_report(experiments)

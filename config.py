@@ -1,7 +1,7 @@
 # ===== Common Model Settings (used by baseline_runner.py & llm_runner.py) =====
-GRID_SIZE = 20                           # number of cells per side of the grid
-NUM_TYPE_A = 150                        # initial count of Type A agents (e.g., red)
-NUM_TYPE_B = 150                         # initial count of Type B agents (e.g., blue)
+GRID_SIZE = 15                           # number of cells per side of the grid
+NUM_TYPE_A = 25                         # initial count of Type A agents (e.g., red)
+NUM_TYPE_B = 25                         # initial count of Type B agents (e.g., blue)
 
 # ===== Base Runner Settings (used by baseline_runner.py) =====
 UTILITY_BASE = 1                         # base utility value in agents' decision function

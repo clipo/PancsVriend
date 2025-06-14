@@ -1,0 +1,213 @@
+================================================================================
+STATISTICAL ANALYSIS REPORT
+Schelling Segregation Model - Experiment Comparison
+================================================================================
+
+
+============================================================
+METRIC: CLUSTERS
+============================================================
+
+DESCRIPTIVE STATISTICS:
+----------------------------------------
+
+mechanical_baseline:
+  Mean: 3.0000 (SD: 0.0000)
+  Median: 3.0000 [Q1: 3.0000, Q3: 3.0000]
+  Range: [3.0000, 3.0000]
+  N: 2
+
+standard_llm:
+  Mean: 23.5000 (SD: 3.5000)
+  Median: 23.5000 [Q1: 21.7500, Q3: 25.2500]
+  Range: [20.0000, 27.0000]
+  N: 2
+
+memory_llm:
+  Mean: 19.0000 (SD: 2.0000)
+  Median: 19.0000 [Q1: 18.0000, Q3: 20.0000]
+  Range: [17.0000, 21.0000]
+  N: 2
+
+NORMALITY TESTS (Shapiro-Wilk):
+----------------------------------------
+
+Kruskal-Wallis H-test:
+----------------------------------------
+H-statistic: 3.8235
+p-value: 0.1478
+Result: No significant differences
+
+============================================================
+METRIC: DISTANCE
+============================================================
+
+DESCRIPTIVE STATISTICS:
+----------------------------------------
+
+mechanical_baseline:
+  Mean: 2.0800 (SD: 0.2000)
+  Median: 2.0800 [Q1: 1.9800, Q3: 2.1800]
+  Range: [1.8800, 2.2800]
+  N: 2
+
+standard_llm:
+  Mean: 1.4000 (SD: 0.1000)
+  Median: 1.4000 [Q1: 1.3500, Q3: 1.4500]
+  Range: [1.3000, 1.5000]
+  N: 2
+
+memory_llm:
+  Mean: 1.3100 (SD: 0.0300)
+  Median: 1.3100 [Q1: 1.2950, Q3: 1.3250]
+  Range: [1.2800, 1.3400]
+  N: 2
+
+NORMALITY TESTS (Shapiro-Wilk):
+----------------------------------------
+
+Kruskal-Wallis H-test:
+----------------------------------------
+H-statistic: 3.7143
+p-value: 0.1561
+Result: No significant differences
+
+============================================================
+METRIC: MIX DEVIATION
+============================================================
+
+DESCRIPTIVE STATISTICS:
+----------------------------------------
+
+mechanical_baseline:
+  Mean: 0.2824 (SD: 0.0165)
+  Median: 0.2824 [Q1: 0.2741, Q3: 0.2906]
+  Range: [0.2659, 0.2989]
+  N: 2
+
+standard_llm:
+  Mean: 0.1876 (SD: 0.0164)
+  Median: 0.1876 [Q1: 0.1794, Q3: 0.1958]
+  Range: [0.1712, 0.2040]
+  N: 2
+
+memory_llm:
+  Mean: 0.2122 (SD: 0.0089)
+  Median: 0.2122 [Q1: 0.2078, Q3: 0.2166]
+  Range: [0.2034, 0.2211]
+  N: 2
+
+NORMALITY TESTS (Shapiro-Wilk):
+----------------------------------------
+
+Kruskal-Wallis H-test:
+----------------------------------------
+H-statistic: 3.7143
+p-value: 0.1561
+Result: No significant differences
+
+============================================================
+METRIC: SHARE
+============================================================
+
+DESCRIPTIVE STATISTICS:
+----------------------------------------
+
+mechanical_baseline:
+  Mean: 0.7281 (SD: 0.0138)
+  Median: 0.7281 [Q1: 0.7212, Q3: 0.7350]
+  Range: [0.7143, 0.7419]
+  N: 2
+
+standard_llm:
+  Mean: 0.4757 (SD: 0.0102)
+  Median: 0.4757 [Q1: 0.4706, Q3: 0.4809]
+  Range: [0.4655, 0.4860]
+  N: 2
+
+memory_llm:
+  Mean: 0.4782 (SD: 0.0054)
+  Median: 0.4782 [Q1: 0.4754, Q3: 0.4809]
+  Range: [0.4727, 0.4836]
+  N: 2
+
+NORMALITY TESTS (Shapiro-Wilk):
+----------------------------------------
+
+Kruskal-Wallis H-test:
+----------------------------------------
+H-statistic: 3.4286
+p-value: 0.1801
+Result: No significant differences
+
+============================================================
+METRIC: GHETTO RATE
+============================================================
+
+DESCRIPTIVE STATISTICS:
+----------------------------------------
+
+mechanical_baseline:
+  Mean: 18.0000 (SD: 2.0000)
+  Median: 18.0000 [Q1: 17.0000, Q3: 19.0000]
+  Range: [16.0000, 20.0000]
+  N: 2
+
+standard_llm:
+  Mean: 6.0000 (SD: 1.0000)
+  Median: 6.0000 [Q1: 5.5000, Q3: 6.5000]
+  Range: [5.0000, 7.0000]
+  N: 2
+
+memory_llm:
+  Mean: 5.0000 (SD: 0.0000)
+  Median: 5.0000 [Q1: 5.0000, Q3: 5.0000]
+  Range: [5.0000, 5.0000]
+  N: 2
+
+NORMALITY TESTS (Shapiro-Wilk):
+----------------------------------------
+
+Kruskal-Wallis H-test:
+----------------------------------------
+H-statistic: 4.1935
+p-value: 0.1229
+Result: No significant differences
+
+
+================================================================================
+CONVERGENCE ANALYSIS
+================================================================================
+
+mechanical_baseline:
+  Convergence rate: 100.00%
+  Mean convergence step: 645.5 (SD: 212.8)
+  Convergence variability (CV): 0.33
+  Early distance rate of change: 0.1156
+  Early mix_deviation rate of change: 0.0191
+  Early ghetto_rate rate of change: 2.5400
+
+standard_llm:
+  Convergence rate: 0.00%
+  Early distance rate of change: 0.0736
+  Early mix_deviation rate of change: 0.0159
+  Early ghetto_rate rate of change: 1.6429
+
+memory_llm:
+  Convergence rate: 0.00%
+  Early distance rate of change: 0.0800
+  Early mix_deviation rate of change: 0.0153
+  Early ghetto_rate rate of change: 1.5714
+
+
+================================================================================
+MULTIVARIATE ANALYSIS (PCA)
+================================================================================
+
+Principal Component Analysis:
+  Explained variance ratio: [0.94414506 0.05249212]
+
+Feature Importance:
+  mix_deviation: 0.692
+  distance: 0.529
+  ghetto_rate: 0.450

@@ -1,0 +1,16 @@
+
+Checking LLM connection...
+URL: https://chat.binghamton.edu/api/chat/completions
+Model: mixtral:8x22b-instruct
+❌ LLM connection failed - Timeout after 10s
+The LLM server is not responding. Please check:
+1. Is the Ollama server running?
+2. Is the URL correct?
+3. Is the model loaded?
+
+⚠️  Cannot proceed with LLM experiments - connection check failed!
+Please ensure the LLM server is running and accessible.
+
+To start Ollama locally:
+  ollama serve
+  ollama pull mixtral:8x22b-instruct
