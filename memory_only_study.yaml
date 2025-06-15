@@ -1,0 +1,47 @@
+# MEMORY LLM AGENTS ONLY STUDY CONFIGURATION
+# This configuration runs only memory-enhanced LLM agents
+# Mechanical baseline will be reused from existing data
+
+# LLM Configuration (uses config.py defaults, can be overridden via command line)
+llm_configurations:
+  default:
+    model: "mixtral:8x22b-instruct"  # Uses config.py OLLAMA_MODEL by default
+    url: "https://chat.binghamton.edu/api/chat/completions"  # Uses config.py OLLAMA_URL by default
+    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"  # Uses config.py OLLAMA_API_KEY by default
+
+# MEMORY AGENTS ONLY
+agent_types:
+  - memory      # Memory-enhanced LLM agents (human-like with history)
+
+# COMPLETE SOCIAL CONTEXT EXPLORATION  
+scenarios:
+  - baseline                    # Control: Red vs Blue (no social meaning)
+  - race_white_black           # Racial context: White vs Black families
+  - ethnic_asian_hispanic      # Ethnic context: Asian vs Hispanic families  
+  - income_high_low            # Economic context: High-income vs Working-class
+  - political_liberal_conservative  # Political context: Liberal vs Conservative
+
+# Grid Configurations (recommend medium for good statistical power)
+grid_configurations:
+  medium:
+    grid_size: 15
+    type_a: 75
+    type_b: 75
+  large:
+    grid_size: 20
+    type_a: 150
+    type_b: 150
+
+# Experiment Parameters (robust statistical analysis)
+experiment_parameters:
+  runs_per_config: 30          # 30 runs per configuration for strong statistics
+  max_steps: 1000             # Full convergence
+  use_llm_probability: 1.0    # Always use LLM (pure comparison)
+
+# Quick Test Mode (for initial validation)
+quick_test:
+  enabled: false              # Set to true for fast testing
+  runs_per_config: 5
+  max_steps: 200
+  grids: ["medium"]
+  scenarios: ["baseline", "race_white_black"]
