@@ -211,8 +211,10 @@ class LLMSimulationWithMemory:
         
         if debug:
             print(f"\n[DEBUG-MEMORY] LLM Decision Request for agent at ({r},{c})")
-            print(f"[DEBUG-MEMORY] Agent type: {agent.agent_type} | Scenario: {self.scenario}")
-            print(f"[DEBUG-MEMORY] Agent has {len(agent.decision_history)} previous decisions")
+            agent_type = agent.identity.get('type', f'Type {agent.type_id}') if hasattr(agent, 'identity') else f'Type {agent.type_id}'
+            print(f"[DEBUG-MEMORY] Agent type: {agent_type} | Scenario: {self.scenario}")
+            decision_count = len(agent.move_history) if hasattr(agent, 'move_history') else 0
+            print(f"[DEBUG-MEMORY] Agent has {decision_count} previous decisions")
         
         context = self.get_neighborhood_context(r, c)
         context_str = "\n".join([" ".join(row) for row in context])
@@ -222,9 +224,23 @@ class LLMSimulationWithMemory:
             prompt = agent.get_enhanced_prompt(context_str, r, c, self.grid)
         else:
             # Fallback to standard prompt
+            # For memory agents, get type from identity dict
+            if hasattr(agent, 'identity'):
+                agent_type = agent.identity.get('type', f'Type {agent.type_id}')
+                # Determine opposite type based on scenario
+                context_info = CONTEXT_SCENARIOS[self.scenario]
+                if agent.type_id == 0:
+                    opposite_type = context_info['type_b']
+                else:
+                    opposite_type = context_info['type_a']
+            else:
+                # Ultimate fallback
+                agent_type = f'Type {agent.type_id}'
+                opposite_type = f'Type {1 - agent.type_id}'
+            
             prompt = CONTEXT_SCENARIOS[self.scenario]['prompt_template'].format(
-                agent_type=agent.agent_type,
-                opposite_type=agent.opposite_type,
+                agent_type=agent_type,
+                opposite_type=opposite_type,
                 context=context_str
             )
             

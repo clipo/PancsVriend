@@ -1,0 +1,11 @@
+{
+  "n_runs": 30,
+  "max_steps": 1000,
+  "grid_size": 20,
+  "num_type_a": 150,
+  "num_type_b": 150,
+  "utility_base": 1,
+  "utility_slope": 1,
+  "utility_cutoff": 50,
+  "timestamp": "20250613_142805"
+}

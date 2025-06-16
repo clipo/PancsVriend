@@ -1,0 +1,93 @@
+EXPERIMENTAL DESIGN SPACE EXPLORATION
+Session ID: 20250614_215649
+Created: 2025-06-14T21:56:49.757768
+Total Experiments: 20
+
+CONFIGURATION BREAKDOWN:
+LLM Models: {'mixtral:8x22b-instruct': 20}
+Agent Types: {'memory': 20}
+Scenarios: {'baseline': 4, 'race_white_black': 4, 'ethnic_asian_hispanic': 4, 'economic_high_working': 4, 'political_liberal_conservative': 4}
+Grid Sizes: {'10x10': 5, '15x15': 5, '20x20': 5, '25x25': 5}
+
+DETAILED EXPERIMENT LIST:
+--------------------------------------------------------------------------------
+exp_0001: default_memory_baseline_small
+  Description: LLM: default, Agents: memory, Scenario: baseline, Grid: small
+  Runs: 20, Max Steps: 1000
+
+exp_0002: default_memory_baseline_medium
+  Description: LLM: default, Agents: memory, Scenario: baseline, Grid: medium
+  Runs: 20, Max Steps: 1000
+
+exp_0003: default_memory_baseline_large
+  Description: LLM: default, Agents: memory, Scenario: baseline, Grid: large
+  Runs: 20, Max Steps: 1000
+
+exp_0004: default_memory_baseline_xlarge
+  Description: LLM: default, Agents: memory, Scenario: baseline, Grid: xlarge
+  Runs: 20, Max Steps: 1000
+
+exp_0005: default_memory_race_white_black_small
+  Description: LLM: default, Agents: memory, Scenario: race_white_black, Grid: small
+  Runs: 20, Max Steps: 1000
+
+exp_0006: default_memory_race_white_black_medium
+  Description: LLM: default, Agents: memory, Scenario: race_white_black, Grid: medium
+  Runs: 20, Max Steps: 1000
+
+exp_0007: default_memory_race_white_black_large
+  Description: LLM: default, Agents: memory, Scenario: race_white_black, Grid: large
+  Runs: 20, Max Steps: 1000
+
+exp_0008: default_memory_race_white_black_xlarge
+  Description: LLM: default, Agents: memory, Scenario: race_white_black, Grid: xlarge
+  Runs: 20, Max Steps: 1000
+
+exp_0009: default_memory_ethnic_asian_hispanic_small
+  Description: LLM: default, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: small
+  Runs: 20, Max Steps: 1000
+
+exp_0010: default_memory_ethnic_asian_hispanic_medium
+  Description: LLM: default, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: medium
+  Runs: 20, Max Steps: 1000
+
+exp_0011: default_memory_ethnic_asian_hispanic_large
+  Description: LLM: default, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: large
+  Runs: 20, Max Steps: 1000
+
+exp_0012: default_memory_ethnic_asian_hispanic_xlarge
+  Description: LLM: default, Agents: memory, Scenario: ethnic_asian_hispanic, Grid: xlarge
+  Runs: 20, Max Steps: 1000
+
+exp_0013: default_memory_economic_high_working_small
+  Description: LLM: default, Agents: memory, Scenario: economic_high_working, Grid: small
+  Runs: 20, Max Steps: 1000
+
+exp_0014: default_memory_economic_high_working_medium
+  Description: LLM: default, Agents: memory, Scenario: economic_high_working, Grid: medium
+  Runs: 20, Max Steps: 1000
+
+exp_0015: default_memory_economic_high_working_large
+  Description: LLM: default, Agents: memory, Scenario: economic_high_working, Grid: large
+  Runs: 20, Max Steps: 1000
+
+exp_0016: default_memory_economic_high_working_xlarge
+  Description: LLM: default, Agents: memory, Scenario: economic_high_working, Grid: xlarge
+  Runs: 20, Max Steps: 1000
+
+exp_0017: default_memory_political_liberal_conservative_small
+  Description: LLM: default, Agents: memory, Scenario: political_liberal_conservative, Grid: small
+  Runs: 20, Max Steps: 1000
+
+exp_0018: default_memory_political_liberal_conservative_medium
+  Description: LLM: default, Agents: memory, Scenario: political_liberal_conservative, Grid: medium
+  Runs: 20, Max Steps: 1000
+
+exp_0019: default_memory_political_liberal_conservative_large
+  Description: LLM: default, Agents: memory, Scenario: political_liberal_conservative, Grid: large
+  Runs: 20, Max Steps: 1000
+
+exp_0020: default_memory_political_liberal_conservative_xlarge
+  Description: LLM: default, Agents: memory, Scenario: political_liberal_conservative, Grid: xlarge
+  Runs: 20, Max Steps: 1000
+
