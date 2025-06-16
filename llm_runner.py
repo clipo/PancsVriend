@@ -245,6 +245,13 @@ class LLMAgent(Agent):
     
     def get_llm_decision(self, r, c, grid, max_retries=2):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
+        # Debug flag - set via environment variable
+        debug = os.environ.get('DEBUG_LLM', '').lower() in ('true', '1', 'yes')
+        
+        if debug:
+            print(f"\n[DEBUG] LLM Decision Request for agent at ({r},{c})")
+            print(f"[DEBUG] Agent type: {self.agent_type} | Scenario: {self.scenario}")
+        
         # Construct 3x3 neighborhood context
         context = []
         for dr in [-1, 0, 1]:
@@ -289,11 +296,27 @@ class LLMAgent(Agent):
                     "Content-Type": "application/json"
                 }
                 
+                if debug:
+                    print(f"[DEBUG] Sending LLM request to: {self.llm_url}")
+                    print(f"[DEBUG] Model: {self.llm_model}")
+                    print(f"[DEBUG] Context grid:\n{context_str}")
+                
                 # Shorter timeout for individual requests
+                start_time = time.time()
                 response = requests.post(self.llm_url, headers=headers, json=payload, timeout=8)
+                response_time = time.time() - start_time
+                
+                if debug:
+                    print(f"[DEBUG] LLM Response received in {response_time:.2f}s")
+                    print(f"[DEBUG] Status code: {response.status_code}")
+                
                 response.raise_for_status()
                 data = response.json()
                 text = data["choices"][0]["message"]["content"]
+                
+                if debug:
+                    print(f"[DEBUG] LLM Response text: '{text}'")
+                    print(f"[DEBUG] Attempting to parse decision...")
                 
                 # Parse response
                 match = re.search(r"\((\d+),\s*(\d+)\)", text)
@@ -302,11 +325,19 @@ class LLMAgent(Agent):
                     # Convert from relative to absolute coordinates
                     r_new = r + (move_to[0] - 1)
                     c_new = c + (move_to[1] - 1)
+                    if debug:
+                        print(f"[DEBUG] Parsed move: ({move_to[0]},{move_to[1]}) relative -> ({r_new},{c_new}) absolute")
+                        print(f"[DEBUG] Decision: MOVE to ({r_new},{c_new})")
                     return (r_new, c_new)
                 
                 if "none" in text.strip().lower():
+                    if debug:
+                        print(f"[DEBUG] Decision: STAY (agent chose not to move)")
                     return None
                 
+                if debug:
+                    print(f"[DEBUG] Could not parse decision from: '{text}'")
+                    print(f"[DEBUG] Decision: STAY (parse failure)")
                 return None
                 
             except requests.exceptions.Timeout:

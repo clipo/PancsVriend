@@ -206,6 +206,14 @@ class LLMSimulationWithMemory:
                     
     def get_llm_decision_with_memory(self, agent, r, c, max_retries=2):
         """Get LLM decision using agent's memory and identity"""
+        # Debug flag - set via environment variable
+        debug = os.environ.get('DEBUG_LLM', '').lower() in ('true', '1', 'yes')
+        
+        if debug:
+            print(f"\n[DEBUG-MEMORY] LLM Decision Request for agent at ({r},{c})")
+            print(f"[DEBUG-MEMORY] Agent type: {agent.agent_type} | Scenario: {self.scenario}")
+            print(f"[DEBUG-MEMORY] Agent has {len(agent.decision_history)} previous decisions")
+        
         context = self.get_neighborhood_context(r, c)
         context_str = "\n".join([" ".join(row) for row in context])
         
@@ -237,10 +245,28 @@ class LLMSimulationWithMemory:
                     "Content-Type": "application/json"
                 }
                 
+                if debug:
+                    print(f"[DEBUG-MEMORY] Sending LLM request to: {agent.llm_url}")
+                    print(f"[DEBUG-MEMORY] Model: {agent.llm_model}")
+                    print(f"[DEBUG-MEMORY] Context grid:\n{context_str}")
+                    if hasattr(agent, 'decision_history') and agent.decision_history:
+                        print(f"[DEBUG-MEMORY] Recent history: {agent.decision_history[-3:]}")
+                
+                start_time = time.time()
                 response = requests.post(agent.llm_url, headers=headers, json=payload, timeout=8)
+                response_time = time.time() - start_time
+                
+                if debug:
+                    print(f"[DEBUG-MEMORY] LLM Response received in {response_time:.2f}s")
+                    print(f"[DEBUG-MEMORY] Status code: {response.status_code}")
+                
                 response.raise_for_status()
                 data = response.json()
                 text = data["choices"][0]["message"]["content"]
+                
+                if debug:
+                    print(f"[DEBUG-MEMORY] LLM Response text: '{text}'")
+                    print(f"[DEBUG-MEMORY] Attempting to parse decision...")
                 
                 # Parse response
                 match = re.search(r"\((\d+),\s*(\d+)\)", text)
@@ -250,13 +276,25 @@ class LLMSimulationWithMemory:
                     r_new = r + (move_to[0] - 1)
                     c_new = c + (move_to[1] - 1)
                     
+                    if debug:
+                        print(f"[DEBUG-MEMORY] Parsed move: ({move_to[0]},{move_to[1]}) relative -> ({r_new},{c_new}) absolute")
+                    
                     # Validate the move
                     if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE and self.grid[r_new][c_new] is None:
+                        if debug:
+                            print(f"[DEBUG-MEMORY] Decision: MOVE to ({r_new},{c_new})")
                         return (r_new, c_new)
+                    elif debug:
+                        print(f"[DEBUG-MEMORY] Move invalid (out of bounds or occupied), will STAY")
                 
                 if "none" in text.strip().lower():
+                    if debug:
+                        print(f"[DEBUG-MEMORY] Decision: STAY (agent chose not to move)")
                     return None
-                    
+                
+                if debug:
+                    print(f"[DEBUG-MEMORY] Could not parse decision from: '{text}'")
+                    print(f"[DEBUG-MEMORY] Decision: STAY (parse failure)")
                 return None
                 
             except Exception as e:
