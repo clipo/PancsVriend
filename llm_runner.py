@@ -508,10 +508,16 @@ class LLMSimulation:
         batch_size = min(5, len(all_positions))  # Reduced from 10 to 5
         moved = False
         
-        for i in range(0, len(all_positions), batch_size):
-            batch = all_positions[i:i+batch_size]
+        pending_agents = []
+        for i in range(0, len(all_positions) + len(pending_agents), batch_size):
+            # Combine pending agents from previous batch with new batch
+            if pending_agents:
+                batch = pending_agents + all_positions[i:i+max(0, batch_size-len(pending_agents))]
+                pending_agents = []
+            else:
+                batch = all_positions[i:i+batch_size]
             task_ids = []
-            
+            batch_retry = []
             # Queue batch with task IDs for tracking
             for r, c in batch:
                 agent = self.grid[r][c]
@@ -519,38 +525,23 @@ class LLMSimulation:
                     task_id = self._task_counter
                     self._task_counter += 1
                     task_ids.append(task_id)
-                    
                     try:
                         # Check if worker thread is alive before queuing
                         if not self.llm_thread.is_alive():
-                            print(f"[Error] Worker thread died, attempting restart...")
+                            print("[Error] Worker thread died, attempting restart...")
                             if self.restart_worker_if_needed():
-                                # Try queuing again after restart
                                 try:
                                     self.query_queue.put((agent, r, c, task_id), timeout=2.0)
-                                except:
-                                    print(f"[Error] Failed to queue after restart, using mechanical for ({r},{c})")
-                                    move_to = agent.best_response(r, c, self.grid)
-                                    self._process_move(agent, r, c, move_to)
-                                    if move_to and move_to != (r, c):
-                                        moved = True
+                                except queue.Full:
+                                    batch_retry.append((r, c))
                                     continue
-                            else:
-                                print(f"[Error] Could not restart worker, using mechanical for ({r},{c})")
-                                move_to = agent.best_response(r, c, self.grid)
-                                self._process_move(agent, r, c, move_to)
-                                if move_to and move_to != (r, c):
-                                    moved = True
-                                continue
-                        
-                        self.query_queue.put((agent, r, c, task_id), timeout=2.0)  # Reduced timeout
+                        else:
+                            self.query_queue.put((agent, r, c, task_id), timeout=2.0)
                     except queue.Full:
-                        print(f"[Warning] Query queue full, skipping agent at ({r},{c})")
-                        # Fallback to mechanical agent
-                        move_to = agent.best_response(r, c, self.grid)
-                        self._process_move(agent, r, c, move_to)
-                        if move_to and move_to != (r, c):
-                            moved = True
+                        batch_retry.append((r, c))
+                        continue
+            # Add any agents that couldn't be queued to pending_agents for next batch
+            pending_agents.extend(batch_retry)
             
             # Wait for results with proper timeout handling
             results = []
