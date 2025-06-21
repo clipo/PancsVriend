@@ -17,9 +17,7 @@ from tqdm import tqdm
 import time
 import threading
 import queue
-
-# Import the existing CONTEXT_SCENARIOS from llm_runner
-from llm_runner import CONTEXT_SCENARIOS, check_llm_connection
+from context_scenarios import CONTEXT_SCENARIOS
 
 class LLMSimulationWithMemory:
     """Enhanced simulation where agents remember their experiences"""

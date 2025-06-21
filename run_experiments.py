@@ -12,7 +12,8 @@ import time
 import config as cfg
 
 from baseline_runner import run_baseline_experiment
-from llm_runner import run_llm_experiment, CONTEXT_SCENARIOS, check_llm_connection
+from llm_runner import run_llm_experiment, check_llm_connection
+from context_scenarios import CONTEXT_SCENARIOS
 from visualization import create_comprehensive_report
 from statistical_analysis import create_statistical_report
 from plateau_detection import compare_convergence_across_runs
