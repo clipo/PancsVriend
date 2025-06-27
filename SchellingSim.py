@@ -71,7 +71,7 @@ class Simulation:
         self.start_llm_worker()
         self.convergence_step = None
         self.no_move_steps = 0
-        self.no_move_threshold = 20
+        self.no_move_threshold = cfg.NO_MOVE_THRESHOLD
 
     def start_llm_worker(self):
         def worker():

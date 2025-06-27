@@ -575,6 +575,7 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
         'llm_model': llm_model or cfg.OLLAMA_MODEL,
         'llm_url': llm_url or cfg.OLLAMA_URL,
         'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
+        'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
         'timestamp': timestamp,
         'context_info': CONTEXT_SCENARIOS[scenario]
     }

@@ -132,6 +132,7 @@ def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, pa
         'utility_base': cfg.UTILITY_BASE,
         'utility_slope': cfg.UTILITY_SLOPE,
         'utility_cutoff': cfg.UTILITY_CUTOFF,
+        'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
         'timestamp': timestamp
     }
     if config_override:

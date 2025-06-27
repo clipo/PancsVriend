@@ -38,7 +38,7 @@ class LLMSimulationWithMemory:
         self.converged = False
         self.convergence_step = None
         self.no_move_steps = 0
-        self.no_move_threshold = 20
+        self.no_move_threshold = cfg.NO_MOVE_THRESHOLD
         self.metrics_history = []
         
         # Agent tracking for memory
