@@ -109,5 +109,5 @@ class Agent:
                     if agent is not None:
                         neighbors.append(agent)
         if not neighbors:
-            return 1
+            return 0 # No neighbors means no need to move.
         return sum(1 for n in neighbors if n.type_id != self.type_id) / len(neighbors)
