@@ -1,3 +1,27 @@
+"""
+LLM-based Schelling Segregation Simulation Runner
+
+⚠️  IMPORTANT: PROGRESS MONITORING vs SIMULATION LOGIC
+===============================================================================
+This file contains TWO DISTINCT types of code:
+
+1. CORE SIMULATION LOGIC (affects experiment results):
+   - LLM API calls and decision making
+   - Agent movement tracking
+   - Simulation execution and data collection
+   - Final results and metrics
+
+2. PROGRESS MONITORING CODE (UI display only, does NOT affect results):
+   - Real-time progress bars and status displays
+   - Temporary progress files (progress_run_*.json)
+   - Screen clearing and visual formatting
+   - Background monitoring threads
+
+All progress monitoring code is clearly marked with demarcation comments.
+It can be disabled or removed without affecting simulation results.
+===============================================================================
+"""
+
 import numpy as np
 import json
 import os
@@ -269,13 +293,17 @@ class LLMSimulation(Simulation):
         # Track LLM metrics across all agents
         self.total_llm_calls = 0
         self.total_llm_time = 0.0
+        self.total_moves = 0
     
     def _create_llm_agent(self, type_id):
         """Create LLM agent with simulation parameters"""
         return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key)
 
     def run_step(self):
-        """Override run_step to track LLM metrics"""
+        """Override run_step to track LLM metrics and update progress file"""
+        # Count moves before the step
+        moves_count = 0
+        
         # Update total LLM metrics from all agents
         for r in range(cfg.GRID_SIZE):
             for c in range(cfg.GRID_SIZE):
@@ -287,127 +315,128 @@ class LLMSimulation(Simulation):
                     agent.llm_call_count = 0
                     agent.llm_call_time = 0.0
         
+        # Track agent positions before update
+        positions_before = {}
+        for r in range(cfg.GRID_SIZE):
+            for c in range(cfg.GRID_SIZE):
+                if self.grid[r][c] is not None:
+                    agent_id = id(self.grid[r][c])
+                    positions_before[agent_id] = (r, c)
+        
         # Call parent run_step
-        return super().run_step()
+        result = super().run_step()
+        
+        # Count actual moves by comparing positions
+        positions_after = {}
+        for r in range(cfg.GRID_SIZE):
+            for c in range(cfg.GRID_SIZE):
+                if self.grid[r][c] is not None:
+                    agent_id = id(self.grid[r][c])
+                    positions_after[agent_id] = (r, c)
+        
+        # Count how many agents moved
+        for agent_id in positions_before:
+            if agent_id in positions_after:
+                if positions_before[agent_id] != positions_after[agent_id]:
+                    moves_count += 1
+        
+        # Add to total moves counter (CORE SIMULATION METRIC)
+        self.total_moves += moves_count
+        
+        # Store moves count for progress tracking
+        self.moves_this_step = moves_count
+        
+        # =====================================================================
+        # PROGRESS FILE UPDATE (UI DISPLAY ONLY - NOT PART OF EXPERIMENT DATA)
+        # =====================================================================
+        # Update progress file if it exists (for UI monitoring only)
+        if hasattr(self, 'progress_file') and self.progress_file and self.step % 5 == 0:
+            try:
+                with open(self.progress_file, 'r') as f:
+                    progress_data = json.load(f)
+                
+                # Update progress data (for UI display only)
+                progress_data.update({
+                    "current_step": self.step,
+                    "step_progress_percent": (self.step / progress_data["max_steps"]) * 100,
+                    "converged": self.converged,
+                    "llm_calls": self.total_llm_calls,
+                    "total_moves": self.total_moves,
+                    "avg_llm_time": self.total_llm_time / max(self.total_llm_calls, 1),
+                    "timestamp": datetime.now().isoformat()
+                })
+                with open(self.progress_file, 'w') as f:
+                    json.dump(progress_data, f, indent=2)
+            except Exception:
+                pass
+        # =====================================================================
+        # END PROGRESS FILE UPDATE
+        # =====================================================================
+        
+        return result
 
     def run_single_simulation(self, output_dir=None, max_steps=1000):
         """Override to show progress bar for LLM simulations"""
-        return super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
-
-    # def run_step(self):
-    #     moved = self.update_agents()
-    #     metrics = calculate_all_metrics(self.grid)
-    #     metrics['step'] = self.step
-    #     metrics['run_id'] = self.run_id
-    #     self.metrics_history.append(metrics)
-    #     self.states.append(self._grid_to_int())
-    #     if not moved:
-    #         self.no_move_steps += 1
-    #     else:
-    #         self.no_move_steps = 0
-    #     if self.no_move_steps >= self.no_move_threshold:
-    #         self.converged = True
-    #         self.convergence_step = self.step
-    #     self.step += 1
-    #     if self.progress_file and self.step % 10 == 0:
-    #         try:
-    #             with open(self.progress_file, 'r') as f:
-    #                 progress_data = json.load(f)
-    #             progress_data.update({
-    #                 "current_step": self.step,
-    #                 "step_progress_percent": (self.step / progress_data["max_steps"]) * 100,
-    #                 "converged": self.converged,
-    #                 "timestamp": datetime.now().isoformat()
-    #             })
-    #             with open(self.progress_file, 'w') as f:
-    #                 json.dump(progress_data, f, indent=2)
-    #         except Exception:
-    #             pass
-    #     return self.converged
-
-    # def run(self, max_steps=1000):
-    #     progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})")
-    #     while self.step < max_steps and not self.converged:
-    #         self.run_step()
-    #         progress_bar.update(1)
-    #         if self.step % 10 == 0:
-    #             avg_llm_time = np.mean(self.llm_call_times[-100:]) if self.llm_call_times else 0
-    #             progress_bar.set_postfix({'converged': self.converged, 'llm_calls': self.llm_call_count, 'avg_llm_time': f"{avg_llm_time:.2f}s"})
-    #     progress_bar.close()
-    #     self._shutdown_requested = True
-    #     try:
-    #         self.query_queue.put(None, timeout=1.0)
-    #         self.llm_thread.join(timeout=5.0)
-    #         if self.llm_thread.is_alive():
-    #             print("[Warning] LLM worker thread did not shut down cleanly")
-    #     except queue.Full:
-    #         print("[Warning] Could not send shutdown signal to LLM worker")
-    #     except Exception as e:
-    #         print(f"[Warning] Error during LLM worker cleanup: {e}")
-    #     return {
-    #         'run_id': self.run_id,
-    #         'scenario': self.scenario,
-    #         'converged': self.converged,
-    #         'convergence_step': self.convergence_step,
-    #         'final_step': self.step,
-    #         'metrics_history': self.metrics_history,
-    #         'llm_call_count': self.llm_call_count,
-    #         'avg_llm_call_time': np.mean(self.llm_call_times) if self.llm_call_times else 0,
-    #         'states': self.states
-    #     }
-
-# def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None):
-#     """Run LLM experiments with specified scenario"""
-    
-#     # Check LLM connection first with potentially custom parameters
-#     if not check_llm_connection(llm_model, llm_url, llm_api_key):
-#         print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
-#         print("Please ensure the LLM server is running and accessible.")
-#         return None, []
-    
-#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     experiment_name = f"llm_{scenario}_{timestamp}"
-#     output_dir = f"experiments/{experiment_name}"
-#     os.makedirs(output_dir, exist_ok=True)
-    
-#     config_dict = {
-#         'n_runs': n_runs,
-#         'max_steps': max_steps,
-#         'grid_size': cfg.GRID_SIZE,
-#         'num_type_a': cfg.NUM_TYPE_A,
-#         'num_type_b': cfg.NUM_TYPE_B,
-#         'llm_model': llm_model or cfg.OLLAMA_MODEL,
-#         'llm_url': llm_url or cfg.OLLAMA_URL,
-#         'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
-#         'timestamp': timestamp,
-#         'context_info': CONTEXT_SCENARIOS[scenario]
-#     }
-    
-#     with open(f"{output_dir}/config.json", 'w') as f:
-#         json.dump(config_dict, f, indent=2)
-    
-#     args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
-#     results = []
-#     for args in tqdm(args_list, desc="Running LLM simulations"):
-#         sim = LLMSimulation(*args[:-1])
-#         results.append(sim.run(max_steps))
-
-#     # Analyze results
-#     output_dir, results, convergence_data = Simulation.analyze_results(results, output_dir, n_runs)
-    
-#     print(f"\nExperiment completed. Results saved to: {output_dir}")
-#     print(f"Total runs: {n_runs}")
-#     print(f"Converged runs: {sum(1 for r in convergence_data if r['converged'])}")
-#     print(f"Average convergence step: {np.mean([r['convergence_step'] for r in convergence_data if r['convergence_step'] is not None]):.2f}")
-#     return output_dir, results
+        return super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=False)
 
 def run_single_simulation(args):
     """Run a single LLM simulation - compatible with baseline_runner structure"""
     run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key)
+    
+    # =========================================================================
+    # PROGRESS TRACKING SETUP (UI DISPLAY ONLY - NOT PART OF EXPERIMENT DATA)
+    # =========================================================================
+    # Create a progress file for this specific run (temporary file for UI only)
+    progress_file = os.path.join(output_dir or ".", f"progress_run_{run_id}.json")
+    
+    # Initialize progress tracking data (for display purposes only)
+    progress_data = {
+        "run_id": run_id,
+        "scenario": scenario,
+        "current_step": 0,
+        "max_steps": 1000,
+        "step_progress_percent": 0,
+        "converged": False,
+        "llm_calls": 0,
+        "total_moves": 0,
+        "avg_llm_time": 0.0,
+        "start_time": datetime.now().isoformat(),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Create temporary progress file (for UI monitoring only)
+    try:
+        with open(progress_file, 'w') as f:
+            json.dump(progress_data, f, indent=2)
+    except Exception:
+        pass
+    
+    # Set progress file for the simulation (enables UI progress updates)
+    sim.progress_file = progress_file
+    # =========================================================================
+    # END PROGRESS TRACKING SETUP
+    # =========================================================================
+    
+    # =========================================================================
+    # CORE SIMULATION EXECUTION (THIS IS THE ACTUAL EXPERIMENT)
+    # =========================================================================
     result = sim.run_single_simulation(output_dir=output_dir, max_steps=1000)
     
-    # Add LLM-specific metrics to the result
+    # =========================================================================
+    # PROGRESS FILE CLEANUP (UI DISPLAY ONLY - NOT PART OF EXPERIMENT DATA)
+    # =========================================================================
+    # Clean up temporary progress file (used only for UI monitoring)
+    try:
+        if os.path.exists(progress_file):
+            os.remove(progress_file)
+    except Exception:
+        pass
+    # =========================================================================
+    # END PROGRESS FILE CLEANUP
+    # =========================================================================
+    
+    # Add LLM-specific metrics to the result (THIS IS EXPERIMENT DATA)
     result.update({
         'scenario': scenario,
         'llm_call_count': sim.total_llm_calls,
@@ -499,12 +528,31 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     
     if parallel and n_processes > 1:
         print(f"Running {n_runs} simulations using {n_processes} parallel processes...")
+        
+        # =====================================================================
+        # PROGRESS MONITORING THREAD (UI DISPLAY ONLY - NOT PART OF EXPERIMENT)
+        # =====================================================================
+        # Start progress monitoring in a separate thread (for UI display only)
+        import threading
+        monitor_thread = threading.Thread(
+            target=monitor_parallel_progress, 
+            args=(output_dir, n_runs),
+            daemon=True
+        )
+        monitor_thread.start()
+        # =====================================================================
+        # END PROGRESS MONITORING THREAD SETUP
+        # =====================================================================
+        
+        # CORE SIMULATION EXECUTION (THIS IS THE ACTUAL EXPERIMENT)
         with Pool(n_processes) as pool:
-            results = list(tqdm(
-                pool.imap(run_single_simulation, args_list),
-                total=n_runs,
-                desc="Running LLM simulations"
-            ))
+            # Use pool.map_async to avoid blocking the progress monitor
+            async_result = pool.map_async(run_single_simulation, args_list)
+            results = async_result.get()  # This will block until all are done
+        
+        # Wait a moment for monitor to catch up (UI display only)
+        time.sleep(1)
+        
     else:
         print(f"Running {n_runs} simulations sequentially...")
         results = []
@@ -529,6 +577,113 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         print(f"Average LLM response time: {np.mean(llm_times):.3f}s")
     
     return output_dir, results
+
+# =============================================================================
+# PARALLEL PROGRESS MONITORING (UI/DISPLAY ONLY - NOT PART OF SIMULATION LOGIC)
+# =============================================================================
+# This section contains code for real-time progress visualization during 
+# parallel execution. This code does NOT affect simulation results or outputs.
+# It only provides visual feedback to the user about simulation progress.
+# =============================================================================
+
+def monitor_parallel_progress(output_dir, n_runs, update_interval=2):
+    """
+    Monitor progress of parallel simulations by reading progress files
+    
+    ⚠️  DISPLAY ONLY: This function is purely for user interface and does not
+    affect simulation results, outputs, or experiment data in any way.
+    """
+    import time
+    import glob
+    
+    progress_bars = {}
+    completed_runs = set()
+    
+    print(f"\n📊 Monitoring progress for {n_runs} parallel simulations...")
+    print("=" * 70)
+    
+    while len(completed_runs) < n_runs:
+        # Find all progress files
+        progress_files = glob.glob(os.path.join(output_dir or ".", "progress_run_*.json"))
+        
+        current_status = []
+        
+        for progress_file in progress_files:
+            try:
+                with open(progress_file, 'r') as f:
+                    data = json.load(f)
+                
+                run_id = data.get('run_id', 'Unknown')
+                scenario = data.get('scenario', 'Unknown')
+                current_step = data.get('current_step', 0)
+                max_steps = data.get('max_steps', 1000)
+                converged = data.get('converged', False)
+                llm_calls = data.get('llm_calls', 0)
+                total_moves = data.get('total_moves', 0)
+                avg_llm_time = data.get('avg_llm_time', 0.0)
+                
+                # Create or update progress bar for this run
+                if run_id not in progress_bars:
+                    progress_bars[run_id] = {
+                        'last_step': 0,
+                        'scenario': scenario
+                    }
+                
+                progress_percent = (current_step / max_steps) * 100
+                status_icon = "✅" if converged else "🔄"
+                
+                current_status.append({
+                    'run_id': run_id,
+                    'scenario': scenario,
+                    'step': current_step,
+                    'max_steps': max_steps,
+                    'percent': progress_percent,
+                    'converged': converged,
+                    'icon': status_icon,
+                    'llm_calls': llm_calls,
+                    'total_moves': total_moves,
+                    'avg_llm_time': avg_llm_time
+                })
+                
+                # Mark as completed if converged or reached max steps
+                if converged or current_step >= max_steps:
+                    completed_runs.add(run_id)
+                    
+            except (FileNotFoundError, json.JSONDecodeError, KeyError):
+                continue
+        
+        # Clear screen and show updated progress
+        os.system('clear' if os.name == 'posix' else 'cls')
+        print(f"📊 Monitoring progress for {n_runs} parallel simulations...")
+        print("=" * 85)
+        
+        # Sort by run_id for consistent display
+        current_status.sort(key=lambda x: x['run_id'])
+        
+        for status in current_status:
+            bar_length = 25
+            filled_length = int(bar_length * status['percent'] / 100)
+            bar = '█' * filled_length + '░' * (bar_length - filled_length)
+            
+            # Format the display line with LLM calls and total moves
+            print(f"{status['icon']} Run {status['run_id']:2d} [{bar}] {status['percent']:5.1f}% "
+                  f"({status['step']:3d}/{status['max_steps']}) "
+                  f"LLM:{status['llm_calls']:4d} Moves:{status['total_moves']:3d} "
+                  f"T:{status['avg_llm_time']:4.2f}s {status['scenario']}")
+        
+        print(f"\nCompleted: {len(completed_runs)}/{n_runs}")
+        print(f"Running: {len(current_status) - len(completed_runs)}")
+        print("Legend: LLM=Total LLM calls, Moves=Total moves across all steps, T=Avg LLM response time")
+        
+        if len(completed_runs) < n_runs:
+            time.sleep(update_interval)
+    
+    print("\n🎉 All simulations completed!")
+    return True
+
+# =============================================================================
+# END OF PROGRESS MONITORING CODE
+# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM-based Schelling segregation simulations")
