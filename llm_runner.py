@@ -107,10 +107,10 @@ class LLMAgent(Agent):
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
     
-    def get_llm_decision(self, r, c, grid, max_retries=2):
+    def get_llm_decision(self, r, c, grid, max_retries=5):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Debug flag - set via environment variable
-        debug = os.environ.get('DEBUG_LLM', '').lower() in ('true', '1', 'yes')
+        debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
         
         if debug:
             print(f"\n[DEBUG] LLM Decision Request for agent at ({r},{c})")
@@ -131,13 +131,23 @@ class LLMAgent(Agent):
                     else:
                         row.append("O")  # Opposite
                 else:
-                    row.append("X")  # Out of bounds
+                    row.append("#")  # Out of bounds
             context.append(row)
         
-        # Format context for prompt
-        context_str = "\n".join([" ".join(row) for row in context])
+        # Format context for prompt - mark current position
+        context_with_position = []
+        for i, row in enumerate(context):
+            new_row = []
+            for j, cell in enumerate(row):
+                if i == 1 and j == 1:  # Center position (current location)
+                    new_row.append("X")
+                else:
+                    new_row.append(cell)
+            context_with_position.append(new_row)
         
-        # Create prompt
+        context_str = "\n".join([" ".join(row) for row in context_with_position])
+        
+        # Create prompt using context scenario template
         prompt = self.context_info['prompt_template'].format(
             agent_type=self.agent_type,
             opposite_type=self.opposite_type,
@@ -165,14 +175,19 @@ class LLMAgent(Agent):
                     print(f"[DEBUG] Model: {self.llm_model}")
                     print(f"[DEBUG] Context grid:\n{context_str}")
                 
-                # Shorter timeout for individual requests
+                # Track timing and calls
                 start_time = time.time()
                 response = requests.post(self.llm_url, headers=headers, json=payload, timeout=8)
                 response_time = time.time() - start_time
                 
+                # Update agent's LLM metrics
+                self.llm_call_count += 1
+                self.llm_call_time += response_time
+                
                 if debug:
                     print(f"[DEBUG] LLM Response received in {response_time:.2f}s")
                     print(f"[DEBUG] Status code: {response.status_code}")
+
                 
                 response.raise_for_status()
                 data = response.json()
@@ -180,30 +195,43 @@ class LLMAgent(Agent):
                 
                 if debug:
                     print(f"[DEBUG] LLM Response text: '{text}'")
-                    print(f"[DEBUG] Attempting to parse decision...")
+                    print("[DEBUG] Attempting to parse decision...")
                 
-                # Parse response
-                match = re.search(r"\((\d+),\s*(\d+)\)", text)
-                if match:
-                    move_to = (int(match.group(1)), int(match.group(2)))
-                    # Convert from relative to absolute coordinates
-                    r_new = r + (move_to[0] - 1)
-                    c_new = c + (move_to[1] - 1)
-                    if debug:
-                        print(f"[DEBUG] Parsed move: ({move_to[0]},{move_to[1]}) relative -> ({r_new},{c_new}) absolute")
-                        print(f"[DEBUG] Decision: MOVE to ({r_new},{c_new})")
-                    return (r_new, c_new)
+                # Parse MOVE/STAY response
+                text_upper = text.strip().upper()
                 
-                if "none" in text.strip().lower():
+                if "MOVE" in text_upper:
                     if debug:
-                        print(f"[DEBUG] Decision: STAY (agent chose not to move)")
+                        print("[DEBUG] Decision: MOVE - finding random empty space")
+                    
+                    # Find all empty spaces on the grid
+                    empty_spaces = []
+                    for row in range(cfg.GRID_SIZE):
+                        for col in range(cfg.GRID_SIZE):
+                            if grid[row][col] is None:  # Empty space
+                                empty_spaces.append((row, col))
+                    
+                    # Return random empty space if available
+                    if empty_spaces:
+                        chosen_pos = random.choice(empty_spaces)
+                        if debug:
+                            print(f"[DEBUG] Moving to random empty position: {chosen_pos}")
+                        return chosen_pos
+                    else:
+                        if debug:
+                            print("[DEBUG] No empty spaces available, staying put")
+                        return None
+                
+                elif "STAY" in text_upper:
+                    if debug:
+                        print("[DEBUG] Decision: STAY")
                     return None
                 
-                if debug:
-                    print(f"[DEBUG] Could not parse decision from: '{text}'")
-                    print(f"[DEBUG] Decision: STAY (parse failure)")
-                return None
-                
+                else:
+                    if debug:
+                        print(f"[DEBUG] Could not parse MOVE/STAY from: '{text}'")
+                        print("[DEBUG] Decision: STAY (parse failure)")
+                    return None
             except requests.exceptions.Timeout:
                 if attempt < max_retries:
                     print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c})")
@@ -211,16 +239,20 @@ class LLMAgent(Agent):
                     continue
                 else:
                     print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c})")
-                    return self.best_response(r, c, grid)
-                    
+                    raise Exception(f"LLM timeout after {max_retries} retries")
             except Exception as e:
                 if attempt < max_retries:
                     print(f"[LLM Error] {type(e).__name__} - Retry {attempt + 1}/{max_retries}")
+                    print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e}")
                     time.sleep(1)
                     continue
                 else:
-                    print(f"[LLM Error] {type(e).__name__}: {e}")
-                    return self.best_response(r, c, grid)
+                    print(f"[LLM Error] Exception: Unhandled error after {max_retries} retries: {e}")
+                    raise Exception(f"LLM error after {max_retries} retries: {e}")
+
+def llm_decision_function(agent, r, c, grid):
+    """Decision function for LLM agents with retry logic (no fallback to mechanical decision)"""
+    return agent.get_llm_decision(r, c, grid)
 
 class LLMSimulation:
     def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0, 
