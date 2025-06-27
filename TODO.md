@@ -4,57 +4,33 @@
 
 ### 1. Collapse different agent classes into a single parameterized agent class
 - [ ] Files to refactor:
-  - `Agent.py` - Base mechanical agent with utility-based decisions
-  - `LLMAgent.py` - Basic LLM agent (function-based, not class-based)
   - `llm_agent_with_memory.py` - LLMAgentWithMemory class with persistent context
-- [ ] Create unified `UnifiedAgent.py` with parameters:
-  - `agent_type`: 'mechanical' | 'llm' | 'llm_with_memory'
-  - `llm_config`: Optional LLM configuration (model, url, api_key)
-  - `memory_enabled`: Boolean for memory persistence
-  - `scenario`: Social context scenario
-- [ ] Update all references in:
-  - `baseline_runner.py`
-  - `llm_runner.py`
-  - `llm_runner_with_memory.py`
-  - `SchellingSim.py`
+
 
 ### 2. Modify LLM code to store and display all prompt/response pairs
-- [ ] Add prompt/response storage mechanism to LLMAgent classes
+- [ ] Add prompt/
+		** response storage mechanism to LLMAgent classes 
 - [ ] Display LLM interactions to console with timestamps
 - [ ] Store interactions in a structured format (JSON/CSV)
 - [ ] Save prompt/response history to experiment directory
 - [ ] Update llm_runner.py and llm_agent_with_memory.py
 
-### 3. Remove automatic fallback to mechanical model on LLM failure
-- [ ] Remove circuit breaker logic in llm_runner.py (lines 381-384, 459-461)
-- [ ] Remove fallback calls to agent.best_response() on LLM errors
-- [ ] Let LLM failures result in no movement instead of mechanical fallback
-- [ ] Keep retry logic but remove mechanical substitution
+### Scenarios to run
+python llm_runner.py --runs 100 --processes 10 --scenario 'race_white_black'
 
-### 4. Merge runner files into single comprehensive runner script
-- [ ] Files to merge:
-  - `baseline_runner.py` - Runs mechanical agent simulations
-  - `llm_runner.py` - Runs LLM agent simulations
-  - `llm_runner_with_memory.py` - Runs LLM agents with memory
-  - `run_experiments.py` - Master orchestrator
-  - All other experiment runners (comprehensive_comparison_study.py, etc.)
-- [ ] Create unified `universal_runner.py` with:
-  - Support for all agent types (mechanical, LLM, LLM with memory)
-  - Configurable via command-line arguments
-  - Single entry point for all simulation types
-  - Batch and individual run capabilities
+for example 
 
-### 5. Update grid state saving to capture every agent decision
-- [ ] Modify `_grid_to_int()` function to save state after each individual agent move
-- [ ] Update state storage to include:
-  - Agent ID that moved
-  - Source position (r, c)
-  - Destination position (r_new, c_new)
-  - Timestamp of decision
-  - LLM prompt/response if applicable
-- [ ] Ensure state files don't become too large (consider compression)
-- [ ] Add option to toggle between step-wise and move-wise saving
+see context_scenarios.py
 
+
+
+
+
+
+
+
+
+-----
 ## High Priority
 
 ### Framework Improvements
