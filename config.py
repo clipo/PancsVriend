@@ -6,9 +6,9 @@ NUM_TYPE_B = 160                         # initial count of Type B agents (e.g.,
 NO_MOVE_THRESHOLD = 5                    # convergence criterion: simulation stops after this many steps with no agent movements
 
 # ===== Base Runner Settings (used by baseline_runner.py) =====
-UTILITY_BASE = 1                         # base utility value in agents' decision function
-UTILITY_SLOPE = 1                        # slope factor in the utility calculation
-UTILITY_CUTOFF = 50                      # threshold utility for relocation decisions
+# Simplified utility function: returns 1 if at least 50% neighbors are similar, 0 otherwise
+SIMILARITY_THRESHOLD = 0.5               # threshold for required similar neighbors (50%)
+AGENT_SATISFACTION_THRESHOLD = 0         # minimum utility for agent satisfaction (agents move if utility <= this)
 
 # ===== LLM Runner Settings (used by llm_runner.py) =====
 OLLAMA_MODEL = "mixtral:8x22b-instruct"    # LLM model identifier for Ollama

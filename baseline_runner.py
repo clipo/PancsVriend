@@ -129,9 +129,8 @@ def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, pa
         'grid_size': cfg.GRID_SIZE,
         'num_type_a': cfg.NUM_TYPE_A,
         'num_type_b': cfg.NUM_TYPE_B,
-        'utility_base': cfg.UTILITY_BASE,
-        'utility_slope': cfg.UTILITY_SLOPE,
-        'utility_cutoff': cfg.UTILITY_CUTOFF,
+        'similarity_threshold': cfg.SIMILARITY_THRESHOLD,
+        'agent_satisfaction_threshold': cfg.AGENT_SATISFACTION_THRESHOLD,
         'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
         'timestamp': timestamp
     }
