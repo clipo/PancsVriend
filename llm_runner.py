@@ -104,7 +104,7 @@ class LLMAgent(Agent):
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
     
-    def get_llm_decision(self, r, c, grid, max_retries=5):
+    def get_llm_decision(self, r, c, grid, max_retries=10):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
@@ -159,7 +159,7 @@ class LLMAgent(Agent):
                     "stream": False,
                     "temperature": 0.3,  # Lower temperature for more consistent responses
                     "max_tokens": 50,    # Limit response length
-                    "timeout": 10000     # 10 second timeout in milliseconds
+                    "timeout": 20000     # 20 second timeout in milliseconds
                 }
                 
                 headers = {
@@ -232,7 +232,7 @@ class LLMAgent(Agent):
             except requests.exceptions.Timeout:
                 if attempt < max_retries:
                     print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c})")
-                    time.sleep(1)  # Brief pause before retry
+                    time.sleep(10)  # Wait 10 seconds before retry
                     continue
                 else:
                     print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c})")
@@ -240,7 +240,7 @@ class LLMAgent(Agent):
             except Exception as e:
                 if attempt < max_retries:
                     print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e}")
-                    time.sleep(1)
+                    time.sleep(60)  # Wait 1 minute before retry
                     continue
                 else:
                     print(f"[LLM Error] Exception: Unhandled error after {max_retries} retries: {e}")
