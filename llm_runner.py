@@ -1,20 +1,17 @@
 import numpy as np
-import pandas as pd
 import json
 import os
+import random
 from datetime import datetime
 import config as cfg
 from Agent import Agent
-from Metrics import calculate_all_metrics
 import requests
-import re
 from tqdm import tqdm
-import argparse
 import time
-import threading
-import queue
 from context_scenarios import CONTEXT_SCENARIOS
 import argparse
+from base_simulation import Simulation
+from multiprocessing import Pool, cpu_count
 
 def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10):
     """
@@ -242,7 +239,6 @@ class LLMAgent(Agent):
                     raise Exception(f"LLM timeout after {max_retries} retries")
             except Exception as e:
                 if attempt < max_retries:
-                    print(f"[LLM Error] {type(e).__name__} - Retry {attempt + 1}/{max_retries}")
                     print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e}")
                     time.sleep(1)
                     continue
@@ -254,339 +250,205 @@ def llm_decision_function(agent, r, c, grid):
     """Decision function for LLM agents with retry logic (no fallback to mechanical decision)"""
     return agent.get_llm_decision(r, c, grid)
 
-class LLMSimulation:
-    def __init__(self, run_id, scenario='baseline', use_llm_probability=1.0, 
-                 llm_model=None, llm_url=None, llm_api_key=None, progress_file=None):
-        self.run_id = run_id
+class LLMSimulation(Simulation):
+    def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None):
+        # Store LLM parameters for agent creation
         self.scenario = scenario
-        self.use_llm_probability = use_llm_probability
-        self.llm_model = llm_model
-        self.llm_url = llm_url
-        self.llm_api_key = llm_api_key
-        self.progress_file = progress_file
-        self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
-        self.step = 0
-        self.converged = False
-        self.convergence_step = None
-        self.no_move_steps = 0
-        self.no_move_threshold = 20
-        self.metrics_history = []
-        self.llm_call_count = 0
-        self.llm_call_times = []
+        self.llm_model = llm_model or cfg.OLLAMA_MODEL
+        self.llm_url = llm_url or cfg.OLLAMA_URL
+        self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
         
-        # Circuit breaker for LLM failures
-        self.llm_failure_count = 0
-        self.max_llm_failures = 20  # After 20 failures, switch to mechanical only
-        self.llm_circuit_open = False
+        super().__init__(
+            run_id=run_id, 
+            agent_factory=self._create_llm_agent, 
+            decision_func=llm_decision_function, 
+            scenario=scenario,
+            random_seed=random_seed
+        )
         
-        self.populate_grid()
-        # Initialize integer states list after population
-        self.states = [self._grid_to_int()]
-        self.setup_llm_worker()
+        # Track LLM metrics across all agents
+        self.total_llm_calls = 0
+        self.total_llm_time = 0.0
     
-    def populate_grid(self):
-        agents = [LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key) 
-                 for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
-        np.random.shuffle(agents)
-        flat_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE)]
-        np.random.shuffle(flat_positions)
-        for agent, pos in zip(agents, flat_positions[:len(agents)]):
-            r, c = pos
-            self.grid[r][c] = agent
-    
-    def restart_worker_if_needed(self):
-        """Restart worker thread if it died"""
-        if not self.llm_thread.is_alive():
-            print("[Warning] Worker thread died, restarting...")
-            self.setup_llm_worker()
-            return True
-        return False
-    
-    def setup_llm_worker(self):
-        def worker():
-            while True:
-                try:
-                    # Use timeout to prevent hanging
-                    task = self.query_queue.get(timeout=1.0)
-                    if task is None:  # Shutdown signal
-                        break
-                    
-                    agent, r, c, task_id = task
-                    start_time = time.time()
-                    
-                    try:
-                        # Check circuit breaker
-                        use_llm = (not self.llm_circuit_open and 
-                                 np.random.random() < self.use_llm_probability)
-                        
-                        if use_llm:
-                            # Use threading timeout for LLM calls
-                            move_to = None
-                            call_start = time.time()
-                            
-                            try:
-                                move_to = agent.get_llm_decision(r, c, self.grid)
-                                call_elapsed = time.time() - call_start
-                                
-                                # Check if call took too long
-                                if call_elapsed > 20.0:  # 20 second warning
-                                    print(f"[LLM Warning] Slow response ({call_elapsed:.1f}s) for agent at ({r},{c})")
-                                
-                                self.llm_call_count += 1
-                            except Exception as e:
-                                call_elapsed = time.time() - call_start
-                                print(f"[LLM Error] Failed after {call_elapsed:.1f}s for agent at ({r},{c}): {e}")
-                                move_to = agent.best_response(r, c, self.grid)
-                                self.llm_failure_count += 1
-                        else:
-                            move_to = agent.best_response(r, c, self.grid)
-                        
-                        elapsed = time.time() - start_time
-                        self.llm_call_times.append(elapsed)
-                        
-                        # Add task_id to track which request this is
-                        self.result_queue.put((agent, r, c, move_to, task_id))
-                        
-                    except Exception as e:
-                        print(f"[LLM Worker Error] Agent ({r},{c}): {e}")
-                        self.llm_failure_count += 1
-                        
-                        # Open circuit breaker if too many failures
-                        if self.llm_failure_count >= self.max_llm_failures and not self.llm_circuit_open:
-                            self.llm_circuit_open = True
-                            print(f"[Circuit Breaker] Too many LLM failures ({self.llm_failure_count}), switching to mechanical agents only")
-                        
-                        # Fallback to mechanical behavior
-                        move_to = agent.best_response(r, c, self.grid)
-                        elapsed = time.time() - start_time
-                        self.llm_call_times.append(elapsed)
-                        self.result_queue.put((agent, r, c, move_to, task_id))
-                    
-                    finally:
-                        self.query_queue.task_done()
-                        
-                except queue.Empty:
-                    # No tasks available, check if we should shutdown
-                    if hasattr(self, '_shutdown_requested') and self._shutdown_requested:
-                        break
-                    continue
-                    
-                except Exception as e:
-                    print(f"[LLM Worker Critical Error] {e}")
-                    break
-        
-        self.query_queue = queue.Queue(maxsize=100)  # Limit queue size
-        self.result_queue = queue.Queue(maxsize=100)
-        self._shutdown_requested = False
-        self._task_counter = 0
-        self.llm_thread = threading.Thread(target=worker, daemon=True)
-        self.llm_thread.start()
-    
-    def _grid_to_int(self):
-        """
-        Convert self.grid of Agent objects/None into int grid:
-        -1 for empty, agent.type_id for occupied.
-        """
-        size = cfg.GRID_SIZE
-        int_grid = np.full((size, size), -1, dtype=int)
-        for r in range(size):
-            for c in range(size):
-                cell = self.grid[r][c]
-                if cell is not None:
-                    int_grid[r, c] = cell.type_id
-        return int_grid
+    def _create_llm_agent(self, type_id):
+        """Create LLM agent with simulation parameters"""
+        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key)
 
-    def update_agents(self):
-        all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
-        np.random.shuffle(all_positions)
-        
-        # Limit batch size to prevent overwhelming the LLM
-        batch_size = min(5, len(all_positions))  # Reduced from 10 to 5
-        moved = False
-        
-        pending_agents = []
-        for i in range(0, len(all_positions) + len(pending_agents), batch_size):
-            # Combine pending agents from previous batch with new batch
-            if pending_agents:
-                batch = pending_agents + all_positions[i:i+max(0, batch_size-len(pending_agents))]
-                pending_agents = []
-            else:
-                batch = all_positions[i:i+batch_size]
-            task_ids = []
-            batch_retry = []
-            # Queue batch with task IDs for tracking
-            for r, c in batch:
-                agent = self.grid[r][c]
-                if agent is not None:  # Double-check agent still exists
-                    task_id = self._task_counter
-                    self._task_counter += 1
-                    task_ids.append(task_id)
-                    try:
-                        # Check if worker thread is alive before queuing
-                        if not self.llm_thread.is_alive():
-                            print("[Error] Worker thread died, attempting restart...")
-                            if self.restart_worker_if_needed():
-                                try:
-                                    self.query_queue.put((agent, r, c, task_id), timeout=2.0)
-                                except queue.Full:
-                                    batch_retry.append((r, c))
-                                    continue
-                        else:
-                            self.query_queue.put((agent, r, c, task_id), timeout=2.0)
-                    except queue.Full:
-                        batch_retry.append((r, c))
-                        continue
-            # Add any agents that couldn't be queued to pending_agents for next batch
-            pending_agents.extend(batch_retry)
-            
-            # Wait for results with proper timeout handling
-            results = []
-            expected_results = len(task_ids)
-            timeout_per_batch = 30.0  # 30 seconds total for entire batch
-            
-            start_wait = time.time()
-            while len(results) < expected_results:
-                time_elapsed = time.time() - start_wait
-                
-                # Check if we've exceeded total batch timeout
-                if time_elapsed > timeout_per_batch:
-                    print(f"[Warning] Batch timeout exceeded. Got {len(results)}/{expected_results} results in {time_elapsed:.1f}s")
-                    break
-                
-                # Calculate remaining time for this get() call
-                remaining_time = timeout_per_batch - time_elapsed
-                individual_timeout = min(5.0, remaining_time)  # Max 5s per individual result
-                
-                if individual_timeout <= 0:
-                    print(f"[Warning] No time remaining for more results. Got {len(results)}/{expected_results}")
-                    break
-                
-                try:
-                    result = self.result_queue.get(timeout=individual_timeout)
-                    results.append(result)
-                except queue.Empty:
-                    # Check if worker thread is still alive
-                    if not self.llm_thread.is_alive():
-                        print(f"[Error] Worker thread died. Got {len(results)}/{expected_results} results")
-                        break
-                    
-                    # Continue waiting if thread is alive and we have time
-                    if time_elapsed < timeout_per_batch * 0.8:  # Give up at 80% of total timeout
-                        continue
-                    else:
-                        print(f"[Warning] Timeout waiting for remaining results. Got {len(results)}/{expected_results}")
-                        break
-            
-            # Process moves
-            for result in results:
-                if len(result) >= 4:  # New format with task_id
-                    agent, r, c, move_to, task_id = result
-                else:  # Old format fallback
-                    agent, r, c, move_to = result[:4]
-                
-                if self._process_move(agent, r, c, move_to):
-                    moved = True
-        
-        return moved
-    
-    def _process_move(self, agent, r, c, move_to):
-        """Helper method to process a single agent move"""
-        if move_to and move_to != (r, c):
-            r_new, c_new = move_to
-            if 0 <= r_new < cfg.GRID_SIZE and 0 <= c_new < cfg.GRID_SIZE:
-                if self.grid[r_new][c_new] is None and self.grid[r][c] == agent:
-                    self.grid[r_new][c_new] = agent
-                    self.grid[r][c] = None
-                    return True
-        return False
-    
     def run_step(self):
-        moved = self.update_agents()
-        metrics = calculate_all_metrics(self.grid)
-        metrics['step'] = self.step
-        metrics['run_id'] = self.run_id
-        self.metrics_history.append(metrics)
-        # Record integer snapshot of current grid
-        self.states.append(self._grid_to_int())
+        """Override run_step to track LLM metrics"""
+        # Update total LLM metrics from all agents
+        for r in range(cfg.GRID_SIZE):
+            for c in range(cfg.GRID_SIZE):
+                agent = self.grid[r][c]
+                if agent is not None and hasattr(agent, 'llm_call_count'):
+                    self.total_llm_calls += agent.llm_call_count
+                    self.total_llm_time += agent.llm_call_time
+                    # Reset agent counters to avoid double counting
+                    agent.llm_call_count = 0
+                    agent.llm_call_time = 0.0
         
-        # Check convergence
-        if not moved:
-            self.no_move_steps += 1
-        else:
-            self.no_move_steps = 0
-        
-        if self.no_move_steps >= self.no_move_threshold:
-            self.converged = True
-            self.convergence_step = self.step
-        
-        self.step += 1
-        
-        # Update progress file if available (every 10 steps to avoid too frequent writes)
-        if self.progress_file and self.step % 10 == 0:
-            try:
-                with open(self.progress_file, 'r') as f:
-                    progress_data = json.load(f)
-                progress_data["current_step"] = self.step
-                progress_data["step_progress_percent"] = (self.step / progress_data["max_steps"]) * 100
-                progress_data["converged"] = self.converged
-                progress_data["timestamp"] = datetime.now().isoformat()
-                with open(self.progress_file, 'w') as f:
-                    json.dump(progress_data, f, indent=2)
-            except Exception as e:
-                pass  # Don't let progress file errors break the simulation
-        
-        return self.converged
-    
-    def run(self, max_steps=1000):
-        progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})")
-        
-        while self.step < max_steps and not self.converged:
-            self.run_step()
-            progress_bar.update(1)
-            
-            if self.step % 10 == 0:
-                avg_llm_time = np.mean(self.llm_call_times[-100:]) if self.llm_call_times else 0
-                progress_bar.set_postfix({'converged': self.converged, 'llm_calls': self.llm_call_count, 'avg_llm_time': f"{avg_llm_time:.2f}s"})
-        
-        progress_bar.close()
-        
-        # Clean up worker thread safely
-        self._shutdown_requested = True
-        try:
-            # Send shutdown signal
-            self.query_queue.put(None, timeout=1.0)
-            # Wait for thread to finish, but not forever
-            self.llm_thread.join(timeout=5.0)
-            if self.llm_thread.is_alive():
-                print("[Warning] LLM worker thread did not shut down cleanly")
-        except queue.Full:
-            print("[Warning] Could not send shutdown signal to LLM worker")
-        except Exception as e:
-            print(f"[Warning] Error during LLM worker cleanup: {e}")
-        
-        return {
-            'run_id': self.run_id,
-            'scenario': self.scenario,
-            'converged': self.converged,
-            'convergence_step': self.convergence_step,
-            'final_step': self.step,
-            'metrics_history': self.metrics_history,
-            'llm_call_count': self.llm_call_count,
-            'avg_llm_call_time': np.mean(self.llm_call_times) if self.llm_call_times else 0
-           , 'states': self.states
-        }
+        # Call parent run_step
+        return super().run_step()
 
-def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_probability=1.0, 
-                      llm_model=None, llm_url=None, llm_api_key=None):
-    """Run LLM experiments with specified scenario"""
+    def run_single_simulation(self, output_dir=None, max_steps=1000):
+        """Override to show progress bar for LLM simulations"""
+        return super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
+
+    # def run_step(self):
+    #     moved = self.update_agents()
+    #     metrics = calculate_all_metrics(self.grid)
+    #     metrics['step'] = self.step
+    #     metrics['run_id'] = self.run_id
+    #     self.metrics_history.append(metrics)
+    #     self.states.append(self._grid_to_int())
+    #     if not moved:
+    #         self.no_move_steps += 1
+    #     else:
+    #         self.no_move_steps = 0
+    #     if self.no_move_steps >= self.no_move_threshold:
+    #         self.converged = True
+    #         self.convergence_step = self.step
+    #     self.step += 1
+    #     if self.progress_file and self.step % 10 == 0:
+    #         try:
+    #             with open(self.progress_file, 'r') as f:
+    #                 progress_data = json.load(f)
+    #             progress_data.update({
+    #                 "current_step": self.step,
+    #                 "step_progress_percent": (self.step / progress_data["max_steps"]) * 100,
+    #                 "converged": self.converged,
+    #                 "timestamp": datetime.now().isoformat()
+    #             })
+    #             with open(self.progress_file, 'w') as f:
+    #                 json.dump(progress_data, f, indent=2)
+    #         except Exception:
+    #             pass
+    #     return self.converged
+
+    # def run(self, max_steps=1000):
+    #     progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})")
+    #     while self.step < max_steps and not self.converged:
+    #         self.run_step()
+    #         progress_bar.update(1)
+    #         if self.step % 10 == 0:
+    #             avg_llm_time = np.mean(self.llm_call_times[-100:]) if self.llm_call_times else 0
+    #             progress_bar.set_postfix({'converged': self.converged, 'llm_calls': self.llm_call_count, 'avg_llm_time': f"{avg_llm_time:.2f}s"})
+    #     progress_bar.close()
+    #     self._shutdown_requested = True
+    #     try:
+    #         self.query_queue.put(None, timeout=1.0)
+    #         self.llm_thread.join(timeout=5.0)
+    #         if self.llm_thread.is_alive():
+    #             print("[Warning] LLM worker thread did not shut down cleanly")
+    #     except queue.Full:
+    #         print("[Warning] Could not send shutdown signal to LLM worker")
+    #     except Exception as e:
+    #         print(f"[Warning] Error during LLM worker cleanup: {e}")
+    #     return {
+    #         'run_id': self.run_id,
+    #         'scenario': self.scenario,
+    #         'converged': self.converged,
+    #         'convergence_step': self.convergence_step,
+    #         'final_step': self.step,
+    #         'metrics_history': self.metrics_history,
+    #         'llm_call_count': self.llm_call_count,
+    #         'avg_llm_call_time': np.mean(self.llm_call_times) if self.llm_call_times else 0,
+    #         'states': self.states
+    #     }
+
+# def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None):
+#     """Run LLM experiments with specified scenario"""
+    
+#     # Check LLM connection first with potentially custom parameters
+#     if not check_llm_connection(llm_model, llm_url, llm_api_key):
+#         print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
+#         print("Please ensure the LLM server is running and accessible.")
+#         return None, []
+    
+#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#     experiment_name = f"llm_{scenario}_{timestamp}"
+#     output_dir = f"experiments/{experiment_name}"
+#     os.makedirs(output_dir, exist_ok=True)
+    
+#     config_dict = {
+#         'n_runs': n_runs,
+#         'max_steps': max_steps,
+#         'grid_size': cfg.GRID_SIZE,
+#         'num_type_a': cfg.NUM_TYPE_A,
+#         'num_type_b': cfg.NUM_TYPE_B,
+#         'llm_model': llm_model or cfg.OLLAMA_MODEL,
+#         'llm_url': llm_url or cfg.OLLAMA_URL,
+#         'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
+#         'timestamp': timestamp,
+#         'context_info': CONTEXT_SCENARIOS[scenario]
+#     }
+    
+#     with open(f"{output_dir}/config.json", 'w') as f:
+#         json.dump(config_dict, f, indent=2)
+    
+#     args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
+#     results = []
+#     for args in tqdm(args_list, desc="Running LLM simulations"):
+#         sim = LLMSimulation(*args[:-1])
+#         results.append(sim.run(max_steps))
+
+#     # Analyze results
+#     output_dir, results, convergence_data = Simulation.analyze_results(results, output_dir, n_runs)
+    
+#     print(f"\nExperiment completed. Results saved to: {output_dir}")
+#     print(f"Total runs: {n_runs}")
+#     print(f"Converged runs: {sum(1 for r in convergence_data if r['converged'])}")
+#     print(f"Average convergence step: {np.mean([r['convergence_step'] for r in convergence_data if r['convergence_step'] is not None]):.2f}")
+#     return output_dir, results
+
+def run_single_simulation(args):
+    """Run a single LLM simulation - compatible with baseline_runner structure"""
+    run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args
+    sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key)
+    result = sim.run_single_simulation(output_dir=output_dir, max_steps=1000)
+    
+    # Add LLM-specific metrics to the result
+    result.update({
+        'scenario': scenario,
+        'llm_call_count': sim.total_llm_calls,
+        'avg_llm_call_time': sim.total_llm_time / max(sim.total_llm_calls, 1),
+    })
+    return result
+    
+def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None):
+    """
+    Run LLM experiments with specified scenario - compatible with baseline_runner structure
+    
+    Parameters:
+    -----------
+    scenario : str
+        Scenario context to use for the experiment
+    n_runs : int
+        Number of simulation runs to perform
+    max_steps : int
+        Maximum steps per simulation
+    llm_model : str, optional
+        LLM model to use (overrides config.py)
+    llm_url : str, optional
+        LLM API URL (overrides config.py)
+    llm_api_key : str, optional
+        LLM API key (overrides config.py)
+    parallel : bool
+        Whether to use parallel processing
+    n_processes : int, optional
+        Number of CPU processes to use for parallel execution.
+        If None, uses min(cpu_count(), n_runs). If 1, forces sequential execution.
+        
+    Returns:
+    --------
+    tuple
+        (output_dir, results) where results contains simulation outcomes
+    """
     
     # Check LLM connection first with potentially custom parameters
     if not check_llm_connection(llm_model, llm_url, llm_api_key):
         print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
         print("Please ensure the LLM server is running and accessible.")
-        print("\nTo start Ollama locally:")
-        print("  ollama serve")
-        print(f"  ollama pull {llm_model or cfg.OLLAMA_MODEL}")
         return None, []
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -594,141 +456,100 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, use_llm_p
     output_dir = f"experiments/{experiment_name}"
     os.makedirs(output_dir, exist_ok=True)
     
-    # Save experiment configuration
     config_dict = {
-        'experiment_type': 'llm',
-        'scenario': scenario,
         'n_runs': n_runs,
         'max_steps': max_steps,
-        'use_llm_probability': use_llm_probability,
         'grid_size': cfg.GRID_SIZE,
         'num_type_a': cfg.NUM_TYPE_A,
         'num_type_b': cfg.NUM_TYPE_B,
+        'scenario': scenario,
         'llm_model': llm_model or cfg.OLLAMA_MODEL,
         'llm_url': llm_url or cfg.OLLAMA_URL,
         'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
         'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
         'timestamp': timestamp,
-        'context_info': CONTEXT_SCENARIOS[scenario]
+        'context_info': CONTEXT_SCENARIOS[scenario],
+        'parallel_execution': parallel,
+        'n_processes': n_processes if parallel else 1,
+        'cpu_count': cpu_count()
     }
     
     with open(f"{output_dir}/config.json", 'w') as f:
         json.dump(config_dict, f, indent=2)
     
-    # Create progress file for real-time monitoring
-    progress_file = f"{output_dir}/progress_realtime.json"
+    args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
     
-    # Run simulations (sequential due to LLM rate limits)
-    results = []
-    for i in range(n_runs):
-        print(f"\nRunning simulation {i+1}/{n_runs} for scenario: {scenario}")
-        
-        # Update progress file before starting run
-        progress_data = {
-            "scenario": scenario,
-            "current_run": i + 1,
-            "total_runs": n_runs,
-            "current_step": 0,
-            "max_steps": max_steps,
-            "status": "running",
-            "timestamp": datetime.now().isoformat(),
-            "run_progress_percent": (i / n_runs) * 100,
-            "step_progress_percent": 0
-        }
-        with open(progress_file, 'w') as f:
-            json.dump(progress_data, f, indent=2)
-        
-        sim = LLMSimulation(i, scenario, use_llm_probability, llm_model, llm_url, llm_api_key, progress_file)
-        result = sim.run(max_steps)
-        results.append(result)
-        
-        # Update progress file after completing run
-        progress_data["run_progress_percent"] = ((i + 1) / n_runs) * 100
-        progress_data["step_progress_percent"] = 100 if result['converged'] else (result['final_step'] / max_steps) * 100
-        with open(progress_file, 'w') as f:
-            json.dump(progress_data, f, indent=2)
-        
-        # Small delay between runs to avoid overwhelming the LLM
-        time.sleep(2)
+    # Determine number of processes to use
+    if n_processes is None:
+        n_processes = min(cpu_count(), n_runs)
+    elif n_processes == 1:
+        parallel = False  # Force sequential execution if only 1 process requested
+    elif n_processes > cpu_count():
+        print(f"⚠️  Warning: Requested {n_processes} processes but only {cpu_count()} CPU cores available.")
+        print(f"   Using {cpu_count()} processes instead.")
+        n_processes = cpu_count()
+    elif n_processes > n_runs:
+        print(f"⚠️  Warning: Requested {n_processes} processes but only {n_runs} runs to execute.")
+        print(f"   Using {n_runs} processes instead.")
+        n_processes = n_runs
+    elif n_processes < 1:
+        print(f"⚠️  Warning: Invalid number of processes ({n_processes}). Using 1 process (sequential).")
+        n_processes = 1
+        parallel = False
     
-    # Process and save results
-    all_metrics = []
-    convergence_data = []
-    
-    for result in results:
-        convergence_data.append({
-            'run_id': result['run_id'],
-            'scenario': result['scenario'],
-            'converged': result['converged'],
-            'convergence_step': result['convergence_step'],
-            'final_step': result['final_step'],
-            'llm_call_count': result['llm_call_count'],
-            'avg_llm_call_time': result['avg_llm_call_time']
-        })
-        
-        for metric in result['metrics_history']:
-            all_metrics.append(metric)
-    
-    # Save raw data
-    pd.DataFrame(all_metrics).to_csv(f"{output_dir}/metrics_history.csv", index=False)
-    pd.DataFrame(convergence_data).to_csv(f"{output_dir}/convergence_summary.csv", index=False)
-    
-    # Calculate summary statistics
-    df = pd.DataFrame(all_metrics)
-    
-    # Group by step and calculate statistics
-    step_stats = df.groupby('step').agg({
-        'clusters': ['mean', 'std', 'min', 'max'],
-        'switch_rate': ['mean', 'std', 'min', 'max'],
-        'distance': ['mean', 'std', 'min', 'max'],
-        'mix_deviation': ['mean', 'std', 'min', 'max'],
-        'share': ['mean', 'std', 'min', 'max'],
-        'ghetto_rate': ['mean', 'std', 'min', 'max']
-    }).reset_index()
-    
-    step_stats.columns = ['_'.join(col).strip() if col[1] else col[0] for col in step_stats.columns.values]
-    step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
-    # Save grid timeseries for each run
-    # create a 'states' subfolder in the experiment directory
-    states_dir = os.path.join(output_dir, "states")
-    os.makedirs(states_dir, exist_ok=True)
-    for result in results:
-        arr = np.stack(result['states'])
-        # Save time-series grid snapshot per run inside 'states'
-        np.savez_compressed(os.path.join(states_dir, f"states_run_{result['run_id']}.npz"), arr)
+    if parallel and n_processes > 1:
+        print(f"Running {n_runs} simulations using {n_processes} parallel processes...")
+        with Pool(n_processes) as pool:
+            results = list(tqdm(
+                pool.imap(run_single_simulation, args_list),
+                total=n_runs,
+                desc="Running LLM simulations"
+            ))
+    else:
+        print(f"Running {n_runs} simulations sequentially...")
+        results = []
+        for args in tqdm(args_list, desc="Running LLM simulations"):
+            results.append(run_single_simulation(args))
+
+    # Analyze results using Simulation's analyze_results method
+    output_dir, results, convergence_data = Simulation.analyze_results(results, output_dir, n_runs)
     
     print(f"\nExperiment completed. Results saved to: {output_dir}")
-    print(f"Scenario: {scenario}")
     print(f"Total runs: {n_runs}")
     print(f"Converged runs: {sum(1 for r in convergence_data if r['converged'])}")
-    if any(r['convergence_step'] for r in convergence_data):
-        print(f"Average convergence step: {np.mean([r['convergence_step'] for r in convergence_data if r['convergence_step'] is not None]):.2f}")
-    print(f"Total LLM calls: {sum(r['llm_call_count'] for r in convergence_data)}")
-    print(f"Average LLM call time: {np.mean([r['avg_llm_call_time'] for r in convergence_data]):.2f}s")
+    converged_steps = [r['convergence_step'] for r in convergence_data if r['convergence_step'] is not None]
+    if converged_steps:
+        print(f"Average convergence step: {np.mean(converged_steps):.2f}")
+    
+    # Calculate LLM-specific statistics
+    llm_calls = [r.get('llm_call_count', 0) for r in results if 'llm_call_count' in r]
+    llm_times = [r.get('avg_llm_call_time', 0) for r in results if 'avg_llm_call_time' in r]
+    if llm_calls:
+        print(f"Average LLM calls per run: {np.mean(llm_calls):.1f}")
+        print(f"Average LLM response time: {np.mean(llm_times):.3f}s")
     
     return output_dir, results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM-based Schelling segregation simulations")
-    parser.add_argument('--scenario', type=str, default='baseline', 
-                        choices=list(CONTEXT_SCENARIOS.keys()),
-                        help='Scenario to run')
     parser.add_argument('--runs', type=int, default=10, help='Number of simulation runs')
     parser.add_argument('--max-steps', type=int, default=1000, help='Maximum steps per simulation')
-    parser.add_argument('--llm-probability', type=float, default=1.0, 
-                        help='Probability of using LLM for each agent (vs mechanical)')
+    parser.add_argument('--scenario', type=str, default='baseline', choices=list(CONTEXT_SCENARIOS.keys()), help='Scenario to simulate')
     parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
     parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
     parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
-    
+    parser.add_argument('--no-parallel', action='store_true', help='Disable parallel processing')
+    parser.add_argument('--processes', type=int, default=None, 
+                       help=f'Number of CPU processes to use (default: min(cpu_count={cpu_count()}, n_runs)). Use 1 for sequential execution.')
     args = parser.parse_args()
-    
+
     run_llm_experiment(
         scenario=args.scenario,
         n_runs=args.runs,
         max_steps=args.max_steps,
-        use_llm_probability=args.llm_probability,
         llm_model=args.llm_model,
         llm_url=args.llm_url,
-        llm_api_key=args.llm_api_key
+        llm_api_key=args.llm_api_key,
+        parallel=not args.no_parallel,
+        n_processes=args.processes
     )
