@@ -1,8 +1,8 @@
 # ===== Common Model Settings (used by baseline_runner.py & llm_runner.py) =====
 # DO NOT CHANGE THE DIMENSIONS AND DENSITY OF THE GRID
-GRID_SIZE = 20                          # number of cells per side of the grid 
-NUM_TYPE_A = 160                         # initial count of Type A agents (e.g., red)
-NUM_TYPE_B = 160                         # initial count of Type B agents (e.g., blue)
+GRID_SIZE = 10                          # number of cells per side of the grid 
+NUM_TYPE_A = 40                         # initial count of Type A agents (e.g., red)
+NUM_TYPE_B = 40                         # initial count of Type B agents (e.g., blue)
 NO_MOVE_THRESHOLD = 5                    # convergence criterion: simulation stops after this many steps with no agent movements
 
 # ===== Base Runner Settings (used by baseline_runner.py) =====
