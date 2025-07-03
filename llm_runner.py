@@ -104,15 +104,29 @@ class LLMAgent(Agent):
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
     
-    def get_llm_decision(self, r, c, grid, max_retries=10):
-        """Get movement decision from LLM with retry logic (max_retries attempts)"""
-        # Debug flag - set via environment variable
-        debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
+    def get_context_grid(self, r, c, grid):
+        """
+        Create a 3x3 neighborhood context string for the LLM prompt.
         
-        if debug:
-            print(f"\n[DEBUG] LLM Decision Request for agent at ({r},{c})")
-            print(f"[DEBUG] Agent type: {self.agent_type} | Scenario: {self.scenario}")
-        
+        Parameters:
+        -----------
+        r : int
+            Row position of the agent
+        c : int  
+            Column position of the agent
+        grid : list
+            2D grid representing the simulation state
+            
+        Returns:
+        --------
+        str
+            Formatted context string showing the 3x3 neighborhood with:
+            - X: Current agent position (center)
+            - S: Same type agent
+            - O: Opposite type agent  
+            - E: Empty space
+            - #: Out of bounds
+        """
         # Construct 3x3 neighborhood context
         context = []
         for dr in [-1, 0, 1]:
@@ -142,7 +156,19 @@ class LLMAgent(Agent):
                     new_row.append(cell)
             context_with_position.append(new_row)
         
-        context_str = "\n".join([" ".join(row) for row in context_with_position])
+        return "\n".join([" ".join(row) for row in context_with_position])
+    
+    def get_llm_decision(self, r, c, grid, max_retries=10):
+        """Get movement decision from LLM with retry logic (max_retries attempts)"""
+        # Debug flag - set via environment variable
+        debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
+        
+        if debug:
+            print(f"\n[DEBUG] LLM Decision Request for agent at ({r},{c})")
+            print(f"[DEBUG] Agent type: {self.agent_type} | Scenario: {self.scenario}")
+        
+        # Get context string using the new method
+        context_str = self.get_context_grid(r, c, grid)
         
         # Create prompt using context scenario template
         prompt = self.context_info['prompt_template'].format(
