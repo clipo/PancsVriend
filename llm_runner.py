@@ -94,7 +94,7 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
         return False
 
 class LLMAgent(Agent):
-    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None):
+    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, run_id=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -103,6 +103,10 @@ class LLMAgent(Agent):
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        self.run_id = run_id
+        # Initialize LLM tracking metrics
+        self.llm_call_count = 0
+        self.llm_call_time = 0.0
     
     def get_context_grid(self, r, c, grid):
         """
@@ -257,19 +261,20 @@ class LLMAgent(Agent):
                     return None
             except requests.exceptions.Timeout:
                 if attempt < max_retries:
-                    print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c})")
+                    print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}]")
                     time.sleep(10)  # Wait 10 seconds before retry
                     continue
                 else:
-                    print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c})")
+                    print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}]")
                     raise Exception(f"LLM timeout after {max_retries} retries")
             except Exception as e:
                 if attempt < max_retries:
-                    print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e}")
+                    print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}]")
                     time.sleep(60)  # Wait 1 minute before retry
                     continue
                 else:
-                    print(f"[LLM Error] Exception: Unhandled error after {max_retries} retries: {e}")
+                    print(f"[LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}]")
+                    raise Exception(f"LLM error after {max_retries} retries: {e}")
                     raise Exception(f"LLM error after {max_retries} retries: {e}")
 
 def llm_decision_function(agent, r, c, grid):
@@ -298,7 +303,7 @@ class LLMSimulation(Simulation):
     
     def _create_llm_agent(self, type_id):
         """Create LLM agent with simulation parameters"""
-        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key)
+        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id)
 
     def run_step(self):
         """Override run_step to track LLM metrics"""
