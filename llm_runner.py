@@ -339,7 +339,82 @@ def run_single_simulation(args):
     })
     return result
     
-def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None):
+def list_available_experiments():
+    """List all available experiments that can be resumed"""
+    exp_dir = "experiments"
+    if not os.path.exists(exp_dir):
+        print("No experiments directory found.")
+        return []
+    
+    experiments = []
+    for exp_name in os.listdir(exp_dir):
+        exp_path = os.path.join(exp_dir, exp_name)
+        if os.path.isdir(exp_path):
+            # Use the updated check_existing_experiment function
+            exists, completed_runs, _ = check_existing_experiment(exp_name)
+            
+            # Load config to get total runs
+            config_file = os.path.join(exp_path, "config.json")
+            total_runs = "unknown"
+            if os.path.exists(config_file):
+                try:
+                    with open(config_file, 'r') as f:
+                        config = json.load(f)
+                        total_runs = config.get('n_runs', 'unknown')
+                except Exception:
+                    pass
+            
+            experiments.append({
+                'name': exp_name,
+                'completed': completed_runs,
+                'total': total_runs,
+                'path': exp_path
+            })
+    
+    return experiments
+
+def check_existing_experiment(experiment_name):
+    """
+    Check if an experiment already exists and count completed runs
+    
+    Parameters:
+    -----------
+    experiment_name : str
+        Name of the experiment directory to check
+        
+    Returns:
+    --------
+    tuple
+        (exists, completed_runs, output_dir) where:
+        - exists: bool indicating if experiment directory exists
+        - completed_runs: int number of completed simulation runs found
+        - output_dir: str path to the experiment directory
+    """
+    output_dir = f"experiments/{experiment_name}"
+    
+    if not os.path.exists(output_dir):
+        return False, 0, output_dir
+    
+    # Count existing result files
+    completed_runs = 0
+    
+    # Look for different possible result file patterns
+    import glob
+    patterns_to_check = [
+        os.path.join(output_dir, "run_*.json.gz"),  # Original pattern
+        os.path.join(output_dir, "states", "states_run_*.npz"),  # Actual pattern used
+        os.path.join(output_dir, "states_run_*.npz"),  # Alternative pattern
+    ]
+    
+    for pattern in patterns_to_check:
+        existing_files = glob.glob(pattern)
+        if existing_files:
+            completed_runs = len(existing_files)
+            break  # Use the first pattern that finds files
+    
+    return True, completed_runs, output_dir
+
+def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None, resume_experiment=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
@@ -362,6 +437,8 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     n_processes : int, optional
         Number of CPU processes to use for parallel execution.
         If None, uses min(cpu_count(), n_runs). If 1, forces sequential execution.
+    resume_experiment : str, optional
+        Name of an existing experiment to resume (skip runs that are already completed)
         
     Returns:
     --------
@@ -369,90 +446,223 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         (output_dir, results) where results contains simulation outcomes
     """
     
+    # Handle experiment resumption
+    if resume_experiment:
+        print(f"Checking for existing experiment: {resume_experiment}")
+        exists, completed_runs, output_dir = check_existing_experiment(resume_experiment)
+        
+        if not exists:
+            print(f"❌ Experiment '{resume_experiment}' not found in experiments/ directory")
+            print("Available experiments:")
+            exp_dir = "experiments"
+            if os.path.exists(exp_dir):
+                for exp in os.listdir(exp_dir):
+                    if os.path.isdir(os.path.join(exp_dir, exp)):
+                        print(f"  - {exp}")
+            return None, []
+        
+        print(f"✅ Found existing experiment with {completed_runs} completed runs")
+        
+        if completed_runs >= n_runs:
+            print(f"⚠️  Experiment already complete! ({completed_runs}/{n_runs} runs)")
+            print("Loading existing results...")
+            # Load and return existing results
+            import glob
+            # Try different result file patterns
+            patterns_to_check = [
+                os.path.join(output_dir, "run_*.json.gz"),
+                os.path.join(output_dir, "states", "states_run_*.npz"),
+                os.path.join(output_dir, "states_run_*.npz"),
+            ]
+            
+            result_files = []
+            for pattern in patterns_to_check:
+                files = glob.glob(pattern)
+                if files:
+                    result_files = files
+                    break
+            
+            results = []
+            for result_file in sorted(result_files):
+                if result_file.endswith('.json.gz'):
+                    import gzip
+                    with gzip.open(result_file, 'rt') as f:
+                        results.append(json.load(f))
+                elif result_file.endswith('.npz'):
+                    # For .npz files, create a minimal result structure
+                    # Extract run number from filename
+                    import re
+                    match = re.search(r'run_(\d+)', result_file)
+                    run_id = int(match.group(1)) if match else 0
+                    results.append({
+                        'run_id': run_id,
+                        'converged': True,  # Assume converged if file exists
+                        'final_step': 'unknown',
+                        'file_path': result_file
+                    })
+            return output_dir, results
+        
+        # Load existing config to match original parameters
+        config_file = os.path.join(output_dir, "config.json")
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                existing_config = json.load(f)
+                # Use original experiment parameters if not explicitly overridden
+                scenario = existing_config.get('scenario', scenario)
+                max_steps = existing_config.get('max_steps', max_steps)
+                print("📋 Resuming with original experiment parameters:")
+                print(f"   Scenario: {scenario}")
+                print(f"   Max steps: {max_steps}")
+        
+        remaining_runs = n_runs - completed_runs
+        print(f"🔄 Resuming experiment: {remaining_runs} runs remaining ({completed_runs}/{n_runs} completed)")
+        
+        # Adjust run IDs to continue from where we left off
+    else:
+        completed_runs = 0
+        remaining_runs = n_runs
+        # Create output directory for new experiment
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        experiment_name = f"llm_{scenario}_{timestamp}"
+        output_dir = f"experiments/{experiment_name}"
+        os.makedirs(output_dir, exist_ok=True)
+    
     # Check LLM connection first with potentially custom parameters
     if not check_llm_connection(llm_model, llm_url, llm_api_key):
         print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
         print("Please ensure the LLM server is running and accessible.")
         return None, []
     
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"llm_{scenario}_{timestamp}"
-    output_dir = f"experiments/{experiment_name}"
-    os.makedirs(output_dir, exist_ok=True)
+    # Create or update config (for new experiments only)
+    if not resume_experiment:
+        config_dict = {
+            'n_runs': n_runs,
+            'max_steps': max_steps,
+            'grid_size': cfg.GRID_SIZE,
+            'num_type_a': cfg.NUM_TYPE_A,
+            'num_type_b': cfg.NUM_TYPE_B,
+            'scenario': scenario,
+            'llm_model': llm_model or cfg.OLLAMA_MODEL,
+            'llm_url': llm_url or cfg.OLLAMA_URL,
+            'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
+            'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
+            'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S"),
+            'context_info': CONTEXT_SCENARIOS[scenario],
+            'parallel_execution': parallel,
+            'n_processes': n_processes if parallel else 1,
+            'cpu_count': cpu_count()
+        }
+        
+        with open(f"{output_dir}/config.json", 'w') as f:
+            json.dump(config_dict, f, indent=2)
     
-    config_dict = {
-        'n_runs': n_runs,
-        'max_steps': max_steps,
-        'grid_size': cfg.GRID_SIZE,
-        'num_type_a': cfg.NUM_TYPE_A,
-        'num_type_b': cfg.NUM_TYPE_B,
-        'scenario': scenario,
-        'llm_model': llm_model or cfg.OLLAMA_MODEL,
-        'llm_url': llm_url or cfg.OLLAMA_URL,
-        'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
-        'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
-        'timestamp': timestamp,
-        'context_info': CONTEXT_SCENARIOS[scenario],
-        'parallel_execution': parallel,
-        'n_processes': n_processes if parallel else 1,
-        'cpu_count': cpu_count()
-    }
-    
-    with open(f"{output_dir}/config.json", 'w') as f:
-        json.dump(config_dict, f, indent=2)
-    
-    args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
+    # Generate args list for remaining runs
+    if resume_experiment:
+        # For resumed experiments, start run IDs from where we left off
+        args_list = [(completed_runs + i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(remaining_runs)]
+    else:
+        # For new experiments, start from run 0
+        args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
     
     # Determine number of processes to use
+    runs_to_execute = remaining_runs if resume_experiment else n_runs
     if n_processes is None:
-        n_processes = min(cpu_count(), n_runs)
+        n_processes = min(cpu_count(), runs_to_execute)
     elif n_processes == 1:
         parallel = False  # Force sequential execution if only 1 process requested
     elif n_processes > cpu_count():
         print(f"⚠️  Warning: Requested {n_processes} processes but only {cpu_count()} CPU cores available.")
         print(f"   Using {cpu_count()} processes instead.")
         n_processes = cpu_count()
-    elif n_processes > n_runs:
-        print(f"⚠️  Warning: Requested {n_processes} processes but only {n_runs} runs to execute.")
-        print(f"   Using {n_runs} processes instead.")
-        n_processes = n_runs
+    elif n_processes > runs_to_execute:
+        print(f"⚠️  Warning: Requested {n_processes} processes but only {runs_to_execute} runs to execute.")
+        print(f"   Using {runs_to_execute} processes instead.")
+        n_processes = runs_to_execute
     elif n_processes < 1:
         print(f"⚠️  Warning: Invalid number of processes ({n_processes}). Using 1 process (sequential).")
         n_processes = 1
         parallel = False
     
     if parallel and n_processes > 1:
-        print(f"Running {n_runs} simulations using {n_processes} parallel processes...")
+        print(f"Running {runs_to_execute} simulations using {n_processes} parallel processes...")
         with Pool(n_processes) as pool:
             results = list(tqdm(
                 pool.imap(run_single_simulation, args_list),
-                total=n_runs,
+                total=runs_to_execute,
                 desc="Running LLM simulations"
             ))
     else:
-        print(f"Running {n_runs} simulations sequentially...")
+        print(f"Running {runs_to_execute} simulations sequentially...")
         results = []
         for args in tqdm(args_list, desc="Running LLM simulations"):
             results.append(run_single_simulation(args))
 
+    # Load existing results if resuming
+    if resume_experiment and completed_runs > 0:
+        print(f"Loading {completed_runs} existing results...")
+        import glob
+        # Try different result file patterns
+        patterns_to_check = [
+            os.path.join(output_dir, "run_*.json.gz"),
+            os.path.join(output_dir, "states", "states_run_*.npz"),
+            os.path.join(output_dir, "states_run_*.npz"),
+        ]
+        
+        existing_result_files = []
+        for pattern in patterns_to_check:
+            files = glob.glob(pattern)
+            if files:
+                existing_result_files = files
+                break
+        
+        existing_results = []
+        for result_file in sorted(existing_result_files):
+            if result_file.endswith('.json.gz'):
+                import gzip
+                with gzip.open(result_file, 'rt') as f:
+                    existing_results.append(json.load(f))
+            elif result_file.endswith('.npz'):
+                # For .npz files, create a minimal result structure
+                # Extract run number from filename
+                import re
+                match = re.search(r'run_(\d+)', result_file)
+                run_id = int(match.group(1)) if match else 0
+                existing_results.append({
+                    'run_id': run_id,
+                    'converged': True,  # Assume converged if file exists
+                    'final_step': 'unknown',
+                    'file_path': result_file
+                })
+        
+        # Combine existing and new results
+        all_results = existing_results + results
+        total_runs = len(all_results)
+        print(f"Combined {len(existing_results)} existing + {len(results)} new = {total_runs} total results")
+    else:
+        all_results = results
+        total_runs = n_runs
+
     # Analyze results using Simulation's analyze_results method
-    output_dir, results, convergence_data = Simulation.analyze_results(results, output_dir, n_runs)
+    output_dir, final_results, convergence_data = Simulation.analyze_results(all_results, output_dir, total_runs)
     
     print(f"\nExperiment completed. Results saved to: {output_dir}")
-    print(f"Total runs: {n_runs}")
+    if resume_experiment:
+        print(f"Resumed experiment: {completed_runs} existing + {len(results)} new = {total_runs} total runs")
+    else:
+        print(f"Total runs: {total_runs}")
     print(f"Converged runs: {sum(1 for r in convergence_data if r['converged'])}")
     converged_steps = [r['convergence_step'] for r in convergence_data if r['convergence_step'] is not None]
     if converged_steps:
         print(f"Average convergence step: {np.mean(converged_steps):.2f}")
     
     # Calculate LLM-specific statistics
-    llm_calls = [r.get('llm_call_count', 0) for r in results if 'llm_call_count' in r]
-    llm_times = [r.get('avg_llm_call_time', 0) for r in results if 'avg_llm_call_time' in r]
+    llm_calls = [r.get('llm_call_count', 0) for r in final_results if 'llm_call_count' in r]
+    llm_times = [r.get('avg_llm_call_time', 0) for r in final_results if 'avg_llm_call_time' in r]
     if llm_calls:
         print(f"Average LLM calls per run: {np.mean(llm_calls):.1f}")
         print(f"Average LLM response time: {np.mean(llm_times):.3f}s")
     
-    return output_dir, results
+    return output_dir, final_results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM-based Schelling segregation simulations")
@@ -465,7 +675,28 @@ if __name__ == "__main__":
     parser.add_argument('--no-parallel', action='store_true', help='Disable parallel processing')
     parser.add_argument('--processes', type=int, default=None, 
                        help=f'Number of CPU processes to use (default: min(cpu_count={cpu_count()}, n_runs)). Use 1 for sequential execution.')
+    parser.add_argument('--resume', type=str, help='Resume existing experiment by name (e.g., "llm_baseline_20250706_143022")')
+    parser.add_argument('--list-experiments', action='store_true', help='List all available experiments that can be resumed')
     args = parser.parse_args()
+
+    # Handle listing experiments
+    if args.list_experiments:
+        experiments = list_available_experiments()
+        if not experiments:
+            print("No experiments found.")
+        else:
+            print("\nAvailable experiments:")
+            print("-" * 80)
+            for exp in experiments:
+                status = f"{exp['completed']}/{exp['total']}"
+                if exp['completed'] == exp['total'] and exp['total'] != 'unknown':
+                    status += " (complete)"
+                elif exp['total'] != 'unknown' and exp['completed'] < exp['total']:
+                    status += " (incomplete - can resume)"
+                print(f"{exp['name']:<50} {status}")
+            print("-" * 80)
+            print("\nTo resume an experiment, use: --resume <experiment_name>")
+        exit(0)
 
     run_llm_experiment(
         scenario=args.scenario,
@@ -475,5 +706,6 @@ if __name__ == "__main__":
         llm_url=args.llm_url,
         llm_api_key=args.llm_api_key,
         parallel=not args.no_parallel,
-        n_processes=args.processes
+        n_processes=args.processes,
+        resume_experiment=args.resume
     )
