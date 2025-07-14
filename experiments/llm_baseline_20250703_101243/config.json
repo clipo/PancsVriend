@@ -1,0 +1,21 @@
+{
+  "n_runs": 100,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "scenario": "baseline",
+  "llm_model": "mixtral:8x22b-instruct",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key_last4": "c67a",
+  "no_move_threshold": 5,
+  "timestamp": "20250703_101243",
+  "context_info": {
+    "type_a": "red team resident",
+    "type_b": "blue team resident",
+    "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community  \n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+  },
+  "parallel_execution": true,
+  "n_processes": 5,
+  "cpu_count": 124
+}
