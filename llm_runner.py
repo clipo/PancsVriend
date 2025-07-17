@@ -162,7 +162,7 @@ class LLMAgent(Agent):
         
         return "\n".join([" ".join(row) for row in context_with_position])
     
-    def get_llm_decision(self, r, c, grid, max_retries=10):
+    def get_llm_decision(self, r, c, grid, max_retries=30):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
@@ -206,7 +206,7 @@ class LLMAgent(Agent):
                 
                 # Track timing and calls
                 start_time = time.time()
-                response = requests.post(self.llm_url, headers=headers, json=payload, timeout=8)
+                response = requests.post(self.llm_url, headers=headers, json=payload, timeout=20)
                 response_time = time.time() - start_time
                 
                 # Update agent's LLM metrics
