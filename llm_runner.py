@@ -351,7 +351,7 @@ def list_available_experiments():
         exp_path = os.path.join(exp_dir, exp_name)
         if os.path.isdir(exp_path):
             # Use the updated check_existing_experiment function
-            exists, completed_runs, _ = check_existing_experiment(exp_name)
+            exists, completed_runs, _, existing_run_ids = check_existing_experiment(exp_name)
             
             # Load config to get total runs
             config_file = os.path.join(exp_path, "config.json")
@@ -375,7 +375,7 @@ def list_available_experiments():
 
 def check_existing_experiment(experiment_name):
     """
-    Check if an experiment already exists and count completed runs
+    Check if an experiment already exists and find completed run IDs
     
     Parameters:
     -----------
@@ -385,21 +385,23 @@ def check_existing_experiment(experiment_name):
     Returns:
     --------
     tuple
-        (exists, completed_runs, output_dir) where:
+        (exists, completed_runs, output_dir, existing_run_ids) where:
         - exists: bool indicating if experiment directory exists
         - completed_runs: int number of completed simulation runs found
         - output_dir: str path to the experiment directory
+        - existing_run_ids: set of run IDs that already exist
     """
     output_dir = f"experiments/{experiment_name}"
     
     if not os.path.exists(output_dir):
-        return False, 0, output_dir
+        return False, 0, output_dir, set()
     
-    # Count existing result files
-    completed_runs = 0
+    # Track existing run IDs
+    existing_run_ids = set()
     
     # Look for different possible result file patterns
     import glob
+    import re
     patterns_to_check = [
         os.path.join(output_dir, "run_*.json.gz"),  # Original pattern
         os.path.join(output_dir, "states", "states_run_*.npz"),  # Actual pattern used
@@ -409,10 +411,17 @@ def check_existing_experiment(experiment_name):
     for pattern in patterns_to_check:
         existing_files = glob.glob(pattern)
         if existing_files:
-            completed_runs = len(existing_files)
+            # Extract run IDs from filenames
+            for file_path in existing_files:
+                filename = os.path.basename(file_path)
+                match = re.search(r'run_(\d+)', filename)
+                if match:
+                    run_id = int(match.group(1))
+                    existing_run_ids.add(run_id)
             break  # Use the first pattern that finds files
     
-    return True, completed_runs, output_dir
+    completed_runs = len(existing_run_ids)
+    return True, completed_runs, output_dir, existing_run_ids
 
 def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None, resume_experiment=None):
     """
@@ -449,7 +458,7 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     # Handle experiment resumption
     if resume_experiment:
         print(f"Checking for existing experiment: {resume_experiment}")
-        exists, completed_runs, output_dir = check_existing_experiment(resume_experiment)
+        exists, completed_runs, output_dir, existing_run_ids = check_existing_experiment(resume_experiment)
         
         if not exists:
             print(f"❌ Experiment '{resume_experiment}' not found in experiments/ directory")
@@ -462,6 +471,8 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
             return None, []
         
         print(f"✅ Found existing experiment with {completed_runs} completed runs")
+        if existing_run_ids:
+            print(f"   Existing run IDs: {sorted(existing_run_ids)}")
         
         if completed_runs >= n_runs:
             print(f"⚠️  Experiment already complete! ({completed_runs}/{n_runs} runs)")
@@ -517,10 +528,33 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         remaining_runs = n_runs - completed_runs
         print(f"🔄 Resuming experiment: {remaining_runs} runs remaining ({completed_runs}/{n_runs} completed)")
         
-        # Adjust run IDs to continue from where we left off
+        # Generate missing run IDs to fill gaps
+        missing_run_ids = []
+        for i in range(n_runs):
+            if i not in existing_run_ids:
+                missing_run_ids.append(i)
+        
+        # Take only the number of missing runs we need
+        missing_run_ids = missing_run_ids[:remaining_runs]
+        
+        if missing_run_ids:
+            print(f"   Will execute missing run IDs: {missing_run_ids}")
+            
+        # Check for any gaps that would be filled (only if we have existing runs)
+        if existing_run_ids:
+            gaps_filled = [run_id for run_id in missing_run_ids if run_id < max(existing_run_ids)]
+            if gaps_filled:
+                print(f"   Filling gaps in run sequence: {gaps_filled}")
+            
+            # Check if we're extending beyond existing runs
+            extensions = [run_id for run_id in missing_run_ids if run_id > max(existing_run_ids)]
+            if extensions:
+                print(f"   Adding new runs beyond existing: {extensions}")
     else:
         completed_runs = 0
         remaining_runs = n_runs
+        existing_run_ids = set()
+        missing_run_ids = list(range(n_runs))
         # Create output directory for new experiment
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"llm_{scenario}_{timestamp}"
@@ -558,8 +592,8 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     
     # Generate args list for remaining runs
     if resume_experiment:
-        # For resumed experiments, start run IDs from where we left off
-        args_list = [(completed_runs + i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(remaining_runs)]
+        # For resumed experiments, use the missing run IDs to fill gaps
+        args_list = [(run_id, scenario, llm_model, llm_url, llm_api_key, output_dir) for run_id in missing_run_ids]
     else:
         # For new experiments, start from run 0
         args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
