@@ -168,7 +168,8 @@ class LLMAgent(Agent):
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
         
         if debug:
-            print(f"\n[DEBUG] LLM Decision Request for agent at ({r},{c})")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"\n[{timestamp}] [DEBUG] LLM Decision Request for agent at ({r},{c})")
             print(f"[DEBUG] Agent type: {self.agent_type} | Scenario: {self.scenario}")
         
         # Get context string using the new method
@@ -198,7 +199,8 @@ class LLMAgent(Agent):
                 }
                 
                 if debug:
-                    print(f"[DEBUG] Sending LLM request to: {self.llm_url}")
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"[{timestamp}] [DEBUG] Sending LLM request to: {self.llm_url}")
                     print(f"[DEBUG] Model: {self.llm_model}")
                     print(f"[DEBUG] Context grid:\n{context_str}")
                 
@@ -212,7 +214,8 @@ class LLMAgent(Agent):
                 self.llm_call_time += response_time
                 
                 if debug:
-                    print(f"[DEBUG] LLM Response received in {response_time:.2f}s")
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"[{timestamp}] [DEBUG] LLM Response received in {response_time:.2f}s")
                     print(f"[DEBUG] Status code: {response.status_code}")
 
                 
@@ -260,20 +263,22 @@ class LLMAgent(Agent):
                         print("[DEBUG] Decision: STAY (parse failure)")
                     return None
             except requests.exceptions.Timeout:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
-                    print(f"[LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}]")
+                    print(f"\n[{timestamp}] [LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}]")
                     time.sleep(10)  # Wait 10 seconds before retry
                     continue
                 else:
-                    print(f"[LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}]")
+                    print(f"\n[{timestamp}] [LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}]")
                     raise Exception(f"LLM timeout after {max_retries} retries")
             except Exception as e:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
-                    print(f"[LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}]")
+                    print(f"[\n{timestamp}] [LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}]")
                     time.sleep(60)  # Wait 1 minute before retry
                     continue
                 else:
-                    print(f"[LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}]")
+                    print(f"\n[{timestamp}] [LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}]")
                     raise Exception(f"LLM error after {max_retries} retries: {e}")
                     raise Exception(f"LLM error after {max_retries} retries: {e}")
 
@@ -306,7 +311,9 @@ class LLMSimulation(Simulation):
         return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id)
 
     def run_step(self):
-        """Override run_step to track LLM metrics"""
+        """Override run_step to track LLM metrics and add timestamps"""
+        step_start_time = datetime.now()
+        
         # Update total LLM metrics from all agents
         for r in range(cfg.GRID_SIZE):
             for c in range(cfg.GRID_SIZE):
@@ -319,11 +326,30 @@ class LLMSimulation(Simulation):
                     agent.llm_call_time = 0.0
         
         # Call parent run_step
-        return super().run_step()
+        result = super().run_step()
+        
+        # Add timestamp for step completion
+        step_end_time = datetime.now()
+        step_duration = (step_end_time - step_start_time).total_seconds()
+        
+        # Only print timestamp for longer steps or periodically
+        if step_duration > 30 or (hasattr(self, 'step') and self.step % 10 == 0):
+            print(f"[{step_end_time.strftime('%Y-%m-%d %H:%M:%S')}] Step {getattr(self, 'step', '?')} completed in {step_duration:.1f}s [run {self.run_id}]")
+        
+        return result
 
     def run_single_simulation(self, output_dir=None, max_steps=1000):
-        """Override to show progress bar for LLM simulations"""
-        return super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
+        """Override to show progress bar for LLM simulations and add timestamps"""
+        start_time = datetime.now()
+        print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
+        
+        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Completed LLM simulation run {self.run_id} in {duration:.1f}s")
+        
+        return result
 
 def run_single_simulation(args):
     """Run a single LLM simulation - compatible with baseline_runner structure"""
