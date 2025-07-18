@@ -140,7 +140,7 @@ class Simulation:
         progress_bar = None
         if show_progress:
             progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})", 
-                               unit="step", leave=False)
+                               unit="step", leave=False, ncols=80)
         
         while not self.converged and self.step < max_steps:
             self.run_step()

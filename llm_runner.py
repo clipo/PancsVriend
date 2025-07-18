@@ -94,7 +94,7 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
         return False
 
 class LLMAgent(Agent):
-    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, run_id=None):
+    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, run_id=None, step=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -107,6 +107,7 @@ class LLMAgent(Agent):
         # Initialize LLM tracking metrics
         self.llm_call_count = 0
         self.llm_call_time = 0.0
+        self.step = step
     
     def get_context_grid(self, r, c, grid):
         """
@@ -265,20 +266,20 @@ class LLMAgent(Agent):
             except requests.exceptions.Timeout:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
-                    print(f"\n[{timestamp}] [LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}]")
+                    print(f"[{timestamp}] [LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}, step {self.step}]")
                     time.sleep(10)  # Wait 10 seconds before retry
                     continue
                 else:
-                    print(f"\n[{timestamp}] [LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}]")
+                    print(f"[{timestamp}] [LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}, step {self.step}]")
                     raise Exception(f"LLM timeout after {max_retries} retries")
             except Exception as e:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
-                    print(f"[\n{timestamp}] [LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}]")
+                    print(f"[{timestamp}] [LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}, step {self.step}]")
                     time.sleep(60)  # Wait 1 minute before retry
                     continue
                 else:
-                    print(f"\n[{timestamp}] [LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}]")
+                    print(f"[{timestamp}] [LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}, step {self.step}]")
                     raise Exception(f"LLM error after {max_retries} retries: {e}")
                     raise Exception(f"LLM error after {max_retries} retries: {e}")
 
@@ -308,7 +309,7 @@ class LLMSimulation(Simulation):
     
     def _create_llm_agent(self, type_id):
         """Create LLM agent with simulation parameters"""
-        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id)
+        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id, self.step)
 
     def run_step(self):
         """Override run_step to track LLM metrics and add timestamps"""
@@ -341,7 +342,7 @@ class LLMSimulation(Simulation):
     def run_single_simulation(self, output_dir=None, max_steps=1000):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
-        print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
+        print(f"\n[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
         
         result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
         
@@ -649,12 +650,13 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
             results = list(tqdm(
                 pool.imap(run_single_simulation, args_list),
                 total=runs_to_execute,
-                desc="Running LLM simulations"
+                desc="Running LLM simulations",
+                ncols=80,
             ))
     else:
         print(f"Running {runs_to_execute} simulations sequentially...")
         results = []
-        for args in tqdm(args_list, desc="Running LLM simulations"):
+        for args in tqdm(args_list, desc="Running LLM simulations", ncols=80):
             results.append(run_single_simulation(args))
 
     # Load existing results if resuming
