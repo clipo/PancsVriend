@@ -144,6 +144,8 @@ class Simulation:
         
         while not self.converged and self.step < max_steps:
             self.run_step()
+            self.save_states(output_dir)
+            self.save_agent_move_log(output_dir)  # Save the detailed move log
             
             if progress_bar:
                 progress_bar.update(1)
@@ -160,6 +162,12 @@ class Simulation:
             progress_bar.close()
         self.save_states(output_dir)
         self.save_agent_move_log(output_dir)  # Save the detailed move log
+
+        # Print summary statistics
+        moves = sum(1 for entry in self.agent_move_log if entry['moved'])
+        stays = len(self.agent_move_log) - moves
+        print(f"[Run {self.run_id}] Move summary: {moves} moves, {stays} stays, {self.step} steps")
+        
         return {
             'run_id': self.run_id,
             'converged': self.converged,
@@ -202,11 +210,6 @@ class Simulation:
                 json.dump(self.agent_move_log, f, separators=(',', ':'), default=str)
             
             # print(f"[Run {self.run_id}] Saved {len(self.agent_move_log)} agent move entries to {move_logs_dir}")
-            
-            # Print summary statistics
-            moves = sum(1 for entry in self.agent_move_log if entry['moved'])
-            stays = len(self.agent_move_log) - moves
-            print(f"[Run {self.run_id}] Move summary: {moves} moves, {stays} stays, {self.step} steps")
 
     def log_agent_move(self, agent, r, c, move_to, moved, new_position, reason, verbose_move_log=False):
         """Log an individual agent move with all relevant details."""
