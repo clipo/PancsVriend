@@ -1,0 +1,21 @@
+{
+  "n_runs": 100,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "scenario": "ethnic_asian_hispanic",
+  "llm_model": "mixtral:8x22b-instruct",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key_last4": "c67a",
+  "no_move_threshold": 5,
+  "timestamp": "20250713_221808",
+  "context_info": {
+    "type_a": "Asian American family",
+    "type_b": "Hispanic/Latino family",
+    "prompt_template": "You are a {agent_type} considering moving to a different house in your neighborhood.\n\nYour immediate 3x3 neighborhood currently looks like:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s with similar backgrounds\n- O = neighbors who are {opposite_type}s  \n- E = empty houses you could potentially move to\n- # = outside your immediate area\n\nAs a real person with your own cultural background, family needs, and community connections, consider where you would actually want to live. Think about factors like cultural familiarity, language communities, children's social connections, extended family proximity, and your comfort level in different neighborhood compositions.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+  },
+  "parallel_execution": true,
+  "n_processes": 5,
+  "cpu_count": 124
+}
