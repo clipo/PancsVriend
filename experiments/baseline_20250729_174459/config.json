@@ -1,0 +1,11 @@
+{
+  "n_runs": 100,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "similarity_threshold": 0.5,
+  "agent_satisfaction_threshold": 0,
+  "no_move_threshold": 5,
+  "timestamp": "20250729_174459"
+}
