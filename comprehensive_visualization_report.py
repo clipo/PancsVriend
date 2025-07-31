@@ -10,15 +10,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
-import os
 from scipy import stats
 import warnings
-warnings.filterwarnings('ignore')
 from convergence_analysis import calculate_convergence_metrics, load_convergence_data
+import re  # Add this import to handle timestamp removal
+
+warnings.filterwarnings('ignore')
 
 # Set style for better-looking plots
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
+
+# Define a common color scheme for experiments
+experiment_colors = {}
+
+def assign_colors_to_experiments(experiments):
+    """Assign unique colors to each experiment using a colormap."""
+    colormap = plt.cm.get_cmap('tab10', len(experiments))
+    for i, exp_name in enumerate(experiments.keys()):
+        experiment_colors[exp_name] = colormap(i)
 
 def load_experiment_data(exp_dir, exp_name):
     """Load all data for an experiment"""
@@ -32,7 +42,7 @@ def load_experiment_data(exp_dir, exp_name):
         # Load convergence info
         try:
             conv_df = pd.read_csv(f"{exp_dir}/convergence_summary.csv")
-        except:
+        except Exception:
             conv_df = pd.DataFrame()
         
         # Get final metrics for each run
@@ -58,22 +68,22 @@ def calculate_pairwise_statistics(data1, data2, name1, name2, metric):
     """Calculate pairwise statistics between two groups"""
     values1 = [run[metric] for run in data1 if metric in run]
     values2 = [run[metric] for run in data2 if metric in run]
-    
+
     if len(values1) == 0 or len(values2) == 0:
         return None
-    
+
     mean1, std1 = np.mean(values1), np.std(values1, ddof=1) if len(values1) > 1 else 0
     mean2, std2 = np.mean(values2), np.std(values2, ddof=1) if len(values2) > 1 else 0
-    
+
     # Statistical test
     if len(values1) >= 2 and len(values2) >= 2:
         try:
-            stat, p_value = stats.mannwhitneyu(values1, values2, alternative='two-sided')
-        except:
-            stat, p_value = 0, 1.0
+            _, p_value = stats.mannwhitneyu(values1, values2, alternative='two-sided')
+        except Exception:
+            p_value = 1.0
     else:
-        stat, p_value = 0, 1.0
-    
+        p_value = 1.0
+
     # Effect size (Cohen's d)
     if len(values1) > 1 and len(values2) > 1:
         pooled_std = np.sqrt(((len(values1)-1)*np.var(values1, ddof=1) + 
@@ -85,10 +95,10 @@ def calculate_pairwise_statistics(data1, data2, name1, name2, metric):
             cohens_d = 0
     else:
         cohens_d = 0
-    
+
     # Percent change
     percent_change = ((mean2 - mean1) / abs(mean1)) * 100 if mean1 != 0 else 0
-    
+
     return {
         'group1': name1, 'group2': name2, 'metric': metric,
         'mean1': mean1, 'std1': std1, 'mean2': mean2, 'std2': std2,
@@ -96,43 +106,45 @@ def calculate_pairwise_statistics(data1, data2, name1, name2, metric):
         'significant': p_value < 0.05
     }
 
+def clean_experiment_name(exp_name):
+    """Remove timestamp from experiment name."""
+    return re.sub(r'_\d{8}_\d{6}$', '', exp_name)
+
 def create_time_series_plots(experiments, pdf):
     """Create time series plots for all metrics"""
     metrics = ['clusters', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
-    
+
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     axes = axes.flatten()
-    
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
-    
+
     for i, metric in enumerate(metrics):
         ax = axes[i]
-        
-        for j, (exp_name, exp_data) in enumerate(experiments.items()):
+
+        for exp_name, exp_data in experiments.items():
             if exp_data and 'step_statistics' in exp_data:
                 df = exp_data['step_statistics']
                 steps = df['step']
                 mean_col = f'{metric}_mean'
                 std_col = f'{metric}_std'
-                
+
                 if mean_col in df.columns:
                     means = df[mean_col]
                     stds = df[std_col]
-                    
-                    ax.plot(steps, means, label=exp_name.replace('_', ' ').title(), 
-                           color=colors[j], linewidth=2.5)
+
+                    ax.plot(steps, means, label=clean_experiment_name(exp_name).replace('_', ' ').title(), 
+                            color=experiment_colors[exp_name], linewidth=2.5)
                     ax.fill_between(steps, means - stds, means + stds, 
-                                   alpha=0.2, color=colors[j])
-        
+                                    alpha=0.2, color=experiment_colors[exp_name])
+
         ax.set_title(f'{metric.replace("_", " ").title()} Over Time', fontsize=14, fontweight='bold')
         ax.set_xlabel('Step', fontsize=12)
         ax.set_ylabel(metric.replace('_', ' ').title(), fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
+
     # Remove empty subplot
     axes[-1].remove()
-    
+
     plt.suptitle('Segregation Metrics Evolution: Pure Agent Type Comparison', 
                  fontsize=16, fontweight='bold', y=0.98)
     plt.tight_layout()
@@ -151,7 +163,7 @@ def create_final_comparison_plots(experiments, pdf):
                 for metric in metrics:
                     if metric in run:
                         plot_data.append({
-                            'Agent_Type': exp_name.replace('_', ' ').title(),
+                            'Agent_Type': clean_experiment_name(exp_name).replace('_', ' ').title(),
                             'Metric': metric.replace('_', ' ').title(),
                             'Value': run[metric],
                             'Metric_Raw': metric
@@ -168,9 +180,10 @@ def create_final_comparison_plots(experiments, pdf):
         metric_data = df_plot[df_plot['Metric_Raw'] == metric]
         
         if not metric_data.empty:
-            sns.boxplot(data=metric_data, x='Agent_Type', y='Value', ax=ax, palette='husl')
+            sns.boxplot(data=metric_data, x='Agent_Type', y='Value', ax=ax, 
+                        palette=[experiment_colors[exp_name] for exp_name in experiments.keys()])
             sns.stripplot(data=metric_data, x='Agent_Type', y='Value', ax=ax, 
-                         color='black', alpha=0.7, size=8)
+                          color='black', alpha=0.7, size=8)
         
         ax.set_title(f'Final {metric.replace("_", " ").title()} Values', 
                     fontsize=14, fontweight='bold')
@@ -195,14 +208,13 @@ def create_statistical_summary_table(experiments, pdf):
     
     # Calculate statistics for each metric
     metrics = ['clusters', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
-    exp_names = list(experiments.keys())
     
     # Create summary data
     summary_data = []
     for metric in metrics:
         row = [metric.replace('_', ' ').title()]
         
-        for exp_name in exp_names:
+        for exp_name in experiments.keys():
             exp_data = experiments[exp_name]
             if exp_data and exp_data['final_metrics']:
                 values = [run[metric] for run in exp_data['final_metrics'] if metric in run]
@@ -218,7 +230,7 @@ def create_statistical_summary_table(experiments, pdf):
         summary_data.append(row)
     
     # Create table
-    headers = ['Metric'] + [name.replace('_', ' ').title() for name in exp_names]
+    headers = ['Metric'] + [name.replace('_', ' ').title() for name in experiments.keys()]
     
     table = ax.table(cellText=summary_data, colLabels=headers, 
                     cellLoc='center', loc='center',
@@ -246,7 +258,6 @@ def create_statistical_summary_table(experiments, pdf):
 def create_pairwise_comparison_table(experiments, pdf):
     """Create pairwise comparison analysis table"""
     metrics = ['clusters', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
-    exp_names = list(experiments.keys())
     
     # Calculate pairwise comparisons
     comparisons = []
@@ -643,41 +654,135 @@ def create_comprehensive_report(experiments, output_file="comprehensive_comparis
     print(f"✅ Comprehensive report saved to: {output_file}")
     return output_file
 
-def main():
-    """Main function to generate the comprehensive report"""
-    
-    # Our equal-length pure comparison experiments
-    experiment_configs = {
-        'mechanical_baseline': 'experiments/baseline_20250613_214945',
-        'standard_llm': 'experiments/llm_baseline_20250613_215046', 
-        'memory_llm': 'experiments/llm_baseline_20250613_225502'
-    }
-    
-    print("🔬 COMPREHENSIVE VISUALIZATION REPORT GENERATOR")
-    print("=" * 60)
-    print("Loading experiments:")
-    
-    # Load all experiment data
-    experiments = {}
-    for name, directory in experiment_configs.items():
-        print(f"  Loading {name}...")
-        exp_data = load_experiment_data(directory, name)
-        if exp_data:
-            experiments[name] = exp_data
-            print(f"    ✅ {len(exp_data['final_metrics'])} runs loaded")
-        else:
-            print(f"    ❌ Failed to load")
-    
-    if not experiments:
-        print("❌ No experiments loaded successfully!")
-        return
-    
-    # Generate the comprehensive report
-    output_file = create_comprehensive_report(experiments)
-    
-    print(f"\n🎉 REPORT GENERATION COMPLETE!")
-    print(f"📄 Output: {output_file}")
-    print(f"📊 Contains: Key findings, time series, comparisons, and statistics")
+def create_comprehensive_comparison_report(experiment_names, experiments, output_pdf):
+    """Create a comprehensive comparison report for the given experiments."""
+    with PdfPages(output_pdf) as pdf:
+        # Add title page
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.axis('off')
+        title_text = "Comprehensive Comparison Report\n\n"
+        title_text += "Experiments:\n" + "\n".join([clean_experiment_name(name).replace('_', ' ').title() for name in experiment_names])
+        ax.text(0.5, 0.5, title_text, fontsize=20, ha='center', va='center', wrap=True)
+        pdf.savefig(fig)
+        plt.close()
 
+        # Create metrics summary comparison plots
+        create_final_comparison_plots(experiments, pdf)
+
+        # Create time series plots for step statistics
+        create_time_series_plots(experiments, pdf)
+
+        # Create convergence history plots
+        create_convergence_history_plots(experiments, pdf)
+
+        # Create statistical summary table
+        create_statistical_summary_table(experiments, pdf)
+
+        # Create pairwise comparison table
+        create_pairwise_comparison_table(experiments, pdf)
+
+        # Add key findings summary
+        create_key_findings_summary(experiments, pdf)
+
+        print(f"✅ Comprehensive comparison report saved to {output_pdf}")
+
+def create_convergence_history_plots(experiments, pdf):
+    """Create boxplots of convergence steps for all experiments."""
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    convergence_data = []
+    for exp_name, exp_data in experiments.items():
+        if exp_data and 'final_step' in exp_data:
+            final_steps = exp_data['final_step']
+            if not final_steps.empty:
+                for step in final_steps.dropna():
+                    convergence_data.append({
+                        'Experiment': clean_experiment_name(exp_name).replace('_', ' ').title(),
+                        'Convergence Step': step
+                    })
+            else:
+                # Add placeholder for experiments with no final step data
+                convergence_data.append({
+                    'Experiment': clean_experiment_name(exp_name).replace('_', ' ').title(),
+                    'Convergence Step': None
+                })
+        else:
+            # Add placeholder for experiments with no final step data
+            convergence_data.append({
+                'Experiment': clean_experiment_name(exp_name).replace('_', ' ').title(),
+                'Convergence Step': None
+            })
+
+    if convergence_data:
+        df = pd.DataFrame(convergence_data)
+        try:
+            # Ensure the palette aligns with the experiments in the DataFrame
+            unique_experiments = df['Experiment'].unique()
+            palette = {exp: experiment_colors.get(exp, '#d3d3d3') for exp in unique_experiments}  # Default to light gray if color is missing
+            sns.boxplot(data=df, x='Experiment', y='Convergence Step', ax=ax, palette=palette)
+            sns.stripplot(data=df, x='Experiment', y='Convergence Step', ax=ax, color='black', alpha=0.7, size=8)
+
+            ax.set_title('Convergence Steps by Experiment', fontsize=16, fontweight='bold')
+            ax.set_xlabel('Experiment', fontsize=12)
+            ax.set_ylabel('Convergence Step', fontsize=12)
+            ax.tick_params(axis='x', rotation=45)
+            ax.grid(True, alpha=0.3)
+
+            pdf.savefig(fig, bbox_inches='tight')
+        except Exception as e:
+            print(f"⚠️ Skipping boxplot due to error: {e}")
+        finally:
+            plt.close()
+
+# Example usage
 if __name__ == "__main__":
-    main()
+    experiment_names = ["baseline_20250729_174459", "llm_baseline_20250703_101243", "llm_ethnic_asian_hispanic_20250713_221759","llm_income_high_low_20250724_154316","llm_political_liberal_conservative_20250724_154733","llm_race_white_black_20250718_195455"]
+    experiments = {
+        name: load_experiment_data(f"experiments/{name}", name) for name in experiment_names
+    }
+    # Assign colors to experiments
+    assign_colors_to_experiments(experiments)
+
+    create_comprehensive_comparison_report(experiment_names, experiments, "comprehensive_visualization_report.pdf")
+
+# def main():
+#     """Main function to generate the comprehensive report"""
+    
+#     # Our equal-length pure comparison experiments
+#     experiment_configs = {
+#         'mechanical_baseline': 'experiments/baseline_20250729_174459',
+#         'llm_baseline': 'experiments/llm_baseline_20250703_101243', 
+#         'ethnic_asian_hispanic': "experiments/llm_ethnic_asian_hispanic_20250713_221759",
+#         'income_high_low': "experiments/llm_income_high_low_20250724_154316",
+#         'political_liberal_conservative': "experiments/llm_political_liberal_conservative_20250724_154733",
+#         'race_white_black': 'experiments/llm_race_white_black_20250718_195455',
+#     }
+    
+#     print("🔬 COMPREHENSIVE VISUALIZATION REPORT GENERATOR")
+#     print("=" * 60)
+#     print("Loading experiments:")
+    
+#     # Load all experiment data
+#     experiments = {}
+#     for name, directory in experiment_configs.items():
+#         print(f"  Loading {name}...")
+#         exp_data = load_experiment_data(directory, name)
+#         if exp_data:
+#             experiments[name] = exp_data
+#             print(f"    ✅ {len(exp_data['final_metrics'])} runs loaded")
+#         else:
+#             print(f"    ❌ Failed to load")
+    
+#     if not experiments:
+#         print("❌ No experiments loaded successfully!")
+#         return
+    
+#     # Generate the comprehensive report
+#     output_file = create_comprehensive_report(experiments)
+    
+#     print(f"\n🎉 REPORT GENERATION COMPLETE!")
+#     print(f"📄 Output: {output_file}")
+#     print(f"📊 Contains: Key findings, time series, comparisons, and statistics")
+
+# if __name__ == "__main__":
+#     main()
