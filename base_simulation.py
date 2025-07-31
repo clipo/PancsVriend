@@ -140,7 +140,7 @@ class Simulation:
         progress_bar = None
         if show_progress:
             progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})", 
-                               unit="step", leave=False, ncols=80)
+                               unit="step", leave=True, ncols=80)
         
         while not self.converged and self.step < max_steps:
             self.run_step()
@@ -250,6 +250,7 @@ class Simulation:
         """Save current grid state after a move."""
         self.states.append(self._grid_to_int())
 
+    @staticmethod
     def analyze_results(results, output_dir, n_runs):   
         """Analyze simulation results and save metrics, convergence data, and step statistics."""
         all_metrics = []
@@ -283,3 +284,182 @@ class Simulation:
         step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
 
         return output_dir, results, convergence_data
+
+    @staticmethod
+    def load_results_from_output(output_dir):
+        """
+        Load simulation results from stored output files to feed into analyze_results function.
+        
+        Args:
+            output_dir (str): Directory containing saved simulation outputs
+            
+        Returns:
+            tuple: (results, n_runs) where results is a list of result dictionaries
+                  compatible with analyze_results function
+        """
+        results = []
+        
+        # Check if metrics_history.csv already exists (from previous analysis)
+        metrics_file = os.path.join(output_dir, "metrics_history.csv")
+        convergence_file = os.path.join(output_dir, "convergence_summary.csv")
+        
+        if os.path.exists(metrics_file) and os.path.exists(convergence_file):
+            print(f"Loading existing analysis files from {output_dir}")
+            
+            # Load pre-computed metrics and convergence data
+            metrics_df = pd.read_csv(metrics_file)
+            convergence_df = pd.read_csv(convergence_file)
+            
+            # Group metrics by run_id to reconstruct results structure
+            for run_id in convergence_df['run_id'].unique():
+                convergence_row = convergence_df[convergence_df['run_id'] == run_id].iloc[0]
+                run_metrics = metrics_df[metrics_df['run_id'] == run_id].to_dict('records')
+                
+                result = {
+                    'run_id': run_id,
+                    'converged': convergence_row['converged'],
+                    'convergence_step': convergence_row['convergence_step'] if pd.notna(convergence_row['convergence_step']) else None,
+                    'final_step': convergence_row['final_step'],
+                    'metrics_history': run_metrics
+                }
+                results.append(result)
+                
+            n_runs = len(convergence_df)
+            print(f"Loaded {n_runs} simulation runs from existing analysis files")
+            
+        else:
+            print(f"Loading raw simulation data from {output_dir}")
+            
+            # Load from individual move log files 
+            move_logs_dir = os.path.join(output_dir, "move_logs")
+            
+            if not os.path.exists(move_logs_dir):
+                raise FileNotFoundError(f"Move logs directory not found: {move_logs_dir}")
+            
+            # Find all run files
+            move_files = [f for f in os.listdir(move_logs_dir) if f.startswith("agent_moves_run_") and f.endswith(".csv")]
+            run_ids = [int(f.split("_")[-1].split(".")[0]) for f in move_files]
+            run_ids.sort()
+            
+            print(f"Found {len(run_ids)} simulation runs: {run_ids}")
+            
+            for run_id in run_ids:
+                print(f"Loading run {run_id}...")
+                
+                # Load agent move log to reconstruct metrics history
+                move_file = os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.csv")
+                move_df = pd.read_csv(move_file)
+                
+                # Extract convergence information from move log
+                max_step = move_df['step'].max() if not move_df.empty else 0
+                
+                # Check if simulation converged (look for patterns in the data)
+                # A simple heuristic: if the last few steps have no moves, it converged
+                recent_steps = move_df[move_df['step'] >= max_step - 5] if max_step >= 5 else move_df
+                recent_moves = recent_steps['moved'].sum() if not recent_steps.empty else 0
+                converged = recent_moves == 0 and max_step > 0
+                convergence_step = max_step if converged else None
+                
+                # Try to reconstruct metrics history from the move log
+                # Group by step and calculate basic metrics if available
+                metrics_history = []
+                
+                # If we have detailed grid states saved in move log, we can reconstruct metrics
+                if 'grid' in move_df.columns and not move_df.empty:
+                    step_groups = move_df.groupby('step')
+                    
+                    for step, group in step_groups:
+                        # Take the last grid state for this step (after all moves completed)
+                        last_entry = group.iloc[-1]
+                        
+                        # Try to parse the grid if it's stored as string
+                        try:
+                            if isinstance(last_entry['grid'], str):
+                                grid_data = eval(last_entry['grid'])  # Parse string representation
+                            else:
+                                grid_data = last_entry['grid']
+                            
+                            # Convert to numpy array and calculate metrics
+                            grid_array = np.array(grid_data)
+                            
+                            # Create a mock grid for metrics calculation
+                            mock_grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
+                            for r in range(grid_array.shape[0]):
+                                for c in range(grid_array.shape[1]):
+                                    if grid_array[r, c] >= 0:
+                                        # Create a simple agent-like object with type_id
+                                        class MockAgent:
+                                            def __init__(self, type_id):
+                                                self.type_id = type_id
+                                        mock_grid[r, c] = MockAgent(grid_array[r, c])
+                            
+                            # Calculate metrics for this step
+                            step_metrics = calculate_all_metrics(mock_grid)
+                            step_metrics['step'] = step
+                            step_metrics['run_id'] = run_id
+                            metrics_history.append(step_metrics)
+                            
+                        except Exception as e:
+                            print(f"Warning: Could not reconstruct metrics for step {step}, run {run_id}: {e}")
+                            # Create minimal metrics entry
+                            metrics_history.append({
+                                'step': step,
+                                'run_id': run_id,
+                                'clusters': 0,
+                                'switch_rate': 0,
+                                'distance': 0,
+                                'mix_deviation': 0,
+                                'share': 0.5,
+                                'ghetto_rate': 0
+                            })
+                
+                # If no metrics could be reconstructed, create minimal result
+                if not metrics_history:
+                    metrics_history = [{
+                        'step': 0,
+                        'run_id': run_id,
+                        'clusters': 0,
+                        'switch_rate': 0,
+                        'distance': 0,
+                        'mix_deviation': 0,
+                        'share': 0.5,
+                        'ghetto_rate': 0
+                    }]
+                
+                result = {
+                    'run_id': run_id,
+                    'converged': converged,
+                    'convergence_step': convergence_step,
+                    'final_step': max_step,
+                    'metrics_history': metrics_history
+                }
+                results.append(result)
+            
+            n_runs = len(results)
+            print(f"Loaded {n_runs} simulation runs from raw data")
+        
+        return results, n_runs
+
+    @staticmethod
+    def load_and_analyze_results(output_dir):
+        """
+        Convenience function that loads stored simulation outputs and runs analysis.
+        
+        Args:
+            output_dir (str): Directory containing saved simulation outputs
+            
+        Returns:
+            tuple: (output_dir, results, convergence_data) from analyze_results
+        """
+        print(f"Loading and analyzing results from: {output_dir}")
+        
+        # Load the results from stored output
+        results, n_runs = Simulation.load_results_from_output(output_dir)
+        
+        if not results:
+            raise ValueError(f"No simulation results found in {output_dir}")
+        
+        print(f"Analyzing {n_runs} simulation runs...")
+        
+        # Run the analysis
+        return Simulation.analyze_results(results, output_dir, n_runs)
