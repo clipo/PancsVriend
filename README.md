@@ -17,19 +17,46 @@ This framework enables systematic comparison between:
 
 ### 🏆 Key Research Findings
 
+#### Agent Architecture Comparison (Baseline Red/Blue)
 - **⚡ LLM agents converge 2.2× faster** than mechanical agents (84 vs 187 steps)
 - **🏘️ Memory reduces extreme segregation** by 53.8% ("ghetto" formation)
 - **📊 Similar final segregation levels** (~55% vs 58%) but different dynamics
 - **🎯 100% convergence rate** for LLM agents vs 50% for mechanical
 
-## 📄 Scientific Paper
+#### Social Context Effects (NEW)
+- **🔴 Political contexts show EXTREME segregation**: Ghetto rate 61.6 (12.3× higher than economic)
+- **💰 Economic contexts show MINIMAL segregation**: Ghetto rate 5.0, fastest convergence (~7 steps)
+- **🏘️ Racial/Ethnic contexts mirror real-world patterns**: ~40 ghetto rate, matching empirical data
+- **📊 All contexts differ significantly from baseline** (p < 0.001, large effect sizes η² > 0.5)
 
+## 📄 Scientific Papers
+
+### Paper 1: Agent Architecture Comparison
 **"Human-like Decision Making in Agent-Based Models: A Comparative Study of Large Language Model Agents versus Traditional Utility Maximization in the Schelling Segregation Model"**
+
+- **Focus**: Comparing mechanical vs standard LLM vs memory-enhanced LLM agents
+- **Key Finding**: LLM agents converge 2.2× faster with memory reducing extreme segregation
+- **Status**: Original version prepared for submission
+- **File**: [`schelling_llm_paper.qmd`](schelling_llm_paper.qmd)
+
+### Paper 2: Social Context Effects (NEW)
+**"Social Context Matters: How Large Language Model Agents Reproduce Real-World Segregation Patterns in the Schelling Model"**
+
+- **Focus**: How different social framings (political, racial, economic) affect segregation
+- **Key Finding**: Political contexts produce 12.3× more segregation than economic contexts
+- **Status**: Analysis complete, paper draft available
+- **File**: [`schelling_llm_paper_updated.qmd`](schelling_llm_paper_updated.qmd)
+
+### Paper 3: Comprehensive Study (NEW)
+**"Beyond Utility Maximization: How Large Language Model Agents Reproduce Culturally-Specific Segregation Patterns in the Schelling Model"**
+
+- **Focus**: Combined analysis of agent architectures AND social contexts
+- **Key Finding**: Social framing drives segregation more than agent architecture
+- **Status**: Most comprehensive version combining all experiments
+- **File**: [`schelling_llm_paper_comprehensive.qmd`](schelling_llm_paper_comprehensive.qmd)
 
 - **Authors**: Andreas Pape, Carl Lipo, et al.
 - **Institution**: Binghamton University
-- **Status**: Prepared for submission to *Advances in Complex Systems*
-- **Paper File**: [`schelling_llm_paper.qmd`](schelling_llm_paper.qmd)
 - **Render Instructions**: See [`paper_README.md`](paper_README.md)
 
 ## ✨ New Features (2024)
@@ -344,13 +371,38 @@ streamlit run dashboard.py
 
 ## 🔍 Key Findings
 
+### Agent Architecture Effects
 Our research reveals significant differences between agent types:
 
 - **Mechanical agents** produce predictable, rapid segregation
 - **Standard LLM agents** show more variable, context-sensitive patterns
 - **Memory LLM agents** exhibit slower, more realistic segregation dynamics
-- **Social context** dramatically affects outcomes, with racial scenarios showing strongest effects
 - **Model choice matters**: Different LLMs show varying segregation patterns
+
+### Social Context Effects (NEW RESULTS)
+Recent experiments with social contexts reveal dramatic differences:
+
+#### Political Segregation (Most Extreme)
+- **Ghetto formation rate**: 61.6 ± 9.3 (highest across all contexts)
+- **Segregation share**: 0.928 ± 0.042 (near-complete segregation)
+- **Switch rate**: 0.076 ± 0.036 (agents rarely move once settled)
+- **Interpretation**: Reflects contemporary political polarization
+
+#### Economic Integration (Most Integrated)
+- **Ghetto formation rate**: 5.0 ± 3.1 (12.3× lower than political)
+- **Number of clusters**: 25.0 ± 3.1 (most fragmented/mixed)
+- **Convergence speed**: ~7 steps (10× faster than other contexts)
+- **Interpretation**: Economic diversity more tolerable than other differences
+
+#### Racial/Ethnic Patterns (Real-World Alignment)
+- **Race (White/Black)**: Ghetto rate 40.8 ± 9.6, share 0.823 ± 0.060
+- **Ethnic (Asian/Hispanic)**: Ghetto rate 38.9 ± 11.2, share 0.821 ± 0.076
+- **Interpretation**: Matches empirical segregation indices from urban studies
+
+#### Statistical Significance
+- All contexts differ significantly from baseline (ANOVA p < 0.001)
+- Large effect sizes (η² > 0.5) for all metrics
+- Political > Racial/Ethnic > Baseline > Economic segregation levels
 
 ## 📚 Documentation
 
@@ -402,6 +454,9 @@ We welcome contributions! Please:
 - `convergence_analysis.py` - Convergence speed and rate analysis
 - `comprehensive_visualization_report.py` - Complete PDF report generator
 - `visualization.py` - Individual visualization tools
+- **NEW**: `analyze_experiment_results.py` - Extract and compare final metrics across scenarios
+- **NEW**: `analyze_convergence_patterns.py` - Time series analysis of segregation evolution
+- **NEW**: `visualize_experiment_comparison.py` - Generate comparison plots and heatmaps
 
 ### LLM Configuration
 - `switch_llm.py` - Interactive model switching
