@@ -342,9 +342,9 @@ class LLMSimulation(Simulation):
     def run_single_simulation(self, output_dir=None, max_steps=1000):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
-        print(f"\n[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
+        print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
         
-        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=True)
+        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=False)
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
