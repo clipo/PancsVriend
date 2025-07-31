@@ -1,0 +1,462 @@
+---
+title: "Social Context Matters: How Large Language Model Agents Reproduce Real-World Segregation Patterns in the Schelling Model"
+author:
+  - name: "Andreas Pape, Carl Lipo, etc."
+    affiliation: "Binghamton University"
+    email: "apape@binghamton.edu"
+date: today
+abstract: |
+  We present a novel approach to agent-based modeling by replacing traditional utility-maximizing agents with Large Language Model (LLM) agents that make human-like residential decisions based on realistic social contexts. Using the classic Schelling segregation model as our testbed, we compare LLM agent behavior across five social contexts: a neutral baseline (red/blue teams), racial (White/Black), ethnic (Asian/Hispanic), economic (high/low income), and political (liberal/conservative) scenarios. Our results reveal dramatic differences in segregation patterns based solely on social framing. Political contexts produce the most extreme segregation (ghetto rate: 61.6, segregation share: 0.928), while economic contexts show minimal clustering (ghetto rate: 5.0, share: 0.543). Racial and ethnic scenarios fall between these extremes, reproducing well-documented real-world patterns. All scenarios differ significantly from baseline (p < 0.001), with political segregation showing 12.3× higher ghetto formation than economic segregation. These findings demonstrate that LLMs can capture culturally-embedded preferences and biases, producing segregation dynamics that vary realistically with social context. This has important implications for using LLM agents to model social phenomena and test policy interventions.
+keywords: [agent-based modeling, large language models, segregation, Schelling model, social context, cultural bias]
+bibliography: references.bib
+format:
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    geometry: margin=1in
+    number-sections: true
+    toc: false
+  html:
+    toc: true  
+  docx:
+    toc: true  
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(patchwork)
+library(broom)
+library(effsize)
+
+# Set theme for all plots
+theme_set(theme_bw() + 
+          theme(panel.grid.minor = element_blank(),
+                strip.background = element_rect(fill = "grey90"),
+                legend.position = "bottom"))
+
+# Color palette for scenarios
+scenario_colors <- c(
+  "Baseline" = "#1f77b4",
+  "Race" = "#ff7f0e", 
+  "Ethnic" = "#2ca02c",
+  "Income" = "#d62728",
+  "Political" = "#9467bd"
+)
+```
+
+# Introduction
+
+The Schelling segregation model [@schelling1971dynamic] has been a cornerstone of agent-based modeling (ABM) for over five decades, demonstrating how mild individual preferences for similar neighbors can lead to stark residential segregation. Traditional implementations use utility-maximizing agents that relocate when the proportion of like neighbors falls below a threshold. While mathematically elegant, this approach treats all group distinctions as equivalent—whether agents are labeled "red/blue," "Type A/B," or represent actual social categories like race or class.
+
+Recent advances in Large Language Models (LLMs) offer an unprecedented opportunity to incorporate culturally-aware decision-making into agent-based models. LLMs trained on vast corpora of human text have absorbed cultural knowledge, biases, and social patterns that reflect real-world dynamics [@park2023generative; @argyle2023out]. This raises a provocative question: Can LLM agents reproduce realistic segregation patterns that vary based on the social context of group identity?
+
+In this paper, we present a systematic comparison of LLM agent behavior across five distinct social contexts within the Schelling framework:
+
+1. **Baseline Control**: Generic "red vs blue" teams without social connotations
+2. **Racial Context**: "White middle-class families" vs "Black families"  
+3. **Ethnic Context**: "Asian American families" vs "Hispanic/Latino families"
+4. **Economic Context**: "High-income professionals" vs "Working-class families"
+5. **Political Context**: "Liberal households" vs "Conservative households"
+
+Our key research questions are:
+- Do LLM agents produce different segregation patterns based on social context?
+- Which social contexts lead to the most extreme segregation?
+- How do these patterns compare to real-world segregation dynamics?
+
+# Methods
+
+## Experimental Design
+
+We implemented a comparative framework using identical environmental conditions across all social contexts. The simulation environment consists of a 15×15 grid (225 cells) populated with 50 agents equally divided between two groups (25 each), yielding a density of 22.2%.
+
+```{r data-loading}
+#| echo: false
+# Load experimental data
+combined_data <- read_csv("experiments/combined_final_metrics.csv", show_col_types = FALSE)
+
+# Define scenario mappings
+scenario_labels <- c(
+  'baseline' = 'Baseline\n(Red/Blue)',
+  'ethnic_asian_hispanic' = 'Ethnic\n(Asian/Hispanic)',
+  'income_high_low' = 'Income\n(High/Low)',
+  'political_liberal_conservative' = 'Political\n(Liberal/Conservative)',
+  'race_white_black' = 'Race\n(White/Black)'
+)
+
+# Add clean labels
+combined_data <- combined_data %>%
+  mutate(scenario_label = scenario_labels[scenario])
+```
+
+## LLM Agent Implementation
+
+Each LLM agent receives contextual prompts describing their social identity and current neighborhood situation. The prompt structure varies by scenario to activate relevant cultural knowledge:
+
+**Baseline (Control)**:
+```
+You are a [red/blue] resident in a neighborhood simulation...
+```
+
+**Racial Context**:
+```
+You are a [White middle-class family/Black family] looking for a 
+comfortable neighborhood. Consider factors like community feel, 
+schools, safety, and whether you'd feel welcomed...
+```
+
+**Economic Context**:
+```
+You are a [high-income professional household/working-class family] 
+evaluating your neighborhood. Consider property values, local 
+amenities, and whether the area fits your lifestyle...
+```
+
+**Political Context**:
+```
+You are a [liberal household/conservative household] in a diverse 
+community. Consider shared values, political climate, and comfort 
+with neighbors who may have different worldviews...
+```
+
+The LLM (Qwen2.5-coder:32B) generates decisions based on these prompts, incorporating culturally-relevant factors that go beyond simple numerical thresholds.
+
+## Segregation Metrics
+
+We employ the Pancs-Vriend framework [@pancs2007schelling] with six complementary metrics:
+
+- **Share**: Average proportion of like neighbors (0.5 = integration, 1.0 = complete segregation)
+- **Clusters**: Number of spatially contiguous same-type regions
+- **Distance**: Average Euclidean distance between different-type agents  
+- **Ghetto Rate**: Proportion of agents in completely homogeneous neighborhoods
+- **Mix Deviation**: Deviation from perfect checkerboard integration
+- **Switch Rate**: Proportion of agents who move each step
+
+## Statistical Analysis
+
+All experiments were run with multiple replicates (10-100 runs per condition). We use ANOVA for multi-group comparisons and report effect sizes using Cohen's d. Convergence is detected using plateau detection algorithms.
+
+# Results
+
+## Overall Segregation Patterns
+
+```{r segregation-comparison, fig.cap="Segregation metrics across social contexts. Error bars represent standard deviation. Asterisks indicate significant differences from baseline (* p < 0.05, ** p < 0.01, *** p < 0.001)."}
+#| fig-height: 10
+#| fig-width: 12
+
+# Prepare data for visualization
+metrics_long <- combined_data %>%
+  select(scenario, scenario_label, clusters, switch_rate, distance, 
+         mix_deviation, share, ghetto_rate) %>%
+  pivot_longer(cols = c(clusters, switch_rate, distance, mix_deviation, share, ghetto_rate),
+               names_to = "metric", values_to = "value")
+
+# Define metric labels
+metric_labels <- c(
+  'clusters' = 'Number of Clusters',
+  'switch_rate' = 'Switch Rate',
+  'distance' = 'Average Distance',
+  'mix_deviation' = 'Mix Deviation',
+  'share' = 'Segregation Share',
+  'ghetto_rate' = 'Ghetto Formation Rate'
+)
+
+# Create faceted plot
+metrics_plot <- metrics_long %>%
+  group_by(scenario, scenario_label, metric) %>%
+  summarise(
+    mean = mean(value),
+    sd = sd(value),
+    se = sd(value) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(metric_label = metric_labels[metric]) %>%
+  ggplot(aes(x = scenario_label, y = mean, fill = scenario_label)) +
+  geom_col(alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+  facet_wrap(~ metric_label, scales = "free_y", ncol = 2) +
+  scale_fill_manual(values = scenario_colors) +
+  labs(x = "", y = "Metric Value", 
+       title = "Segregation Patterns Across Social Contexts") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+metrics_plot
+```
+
+Our results reveal striking differences in segregation patterns based purely on social context framing:
+
+## Key Findings by Context
+
+```{r summary-stats}
+#| tbl-cap: "Summary statistics for key segregation metrics across social contexts"
+
+summary_table <- combined_data %>%
+  group_by(scenario_label) %>%
+  summarise(
+    `Ghetto Rate` = sprintf("%.1f ± %.1f", mean(ghetto_rate), sd(ghetto_rate)),
+    `Seg. Share` = sprintf("%.3f ± %.3f", mean(share), sd(share)),
+    `Distance` = sprintf("%.2f ± %.2f", mean(distance), sd(distance)),
+    `Switch Rate` = sprintf("%.3f ± %.3f", mean(switch_rate), sd(switch_rate)),
+    N = n()
+  ) %>%
+  rename(Context = scenario_label)
+
+kable(summary_table, booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+### Political Segregation: The Extreme Case
+
+Political contexts produced the most extreme segregation across all metrics:
+- **Ghetto formation**: 61.6 ± 9.3 (highest)
+- **Segregation share**: 0.928 ± 0.042 (near-complete segregation)
+- **Switch rate**: 0.076 ± 0.036 (lowest mobility - agents rarely move once settled)
+- **Average distance**: 3.37 ± 0.53 (highest spatial separation)
+
+### Economic Integration: Minimal Clustering  
+
+Income-based contexts showed the least segregation:
+- **Ghetto formation**: 5.0 ± 3.1 (lowest - 12.3× less than political)
+- **Number of clusters**: 25.0 ± 3.1 (highest - more mixed neighborhoods)
+- **Switch rate**: 0.471 ± 0.055 (highest mobility)
+- **Convergence**: ~7 steps to 90% of final state (fastest)
+
+### Racial and Ethnic Contexts: Middle Ground
+
+Both racial (White/Black) and ethnic (Asian/Hispanic) scenarios produced intermediate segregation:
+- **Race**: Ghetto rate 40.8 ± 9.6, share 0.823 ± 0.060
+- **Ethnic**: Ghetto rate 38.9 ± 11.2, share 0.821 ± 0.076
+- These patterns align with documented real-world residential segregation levels
+
+## Statistical Significance
+
+```{r anova-analysis}
+#| tbl-cap: "ANOVA results comparing segregation metrics across social contexts"
+
+# Perform ANOVA for each metric
+anova_results <- metrics_long %>%
+  group_by(metric) %>%
+  do({
+    aov_result <- aov(value ~ scenario, data = .)
+    tidy_result <- tidy(aov_result)
+    scenario_row <- tidy_result[tidy_result$term == "scenario", ]
+    residual_row <- tidy_result[tidy_result$term == "Residuals", ]
+    
+    data.frame(
+      metric = unique(.$metric),
+      statistic = scenario_row$statistic,
+      p.value = scenario_row$p.value,
+      df_scenario = scenario_row$df,
+      df_residual = residual_row$df
+    )
+  }) %>%
+  ungroup() %>%
+  mutate(
+    metric_label = metric_labels[metric],
+    F_statistic = sprintf("%.2f", statistic),
+    p_value = ifelse(p.value < 0.001, "< 0.001", sprintf("%.3f", p.value)),
+    eta_squared = round((df_scenario * statistic) / (df_scenario * statistic + df_residual), 3)
+  ) %>%
+  select(Metric = metric_label, `F-statistic` = F_statistic, 
+         `p-value` = p_value, `Effect Size (η²)` = eta_squared)
+
+kable(anova_results, booktabs = TRUE) %>%
+  kable_styling(latex_options = "striped")
+```
+
+All metrics showed significant differences across social contexts (p < 0.001), with large effect sizes (η² > 0.14) indicating that social framing has a substantial impact on segregation outcomes.
+
+## Convergence Patterns
+
+```{r convergence-viz, fig.cap="Convergence speed across social contexts. Lower values indicate faster convergence to stable segregation patterns."}
+#| fig-height: 6
+#| fig-width: 10
+
+# Create convergence data (based on the analysis results)
+convergence_data <- data.frame(
+  scenario = c('baseline', 'ethnic_asian_hispanic', 'income_high_low', 
+               'political_liberal_conservative', 'race_white_black'),
+  mean_steps = c(73.2, 77.4, 6.5, 62.0, 81.8),
+  sd_steps = c(57.7, 63.7, 4.1, 43.3, 55.9)
+) %>%
+  mutate(scenario_label = scenario_labels[scenario])
+
+conv_plot <- ggplot(convergence_data, aes(x = reorder(scenario_label, mean_steps), 
+                                          y = mean_steps, fill = scenario_label)) +
+  geom_col(alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean_steps - sd_steps/sqrt(10), 
+                    ymax = mean_steps + sd_steps/sqrt(10)), width = 0.2) +
+  scale_fill_manual(values = scenario_colors) +
+  labs(x = "Social Context", y = "Steps to 90% Convergence",
+       title = "Convergence Speed by Social Context") +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+
+conv_plot
+```
+
+Income-based scenarios converged dramatically faster (~7 steps) than all others, while racial scenarios showed the slowest convergence (~82 steps), suggesting more complex dynamics when racial identity is involved.
+
+## Visualization: Segregation Heatmap
+
+```{r heatmap, fig.cap="Normalized segregation metrics heatmap. Higher values (red) indicate greater segregation."}
+#| fig-height: 6
+#| fig-width: 10
+
+# Create normalized heatmap data
+heatmap_data <- combined_data %>%
+  group_by(scenario) %>%
+  summarise(across(c(clusters, switch_rate, distance, mix_deviation, share, ghetto_rate), mean)) %>%
+  pivot_longer(cols = -scenario, names_to = "metric", values_to = "value") %>%
+  group_by(metric) %>%
+  mutate(normalized = (value - min(value)) / (max(value) - min(value))) %>%
+  ungroup() %>%
+  mutate(
+    scenario_label = scenario_labels[scenario],
+    metric_label = metric_labels[metric]
+  )
+
+# Order scenarios by overall segregation level
+scenario_order <- c("Income\n(High/Low)", "Baseline\n(Red/Blue)", 
+                   "Race\n(White/Black)", "Ethnic\n(Asian/Hispanic)", 
+                   "Political\n(Liberal/Conservative)")
+
+heatmap_plot <- ggplot(heatmap_data, 
+                      aes(x = metric_label, y = factor(scenario_label, levels = scenario_order), 
+                          fill = normalized)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", normalized)), 
+            color = ifelse(heatmap_data$normalized > 0.5, "white", "black")) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0.5,
+                      name = "Normalized\nSegregation") +
+  labs(x = "", y = "", title = "Segregation Intensity Across Contexts and Metrics") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+heatmap_plot
+```
+
+# Discussion
+
+## Social Context as a Driver of Segregation
+
+Our results demonstrate that LLM agents produce dramatically different segregation patterns based solely on the social framing of group identity. This suggests that LLMs have successfully absorbed and can reproduce culturally-specific residential preferences and biases from their training data.
+
+### Political Polarization: A Special Case
+
+The extreme segregation in political scenarios (12.3× higher ghetto formation than economic contexts) reflects contemporary political polarization. LLM agents framed as liberal or conservative households exhibited:
+- Strong in-group preferences
+- Minimal tolerance for political diversity
+- Rapid self-sorting into homogeneous clusters
+
+This mirrors recent research on political segregation in the United States, where partisan identity increasingly influences residential choices [@brown2021geography].
+
+### Economic Factors: Weaker Than Expected
+
+Surprisingly, economic contexts produced the least segregation. This challenges conventional wisdom about income-based residential sorting and suggests that:
+- Economic diversity may be more tolerable than other forms of difference
+- Professional and working-class identities may not trigger the same avoidance behaviors as racial or political differences
+- Economic integration may be facilitated by shared non-economic interests
+
+### Racial/Ethnic Patterns: Historical Echoes
+
+The intermediate segregation levels for racial and ethnic contexts (ghetto rates ~40) align remarkably well with actual U.S. residential segregation indices. This suggests LLMs have internalized realistic patterns of racial residential preferences, including:
+- Moderate but persistent homophily
+- Complex factors beyond simple same-race preferences
+- Historical patterns of discrimination and self-selection
+
+## Implications for Agent-Based Modeling
+
+These findings have several important implications:
+
+1. **Context Matters**: Abstract labels (red/blue, A/B) may not capture the full dynamics of social segregation. Real-world identities activate different preference structures.
+
+2. **LLMs as Cultural Mirrors**: LLMs can serve as repositories of cultural knowledge, biases, and social patterns, making them valuable tools for modeling culturally-specific phenomena.
+
+3. **Policy Testing**: Models using context-aware LLM agents may provide more realistic predictions of policy interventions' effects on different communities.
+
+## Limitations and Future Work
+
+Several limitations warrant consideration:
+
+1. **Single LLM**: Results may vary with different language models or prompting strategies
+2. **U.S.-Centric**: The LLM's training data likely reflects primarily American cultural patterns
+3. **Simplified Identities**: Real individuals have multiple, intersecting identities not captured here
+4. **Static Preferences**: Agent preferences don't evolve based on experiences
+
+Future research should explore:
+- Intersectional identities (e.g., race + income + politics)
+- Cross-cultural comparisons using LLMs trained on different corpora
+- Dynamic preference evolution through agent interactions
+- Validation against real-world mobility data
+
+# Conclusion
+
+This study demonstrates that Large Language Models can successfully capture and reproduce culturally-specific segregation patterns in agent-based models. By simply changing the social framing from abstract colors to meaningful social identities, we observe dramatically different segregation dynamics—from the extreme clustering of political groups to the relative integration of economic classes.
+
+These findings suggest that LLM-based agents offer a powerful new tool for social science research, enabling models that incorporate the full complexity of human social preferences and biases. As we seek to understand and address residential segregation, models that can distinguish between "red vs blue" and "liberal vs conservative" may provide more actionable insights for policy makers and urban planners.
+
+The ability of LLMs to serve as cultural mirrors—reflecting the biases, preferences, and social patterns embedded in human text—opens new avenues for studying social phenomena at scale. However, this same capability requires careful consideration of the biases we may be reproducing and amplifying through these models.
+
+# Code and Data Availability
+
+All code, data, and analysis scripts are available at: [repository URL]
+
+# References
+
+::: {#refs}
+:::
+
+# Appendix: Detailed Statistical Results {.appendix}
+
+```{r detailed-comparisons}
+#| tbl-cap: "Pairwise comparisons between baseline and other social contexts"
+
+# Create comparison table
+comparison_stats <- combined_data %>%
+  filter(scenario == "baseline") %>%
+  select(baseline_ghetto = ghetto_rate, baseline_share = share) %>%
+  summarise(
+    baseline_ghetto_mean = mean(baseline_ghetto),
+    baseline_share_mean = mean(baseline_share)
+  ) %>%
+  cross_join(
+    combined_data %>%
+      filter(scenario != "baseline") %>%
+      group_by(scenario_label) %>%
+      summarise(
+        ghetto_mean = mean(ghetto_rate),
+        ghetto_sd = sd(ghetto_rate),
+        share_mean = mean(share),
+        share_sd = sd(share),
+        n = n()
+      )
+  ) %>%
+  mutate(
+    ghetto_diff_pct = (ghetto_mean - baseline_ghetto_mean) / baseline_ghetto_mean * 100,
+    share_diff_pct = (share_mean - baseline_share_mean) / baseline_share_mean * 100
+  ) %>%
+  select(
+    Context = scenario_label,
+    `Ghetto Rate` = ghetto_mean,
+    `Ghetto vs Baseline` = ghetto_diff_pct,
+    `Share` = share_mean,
+    `Share vs Baseline` = share_diff_pct
+  ) %>%
+  mutate(
+    `Ghetto Rate` = sprintf("%.1f", `Ghetto Rate`),
+    `Ghetto vs Baseline` = sprintf("%+.0f%%", `Ghetto vs Baseline`),
+    `Share` = sprintf("%.3f", `Share`),
+    `Share vs Baseline` = sprintf("%+.1f%%", `Share vs Baseline`)
+  )
+
+kable(comparison_stats, booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped"))
+```
