@@ -107,7 +107,16 @@ Schelling's model has been extensively studied, revealing how segregation emerge
 
 ## Segregation Measurement
 
-@pancs2007schelling developed a comprehensive metric framework specifically for grid-based segregation models, addressing limitations of traditional urban segregation indices when applied to small-scale ABMs. Their five-metric suite (share, clusters, distance, ghetto rate, mix deviation) enables standardized comparison across different implementations.
+@pancs2007schelling developed a comprehensive metric framework specifically for grid-based segregation models, addressing limitations of traditional urban segregation indices when applied to small-scale ABMs. Their six-metric suite provides multidimensional measurement of segregation patterns:
+
+1. **Share**: Proportion of same-type neighbor pairs (0.5 = integration, 1.0 = complete segregation)
+2. **Clusters**: Number of spatially contiguous same-type regions (fewer = more consolidated)
+3. **Distance**: Average Manhattan distance to nearest different-type agent (higher = more separated)
+4. **Mix Deviation**: Average deviation from 50-50 local integration (0 = perfect mixing, 0.5 = homogeneous)
+5. **Switch Rate**: Frequency of type changes along agent borders (higher = more intermixed boundaries)
+6. **Ghetto Rate**: Count of agents with zero different-type neighbors (measures extreme isolation)
+
+This multidimensional approach captures both global patterns (share, distance) and local experiences (mix deviation, ghetto rate), while also measuring spatial structure (clusters, switch rate). Together, these metrics reveal not just "how much" segregation exists, but "what kind" - critical for distinguishing between different social contexts.
 
 ## LLMs in Social Simulation
 
@@ -196,7 +205,7 @@ We employ the Pancs-Vriend framework:
 
 ### Convergence Dynamics
 
-```{r architecture-convergence, fig.cap="Convergence comparison across agent architectures in baseline (red/blue) context"}
+```{r architecture-convergence, fig.cap="Figure 1: Convergence dynamics across agent architectures. Left panel shows mean steps to convergence (with standard error bars), demonstrating that memory-enhanced LLM agents converge 2.2× faster than mechanical agents. Right panel shows convergence success rates, with LLM agents achieving 100% convergence compared to only 50% for mechanical agents. All experiments use baseline (red/blue) context with N=100 runs per condition."}
 #| fig-height: 6
 #| fig-width: 10
 
@@ -261,7 +270,7 @@ Key findings:
 
 ### Overall Patterns
 
-```{r context-comparison, fig.cap="Segregation metrics across social contexts. Error bars show standard error."}
+```{r context-comparison, fig.cap="Figure 2: Comprehensive comparison of segregation patterns across social contexts using the Pancs-Vriend metric framework. Each panel shows a different dimension of segregation: (A) Number of Clusters - spatial fragmentation, (B) Switch Rate - boundary complexity, (C) Average Distance - spatial separation, (D) Mix Deviation - local integration quality, (E) Segregation Share - global segregation level, and (F) Ghetto Formation Rate - extreme isolation. Error bars represent standard errors. Note the dramatic differences: political contexts show extreme segregation (ghetto rate 61.6), while economic contexts show minimal clustering (ghetto rate 5.0), a 12.3-fold difference."}
 #| fig-height: 10
 #| fig-width: 12
 
@@ -336,7 +345,7 @@ kable(summary_stats, booktabs = TRUE) %>%
 
 ### Context Comparison Heatmap
 
-```{r heatmap, fig.cap="Normalized segregation intensity. Red indicates higher segregation."}
+```{r heatmap, fig.cap="Figure 3: Heatmap visualization of normalized segregation metrics across social contexts. Each cell shows the normalized value (0-1 scale) for a specific metric-context combination, with red indicating higher segregation and blue indicating lower segregation. The ordering reveals a clear hierarchy: Income contexts (bottom) show consistently low segregation across metrics, while Political contexts (top) show extreme values. This multidimensional view demonstrates that contexts differ not just in magnitude but in the TYPE of segregation produced."}
 #| fig-height: 6
 #| fig-width: 10
 
@@ -409,7 +418,7 @@ All metrics show significant differences across contexts (p < 0.001) with large 
 
 ### Temporal Dynamics Analysis
 
-```{r dynamics-analysis, fig.cap="Temporal dynamics of segregation patterns across social contexts. The analysis reveals how biases crystallize differently: political contexts show rapid lock-in (1.95× early volatility), economic contexts maintain perpetual fluidity (0.91× ratio), while racial patterns develop gradually over 50-80 steps. Early stage = 0-20 steps, Late stage = 80-150 steps."}
+```{r dynamics-analysis, fig.cap="Figure 4: Temporal dynamics of segregation revealing context-specific evolution patterns. (A) Segregation trajectories showing divergent paths - political contexts rapidly approach extreme segregation while economic contexts barely rise above integration. (B) Rate of change analysis revealing political contexts exhibit sharp early spikes before stabilizing, while economic contexts maintain consistent volatility. (C) Early vs late stage volatility comparison with ratios - values >1.0 indicate lock-in patterns (political: 1.95×), while values ≈1.0 indicate perpetual fluidity (economic: 0.91×). (D) Phase transition analysis showing acceleration peaks - political contexts undergo rapid crystallization around step 15-20, while economic contexts show continuous micro-adjustments. Panel E provides interpretation of these patterns for policy interventions."}
 #| fig-height: 8
 #| fig-width: 12
 #| echo: false

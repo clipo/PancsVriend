@@ -131,14 +131,16 @@ The LLM (Qwen2.5-coder:32B) generates decisions based on these prompts, incorpor
 
 ## Segregation Metrics
 
-We employ the Pancs-Vriend framework [@pancs2007schelling] with six complementary metrics:
+We employ the Pancs-Vriend framework [@pancs2007schelling] with six complementary metrics designed specifically for grid-based segregation models:
 
-- **Share**: Average proportion of like neighbors (0.5 = integration, 1.0 = complete segregation)
-- **Clusters**: Number of spatially contiguous same-type regions
-- **Distance**: Average Euclidean distance between different-type agents  
-- **Ghetto Rate**: Proportion of agents in completely homogeneous neighborhoods
-- **Mix Deviation**: Deviation from perfect checkerboard integration
-- **Switch Rate**: Proportion of agents who move each step
+- **Share**: Proportion of same-type neighbor pairs (0.5 = perfect integration, 1.0 = complete segregation). Captures global segregation level.
+- **Clusters**: Number of spatially contiguous same-type regions. Fewer clusters indicate more consolidated ethnic enclaves.
+- **Distance**: Average Manhattan distance to nearest different-type agent. Higher values indicate greater spatial separation.
+- **Ghetto Rate**: Count of agents with zero different-type neighbors. Captures extreme isolation and "ghettoization."
+- **Mix Deviation**: Average deviation from 50-50 local integration. Measures segregation at the individual neighborhood level.
+- **Switch Rate**: Frequency of type changes along agent borders. Higher values indicate more jagged, intermixed boundaries.
+
+This multidimensional approach reveals not just the degree but the character of segregation - critical for understanding how different social framings produce qualitatively different patterns.
 
 ## Statistical Analysis
 
@@ -148,7 +150,7 @@ All experiments were run with multiple replicates (10-100 runs per condition). W
 
 ## Overall Segregation Patterns
 
-```{r segregation-comparison, fig.cap="Segregation metrics across social contexts. Error bars represent standard deviation. Asterisks indicate significant differences from baseline (* p < 0.05, ** p < 0.01, *** p < 0.001)."}
+```{r segregation-comparison, fig.cap="Figure 1: Comprehensive segregation patterns across social contexts using the Pancs-Vriend metric framework. Each panel captures a different dimension of segregation: Number of Clusters (spatial fragmentation), Switch Rate (boundary complexity between groups), Average Distance (spatial separation), Mix Deviation (local neighborhood homogeneity), Segregation Share (global proportion of same-type neighbors), and Ghetto Formation Rate (count of agents in completely homogeneous neighborhoods). Error bars show standard errors. The dramatic variation across contexts - particularly the 12.3× difference in ghetto formation between political (61.6) and economic (5.0) contexts - demonstrates how LLMs reproduce context-specific biases without any explicit programming."}
 #| fig-height: 10
 #| fig-width: 12
 
@@ -277,7 +279,7 @@ All metrics showed significant differences across social contexts (p < 0.001), w
 
 ## Convergence Patterns
 
-```{r convergence-viz, fig.cap="Convergence speed across social contexts. Lower values indicate faster convergence to stable segregation patterns."}
+```{r convergence-viz, fig.cap="Figure 2: Convergence dynamics across social contexts showing steps required to reach 90% of final segregation values. Income contexts show apparent rapid 'convergence' (6.5 steps) but this is misleading - they never reach formal convergence criteria and maintain high mobility throughout 1000 steps. Political contexts converge moderately quickly (62 steps) to extreme segregation. Racial and ethnic contexts show gradual convergence over 70-80 steps, matching historical patterns of neighborhood change. Error bars represent standard errors across simulation runs."}
 #| fig-height: 6
 #| fig-width: 10
 
@@ -315,7 +317,7 @@ These temporal signatures suggest different intervention windows: political segr
 
 ## Visualization: Segregation Heatmap
 
-```{r heatmap, fig.cap="Normalized segregation metrics heatmap. Higher values (red) indicate greater segregation."}
+```{r heatmap, fig.cap="Figure 3: Normalized segregation intensity heatmap showing multidimensional patterns across contexts. Each metric is normalized to 0-1 scale with red indicating high segregation and blue indicating low. The visualization reveals distinct segregation 'signatures': Political contexts (top) show uniformly high values across metrics, Income contexts (bottom) show consistently low values, while Racial/Ethnic contexts display intermediate patterns. Note how Political contexts excel at creating both extreme isolation (ghetto rate) AND smooth borders (low switch rate), indicating consolidated segregation."}
 #| fig-height: 6
 #| fig-width: 10
 
