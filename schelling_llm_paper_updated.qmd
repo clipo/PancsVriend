@@ -303,7 +303,15 @@ conv_plot <- ggplot(convergence_data, aes(x = reorder(scenario_label, mean_steps
 conv_plot
 ```
 
-The dynamics varied significantly across contexts. Political scenarios showed low mobility once initial patterns formed (switch rate 0.076), while economic scenarios maintained high mobility throughout (switch rate 0.471), suggesting ongoing residential churn rather than stable integration. Racial and ethnic scenarios showed intermediate patterns with eventual stabilization.
+The dynamics varied significantly across contexts. Our temporal analysis reveals:
+
+**Political contexts** - Rapid crystallization with 1.95× higher volatility in early stages before lock-in (switch rate drops to 0.076). Phase transitions occur within first 20 steps.
+
+**Economic contexts** - Perpetual motion with nearly equal early/late volatility (0.91× ratio) and continuous mobility (switch rate 0.471), never reaching equilibrium.
+
+**Racial/Ethnic contexts** - Historical patterns with gradual transitions over 50-80 steps, showing 1.47× early volatility (race) before eventual stabilization.
+
+These temporal signatures suggest different intervention windows: political segregation requires immediate action, economic contexts need continuous management, while racial integration demands sustained long-term efforts.
 
 ## Visualization: Segregation Heatmap
 

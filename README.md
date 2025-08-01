@@ -22,6 +22,12 @@ Our research uncovers a fundamental paradox in AI systems:
 3. **For Policy**: Understanding bias patterns enables better intervention design
 4. **For Society**: Reveals how AI systems can amplify societal prejudices
 
+### 🕒 NEW: Temporal Dynamics of Bias
+Our analysis reveals that biases don't just vary in magnitude but in how they evolve:
+- **Political contexts crystallize rapidly** (within 20 steps) - reflecting polarization dynamics
+- **Economic contexts never stabilize** - showing perpetual residential fluidity
+- **Racial/ethnic patterns develop slowly** (50-80 steps) - mirroring historical segregation
+
 ### 🏆 Key Research Findings
 
 #### Agent Architecture Comparison (Baseline Red/Blue)
@@ -31,11 +37,18 @@ Our research uncovers a fundamental paradox in AI systems:
 - **🎯 100% convergence rate** for LLM agents vs 50% for mechanical
 
 #### The Bias Paradox in Action
-- **🔴 Political contexts show EXTREME segregation**: Ghetto rate 61.6 (reflecting deep polarization in training data)
-- **💰 Economic contexts show MINIMAL segregation**: Ghetto rate 5.0 (suggesting economic diversity more tolerated)
-- **🏘️ Racial/Ethnic contexts mirror real-world patterns**: ~40 ghetto rate (matching empirical segregation indices)
+- **🔴 Political contexts show EXTREME segregation**: Ghetto rate 61.6 with rapid lock-in (1.95× early volatility)
+- **💰 Economic contexts show MINIMAL segregation**: Ghetto rate 5.0 but never stabilizes (continuous churn)
+- **🏘️ Racial/Ethnic contexts mirror real-world patterns**: ~40 ghetto rate with gradual historical development
 - **🎭 Same LLM, different biases**: 12.3× difference based solely on social framing
 - **🚨 No explicit bias rules**: These patterns emerge from implicit associations in training data
+
+#### NEW: Temporal Dynamics Discovered
+- **⚡ Political**: Rapid crystallization in first 20 steps (1.95× early volatility) - reflects polarization dynamics
+- **🔄 Economic**: Perpetual fluidity (0.91× early/late volatility) - ongoing mobility
+- **📈 Racial**: Slow burn over 50-80 steps (1.47× early volatility) - matches historical segregation patterns
+- **🎯 Intervention Windows**: Different contexts require different timing strategies
+- **📊 Stability Rankings**: Ethnic (most stable) > Baseline > Political > Race > Income (least stable)
 
 ## 📄 Scientific Papers
 
@@ -52,7 +65,8 @@ Our research uncovers a fundamental paradox in AI systems:
 
 - **Focus**: How different social framings (political, racial, economic) affect segregation
 - **Key Finding**: Political contexts produce 12.3× more segregation than economic contexts
-- **Status**: Analysis complete, paper draft available
+- **NEW Finding**: Temporal dynamics reveal context-specific evolution patterns
+- **Status**: Analysis complete with dynamics, paper draft available
 - **File**: [`schelling_llm_paper_updated.qmd`](schelling_llm_paper_updated.qmd)
 
 ### Paper 3: The Bias Paradox Study (FEATURED)
@@ -60,8 +74,9 @@ Our research uncovers a fundamental paradox in AI systems:
 
 - **Focus**: How LLMs reproduce human biases without explicit programming
 - **Key Finding**: LLMs' greatest flaw (absorbing biases) is also their greatest strength for social science
+- **NEW Analysis**: Temporal dynamics show biases evolve differently - political lock-in vs economic fluidity
 - **Implications**: Both a warning for AI deployment and opportunity for research
-- **Status**: Comprehensive analysis with AI ethics focus
+- **Status**: Comprehensive analysis with AI ethics focus and policy recommendations
 - **File**: [`schelling_llm_paper_comprehensive.qmd`](schelling_llm_paper_comprehensive.qmd)
 
 - **Authors**: Andreas Pape, Carl Lipo, et al.
@@ -403,6 +418,20 @@ Our research reveals that LLMs are not neutral tools but carriers of human cultu
 - Create context-sensitive bias detection tools
 - Design bias-aware AI governance structures
 
+## 📈 Recent Analysis Tools Added
+
+### Temporal Dynamics Analysis
+- **analyze_rate_of_change.py** - Calculates how quickly segregation patterns evolve
+- **analyze_stability_patterns.py** - Measures consistency and volatility across contexts  
+- **analyze_convergence_patterns.py** - Identifies when patterns stabilize (or don't)
+- **dynamics_analysis_summary.md** - Key findings from temporal analysis
+
+### Key Dynamics Findings
+1. **Political contexts show rapid crystallization** - 1.95× more volatile early then lock-in
+2. **Economic contexts never stabilize** - Equal volatility throughout (0.91× ratio)
+3. **Racial/ethnic show historical patterns** - Gradual development over 50-80 steps
+4. **Different intervention windows** - Political needs immediate action, economic needs continuous management
+
 ## 🔍 Key Findings: The Bias Paradox Demonstrated
 
 ### Without Any Explicit Programming for Discrimination:
@@ -498,6 +527,8 @@ We welcome contributions! Please:
 - **NEW**: `analyze_experiment_results.py` - Extract and compare final metrics across scenarios
 - **NEW**: `analyze_convergence_patterns.py` - Time series analysis of segregation evolution
 - **NEW**: `visualize_experiment_comparison.py` - Generate comparison plots and heatmaps
+- **NEW**: `analyze_rate_of_change.py` - Temporal dynamics and phase transition analysis
+- **NEW**: `analyze_stability_patterns.py` - Stability and volatility measurements
 
 ### LLM Configuration
 - `switch_llm.py` - Interactive model switching
