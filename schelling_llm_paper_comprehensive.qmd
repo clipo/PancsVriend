@@ -295,13 +295,15 @@ summary_stats <- combined_data %>%
     `Ghetto Rate` = sprintf("%.1f ± %.1f", mean(ghetto_rate), sd(ghetto_rate)),
     `Seg. Share` = sprintf("%.3f ± %.3f", mean(share), sd(share)),
     `Switch Rate` = sprintf("%.3f ± %.3f", mean(switch_rate), sd(switch_rate)),
-    `Conv. Steps` = c("6.5", "73.2", "81.8", "77.4", "62.0")[match(scenario_label, 
+    `Pattern` = c("High mobility*", "Gradual settling", "Slow stabilization", "Moderate settling", "Quick lock-in")[match(scenario_label, 
                      c("Income", "Baseline", "Race", "Ethnic", "Political"))]
   ) %>%
   rename(Context = scenario_label)
 
 kable(summary_stats, booktabs = TRUE) %>%
-  kable_styling(latex_options = "striped")
+  kable_styling(latex_options = "striped") %>%
+  footnote(general = "* Income scenarios showed ongoing residential mobility without reaching stable equilibrium",
+           general_title = "Note:")
 ```
 
 ### Extreme Cases
@@ -314,7 +316,7 @@ kable(summary_stats, booktabs = TRUE) %>%
 **Least Segregated - Income Context:**
 - Ghetto rate: 5.0 (lowest)
 - Clusters: 25.0 (most fragmented)
-- Convergence: ~7 steps (10× faster than baseline)
+- Note: While showing low segregation, formal convergence was not detected within 1000 steps
 
 **Racial/Ethnic - Middle Ground:**
 - Both show ~40 ghetto rate, ~0.82 share
@@ -445,7 +447,8 @@ Our findings have profound implications for urban planning, housing policy, and 
 
 **Economic Integration Shows Promise**
 - Our finding of minimal economic segregation (5.0 ghetto rate) suggests class mixing is more achievable
-- Mixed-income housing developments may face less resistance than anticipated
+- However, high ongoing mobility (0.471 switch rate) indicates dynamic rather than stable integration
+- Mixed-income housing developments may face less resistance than anticipated but require ongoing management
 - Economic diversity policies could serve as entry point for broader integration efforts
 - Focus on shared economic interests and opportunities rather than income differences
 

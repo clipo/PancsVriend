@@ -228,7 +228,7 @@ Income-based contexts showed the least segregation:
 - **Ghetto formation**: 5.0 ± 3.1 (lowest - 12.3× less than political)
 - **Number of clusters**: 25.0 ± 3.1 (highest - more mixed neighborhoods)
 - **Switch rate**: 0.471 ± 0.055 (highest mobility)
-- **Convergence**: ~7 steps to 90% of final state (fastest)
+- **Note**: While showing minimal segregation, agents remained highly mobile without reaching stable equilibrium
 
 ### Racial and Ethnic Contexts: Middle Ground
 
@@ -303,7 +303,7 @@ conv_plot <- ggplot(convergence_data, aes(x = reorder(scenario_label, mean_steps
 conv_plot
 ```
 
-Income-based scenarios converged dramatically faster (~7 steps) than all others, while racial scenarios showed the slowest convergence (~82 steps), suggesting more complex dynamics when racial identity is involved.
+The dynamics varied significantly across contexts. Political scenarios showed low mobility once initial patterns formed (switch rate 0.076), while economic scenarios maintained high mobility throughout (switch rate 0.471), suggesting ongoing residential churn rather than stable integration. Racial and ethnic scenarios showed intermediate patterns with eventual stabilization.
 
 ## Visualization: Segregation Heatmap
 
