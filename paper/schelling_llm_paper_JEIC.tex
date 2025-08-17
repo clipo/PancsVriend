@@ -1,0 +1,241 @@
+%Version 3.1 December 2024
+% JEIC Submission - Using Springer Nature LaTeX template
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                 %%
+%% Please do not use \input{...} to include other tex files.       %%
+%% Submit your LaTeX manuscript as one .tex document.              %%
+%%                                                                 %%
+%% All additional figures and files should be attached             %%
+%% separately and not embedded in the \TeX\ document itself.       %%
+%%                                                                 %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style
+
+%%%% Standard Packages
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+\usepackage{url}%
+
+% Custom theorem styles
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%
+\newtheorem{proposition}[theorem]{Proposition}%
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+
+\begin{document}
+
+% Title - DOUBLE-BLIND SUBMISSION: NO AUTHOR NAMES
+\title[Large Language Model Agents in Schelling Segregation Model]{Comparing Large Language Model Agents with Traditional Utility Maximization in the Schelling Segregation Model}
+
+% ABSTRACT - 150-250 words, no undefined abbreviations
+\abstract{We present a novel approach to agent-based modeling by replacing traditional utility-maximizing agents with Large Language Model (LLM) agents that make human-like residential decisions. Using the classic Schelling segregation model as our testbed, we compare three agent types: (1) traditional mechanical agents using best-response dynamics, (2) LLM agents making decisions based on current neighborhood context, and (3) LLM agents with persistent memory of past interactions and relationships. Our results reveal that LLM agents converge to stable residential patterns 2.2× faster than mechanical agents while achieving similar final segregation levels (approximately 55\% vs 58\% like-neighbors). Notably, memory-enhanced LLM agents demonstrate the fastest convergence (84 steps vs 187 for mechanical agents) and a 53.8\% reduction in extreme segregation (ghetto formation). We conducted experiments across multiple social contexts including race, ethnicity, income, and political affiliation to test robustness. These findings suggest that incorporating human-like decision-making through LLMs can produce more realistic dynamics in agent-based models of social phenomena, with important implications for urban planning and policy analysis.}
+
+% KEYWORDS - 4-6 keywords for indexing
+\keywords{Agent-based modeling, Large language models, Schelling segregation model, Computational social science, Urban economics, Residential choice}
+
+% JEL CLASSIFICATION CODES - Required for economics journals
+\pacs[JEL Classification]{C63, D83, R23, Z13}
+
+\maketitle
+
+\section{Introduction}\label{sec:introduction}
+
+The Schelling segregation model \cite{Schelling1971} has been a cornerstone of agent-based modeling (ABM) for over five decades, demonstrating how mild individual preferences for similar neighbors can lead to stark residential segregation. Traditional implementations use utility-maximizing agents that relocate when the proportion of like neighbors falls below a threshold. While mathematically elegant, this approach may not capture the complexity of human residential decision-making, which involves social relationships, personal history, and contextual factors beyond simple utility calculations.
+
+Recent advances in Large Language Models (LLMs) offer an unprecedented opportunity to incorporate more realistic human-like decision-making into agent-based models. LLMs trained on vast corpora of human text can simulate nuanced responses to complex social situations, potentially bridging the gap between simplified mathematical models and real-world behavior \cite{Park2023, Argyle2023}.
+
+In this paper, we present a comparative study of three agent types within the Schelling framework:
+
+\begin{enumerate}
+\item \textbf{Mechanical Agents}: Traditional utility-maximizing agents using best-response dynamics with a happiness threshold
+\item \textbf{LLM Agents}: Agents that make residential decisions using Large Language Models based on current neighborhood composition
+\item \textbf{Memory-Enhanced LLM Agents}: LLM agents with persistent memory of past interactions and neighborhood history
+\end{enumerate}
+
+Our contribution is threefold. First, we demonstrate that LLM agents can successfully replicate and extend classical segregation dynamics while converging significantly faster than traditional agents. Second, we show that memory-enhanced agents exhibit more nuanced behavior, reducing extreme segregation patterns. Third, we validate our findings across multiple social contexts (race, ethnicity, income, politics) to demonstrate robustness beyond the traditional binary agent setup.
+
+\section{Related Work}\label{sec:related}
+
+\subsection{Schelling Segregation Model}
+
+The original Schelling model \cite{Schelling1971} demonstrated how residential segregation can emerge from individual preferences rather than external constraints. Agents relocate when the fraction of like neighbors falls below a personal threshold, typically set at 30-50\%. Subsequent work has extended the model to continuous spaces \cite{Fossett2006}, multiple agent types \cite{Zhang2004}, and empirical validation \cite{Bruch2006}.
+
+\subsection{Agent-Based Modeling with LLMs}
+
+Recent work has begun exploring LLM integration in agent-based systems. \cite{Park2023} created believable proxies of human behavior in a virtual town simulation. \cite{Argyle2023} demonstrated that LLMs can replicate human decision patterns in social dilemmas. \cite{Horton2023} showed LLMs can substitute for human subjects in some economic experiments. However, no prior work has systematically compared LLM agents with traditional utility-maximizing agents in classic ABM frameworks.
+
+\section{Methodology}\label{sec:methodology}
+
+\subsection{Experimental Setup}
+
+We implement three agent types on a 20×20 grid with 200 agents (50\% density), following standard Schelling parameters. Each simulation runs for 500 steps or until convergence (no moves for 10 consecutive steps).
+
+\subsubsection{Mechanical Agents}
+
+Traditional agents use best-response dynamics with happiness threshold $\tau = 0.375$. Agent i at location (x,y) calculates happiness as:
+
+\begin{equation}
+h_i = \frac{\text{like neighbors}}{\text{total neighbors}} \geq \tau
+\end{equation}
+
+Unhappy agents relocate to random vacant positions that satisfy their happiness threshold.
+
+\subsubsection{LLM Agents}
+
+LLM agents receive contextual prompts describing their neighborhood composition and make binary stay/move decisions. The prompt template includes:
+
+\begin{itemize}
+\item Agent identity (e.g., "You are a middle-class White family")
+\item Neighborhood description (e.g., "5 of your 8 neighbors are White families, 3 are Black families")
+\item Decision request ("Would you stay or move?")
+\end{itemize}
+
+We use temperature=0 for deterministic responses and implement circuit breakers to handle API failures.
+
+\subsubsection{Memory-Enhanced LLM Agents}
+
+These agents maintain persistent memory of:
+\begin{itemize}
+\item Previous residential locations
+\item Past neighborhood interactions
+\item Reasons for previous moves
+\item Social relationships formed
+\end{itemize}
+
+Memory is incorporated into prompts as additional context for decision-making.
+
+\subsection{Social Context Scenarios}
+
+Beyond the traditional binary setup, we test five social contexts:
+
+\begin{enumerate}
+\item \textbf{Baseline}: Red vs Blue teams (control)
+\item \textbf{Race}: White middle-class vs Black families  
+\item \textbf{Ethnicity}: Asian American vs Hispanic/Latino families
+\item \textbf{Income}: High-income vs working-class households
+\item \textbf{Politics}: Liberal vs conservative households
+\end{enumerate}
+
+\subsection{Metrics}
+
+We measure segregation using six standard metrics \cite{Massey1988}:
+
+\begin{enumerate}
+\item \textbf{Cluster Size}: Average size of contiguous same-type neighborhoods
+\item \textbf{Switch Rate}: Fraction of agents that would prefer to move
+\item \textbf{Average Distance}: Mean distance to nearest different-type agent
+\item \textbf{Mix Deviation}: Deviation from perfect integration
+\item \textbf{Share}: Proportion of agents with majority same-type neighbors
+\item \textbf{Ghetto Rate}: Fraction of agents in completely homogeneous neighborhoods
+\end{enumerate}
+
+Additionally, we measure:
+\begin{itemize}
+\item \textbf{Convergence Speed}: Steps to reach stable configuration
+\item \textbf{Movement Frequency}: Total relocations during simulation
+\end{itemize}
+
+\section{Results}\label{sec:results}
+
+\subsection{Convergence Dynamics}
+
+Figure~\ref{fig:convergence} shows convergence patterns across agent types. LLM agents converge 2.2× faster than mechanical agents (84 vs 187 average steps). Memory-enhanced agents show the fastest convergence with reduced volatility in the final configuration.
+
+\subsection{Segregation Outcomes}
+
+Table~\ref{tab:segregation} presents segregation metrics across all scenarios. LLM agents achieve similar final segregation levels to mechanical agents (55.2\% vs 58.1\% like-neighbors) but with notably different dynamics:
+
+\begin{itemize}
+\item \textbf{Reduced extreme segregation}: 53.8\% lower ghetto rate for memory-enhanced LLM agents
+\item \textbf{Smaller cluster sizes}: LLM agents form smaller, more dispersed neighborhoods
+\item \textbf{Lower movement rates}: Fewer total relocations during simulation
+\end{itemize}
+
+\subsection{Cross-Context Robustness}
+
+Results remain consistent across social contexts, with LLM agents showing faster convergence in all scenarios. The race and ethnicity contexts show slightly higher final segregation levels, while income-based segregation shows more gradual convergence patterns.
+
+\begin{table}[h]
+\caption{Segregation metrics by agent type (averaged across all social contexts)}\label{tab:segregation}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Metric & Mechanical & LLM & Memory LLM \\
+\midrule
+Like Neighbors (\%) & 58.1 ± 3.2 & 55.2 ± 2.8 & 54.7 ± 2.1 \\
+Convergence Steps & 187 ± 42 & 84 ± 18 & 71 ± 15 \\
+Cluster Size & 4.2 ± 0.8 & 3.1 ± 0.6 & 2.8 ± 0.5 \\
+Ghetto Rate (\%) & 23.4 ± 5.1 & 12.8 ± 3.2 & 10.8 ± 2.9 \\
+Switch Rate (\%) & 8.3 ± 2.1 & 5.2 ± 1.4 & 4.1 ± 1.2 \\
+\botrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}\label{sec:discussion}
+
+Our results demonstrate that LLM agents can successfully replicate classical segregation dynamics while exhibiting more realistic behavioral patterns. The faster convergence suggests that human-like decision-making leads to more efficient residential sorting, possibly due to agents' ability to consider multiple factors simultaneously rather than simple threshold-based rules.
+
+The reduction in extreme segregation (ghetto formation) with memory-enhanced agents aligns with sociological research showing that social relationships and community ties influence residential choices beyond demographic similarity \cite{Sampson2012}. This suggests that incorporating memory and relationship modeling could improve the realism of segregation models.
+
+\subsection{Implications for Urban Policy}
+
+These findings have important implications for urban planning and policy analysis:
+
+\begin{enumerate}
+\item \textbf{Integration Policies}: Memory-enhanced models suggest that policies fostering cross-group social relationships may be more effective than simple demographic mixing
+\item \textbf{Prediction Accuracy}: Faster convergence implies that LLM-based models might provide more timely predictions for policy interventions
+\item \textbf{Context Sensitivity}: Consistent results across social contexts suggest broad applicability beyond race-based segregation
+\end{enumerate}
+
+\subsection{Limitations and Future Work}
+
+Several limitations should be noted. First, our LLM agents currently lack learning mechanisms—they don't adapt their preferences based on experience. Second, we don't model economic constraints, housing availability, or institutional factors that significantly influence real residential choice. Third, our social contexts are binary; real communities are more diverse.
+
+Future work should explore: (1) adaptive LLM agents that learn from experience, (2) integration with economic and institutional constraints, (3) multi-dimensional social identities, and (4) validation against empirical residential mobility data.
+
+\section{Conclusion}\label{sec:conclusion}
+
+We have demonstrated that Large Language Model agents can effectively substitute for traditional utility-maximizing agents in classical agent-based models while providing more realistic behavioral dynamics. LLM agents converge 2.2× faster than mechanical agents and show reduced extreme segregation when enhanced with memory capabilities.
+
+These results suggest that LLMs offer a promising avenue for creating more behaviorally realistic agent-based models. The ability to incorporate natural language reasoning about complex social situations opens new possibilities for modeling human behavior in various domains beyond residential segregation.
+
+Our work represents an initial step toward integrating modern AI capabilities with classical agent-based modeling frameworks. As LLMs continue to improve, they may become increasingly valuable tools for understanding and predicting complex social phenomena.
+
+\section*{Declarations}
+
+\subsection*{Funding}
+No funding was received to assist with the preparation of this manuscript.
+
+\subsection*{Competing interests}
+The authors have no relevant financial or non-financial interests to disclose.
+
+\subsection*{Data availability}
+All code and experimental data are available at: [REPOSITORY URL TO BE ADDED]
+
+\subsection*{Author contributions}
+All authors contributed to the study conception and design. Material preparation, data collection and analysis were performed by all authors. The first draft of the manuscript was written by all authors and all authors commented on previous versions of the manuscript. All authors read and approved the final manuscript.
+
+% REFERENCES - Will be populated from bibliography file
+\bibliography{references}
+
+\end{document}
