@@ -1,0 +1,6 @@
+[submodule "paper/export_to_overleaf/paper/schelling-llm-paper-JEIC"]
+	path = paper/export_to_overleaf/paper/schelling-llm-paper-JEIC
+	url = https://github.com/doctor-duus/schelling-llm-paper
+[submodule "paper/schelling-llm-paper-JEIC"]
+	path = paper/schelling-llm-paper-JEIC
+	url = https://github.com/doctor-duus/schelling-llm-paper

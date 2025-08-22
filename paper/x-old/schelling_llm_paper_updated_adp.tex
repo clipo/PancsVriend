@@ -1,0 +1,901 @@
+% Options for packages loaded elsewhere
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{5}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+% Make \paragraph and \subparagraph free-standing
+\makeatletter
+\ifx\paragraph\undefined\else
+  \let\oldparagraph\paragraph
+  \renewcommand{\paragraph}{
+    \@ifstar
+      \xxxParagraphStar
+      \xxxParagraphNoStar
+  }
+  \newcommand{\xxxParagraphStar}[1]{\oldparagraph*{#1}\mbox{}}
+  \newcommand{\xxxParagraphNoStar}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+  \let\oldsubparagraph\subparagraph
+  \renewcommand{\subparagraph}{
+    \@ifstar
+      \xxxSubParagraphStar
+      \xxxSubParagraphNoStar
+  }
+  \newcommand{\xxxSubParagraphStar}[1]{\oldsubparagraph*{#1}\mbox{}}
+  \newcommand{\xxxSubParagraphNoStar}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+\makeatother
+
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{241,243,245}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.40,0.45,0.13}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\ExtensionTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.28,0.35,0.67}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.46,0.62}{#1}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.07,0.07,0.07}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
+
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+
+
+
+
+
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+
+
+ 
+
+
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\AtBeginDocument{%
+\ifdefined\contentsname
+  \renewcommand*\contentsname{Table of contents}
+\else
+  \newcommand\contentsname{Table of contents}
+\fi
+\ifdefined\listfigurename
+  \renewcommand*\listfigurename{List of Figures}
+\else
+  \newcommand\listfigurename{List of Figures}
+\fi
+\ifdefined\listtablename
+  \renewcommand*\listtablename{List of Tables}
+\else
+  \newcommand\listtablename{List of Tables}
+\fi
+\ifdefined\figurename
+  \renewcommand*\figurename{Figure}
+\else
+  \newcommand\figurename{Figure}
+\fi
+\ifdefined\tablename
+  \renewcommand*\tablename{Table}
+\else
+  \newcommand\tablename{Table}
+\fi
+}
+\@ifpackageloaded{float}{}{\usepackage{float}}
+\floatstyle{ruled}
+\@ifundefined{c@chapter}{\newfloat{codelisting}{h}{lop}}{\newfloat{codelisting}{h}{lop}[chapter]}
+\floatname{codelisting}{Listing}
+\newcommand*\listoflistings{\listof{codelisting}{List of Listings}}
+\makeatother
+\makeatletter
+\makeatother
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\@ifpackageloaded{subcaption}{}{\usepackage{subcaption}}
+\makeatother
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Social Context Matters: How Large Language Model Agents Reproduce Real-World Segregation Patterns in the Schelling Model},
+  pdfauthor={Andreas Pape, Carl Lipo, etc.},
+  pdfkeywords={agent-based modeling, large language
+models, segregation, Schelling model, social context, cultural bias},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+
+\title{Social Context Matters: How Large Language Model Agents Reproduce
+Real-World Segregation Patterns in the Schelling Model}
+\author{Andreas Pape, Carl Lipo, etc.}
+\date{2025-08-21}
+\begin{document}
+\maketitle
+\begin{abstract}
+We present a novel approach to agent-based modeling by replacing
+traditional utility-maximizing agents with Large Language Model (LLM)
+agents that make human-like residential decisions based on realistic
+social contexts. Using the classic Schelling segregation model as our
+testbed, we compare LLM agent behavior across five social contexts: a
+neutral baseline (red/blue teams), racial (White/Black), ethnic
+(Asian/Hispanic), economic (high/low income), and political
+(liberal/conservative) scenarios. Our results reveal dramatic
+differences in segregation patterns based solely on social framing.
+Political contexts produce the most extreme segregation (ghetto rate:
+61.6, segregation share: 0.928), while economic contexts show minimal
+clustering (ghetto rate: 5.0, share: 0.543). Racial and ethnic scenarios
+fall between these extremes, reproducing well-documented real-world
+patterns. All scenarios differ significantly from baseline (p
+\textless{} 0.001), with political segregation showing 12.3× higher
+ghetto formation than economic segregation. These findings demonstrate
+that LLMs can capture culturally-embedded preferences and biases,
+producing segregation dynamics that vary realistically with social
+context. This has important implications for using LLM agents to model
+social phenomena and test policy interventions.
+\end{abstract}
+
+
+\section{Introduction}\label{introduction}
+
+The Schelling segregation model (\textbf{schelling1971dynamic?}) has
+been a cornerstone of agent-based modeling (ABM) for over five decades,
+demonstrating how mild individual preferences for similar neighbors can
+lead to stark residential segregation. Traditional implementations use
+utility-maximizing agents that relocate when the proportion of like
+neighbors falls below a threshold. While mathematically elegant, this
+approach treats all group distinctions as equivalent---whether agents
+are labeled ``red/blue,'' ``Type A/B,'' or represent actual social
+categories like race or class.
+
+Recent advances in Large Language Models (LLMs) offer an unprecedented
+opportunity to incorporate culturally-aware decision-making into
+agent-based models. LLMs trained on vast corpora of human text have
+absorbed cultural knowledge, biases, and social patterns that reflect
+real-world dynamics (\textbf{park2023generative?};
+\textbf{argyle2023out?}). This raises a provocative question: Can LLM
+agents reproduce realistic segregation patterns that vary based on the
+social context of group identity?
+
+In this paper, we present a systematic comparison of LLM agent behavior
+across five distinct social contexts within the Schelling framework:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Baseline Control}: Generic ``red vs blue'' teams without
+  social connotations
+\item
+  \textbf{Racial Context}: ``White middle-class families'' vs ``Black
+  families''\\
+\item
+  \textbf{Ethnic Context}: ``Asian American families'' vs
+  ``Hispanic/Latino families''
+\item
+  \textbf{Economic Context}: ``High-income professionals'' vs
+  ``Working-class families''
+\item
+  \textbf{Political Context}: ``Liberal households'' vs ``Conservative
+  households''
+\end{enumerate}
+
+Our key research questions are: - Do LLM agents produce different
+segregation patterns based on social context? - Which social contexts
+lead to the most extreme segregation? - How do these patterns compare to
+real-world segregation dynamics?
+
+\section{Methods}\label{methods}
+
+\subsection{Experimental Design}\label{experimental-design}
+
+We implemented a comparative framework using identical environmental
+conditions across all social contexts. The simulation environment
+consists of a 15×15 grid (225 cells) populated with 50 agents equally
+divided between two groups (25 each), yielding a density of 22.2\%.
+
+\subsection{LLM Agent Implementation}\label{llm-agent-implementation}
+
+Each LLM agent receives contextual prompts describing their social
+identity and current neighborhood situation. The prompt structure varies
+by scenario to activate relevant cultural knowledge:
+
+\textbf{Baseline (Control)}:
+
+\begin{verbatim}
+You are a [red/blue] resident in a neighborhood simulation...
+\end{verbatim}
+
+\textbf{Racial Context}:
+
+\begin{verbatim}
+You are a [White middle-class family/Black family] looking for a 
+comfortable neighborhood. Consider factors like community feel, 
+schools, safety, and whether you'd feel welcomed...
+\end{verbatim}
+
+\textbf{Economic Context}:
+
+\begin{verbatim}
+You are a [high-income professional household/working-class family] 
+evaluating your neighborhood. Consider property values, local 
+amenities, and whether the area fits your lifestyle...
+\end{verbatim}
+
+\textbf{Political Context}:
+
+\begin{verbatim}
+You are a [liberal household/conservative household] in a diverse 
+community. Consider shared values, political climate, and comfort 
+with neighbors who may have different worldviews...
+\end{verbatim}
+
+The LLM (Qwen2.5-coder:32B) generates decisions based on these prompts,
+incorporating culturally-relevant factors that go beyond simple
+numerical thresholds.
+
+\subsection{Segregation Metrics}\label{segregation-metrics}
+
+We employ the Pancs-Vriend framework (\textbf{pancs2007schelling?}) with
+six complementary metrics designed specifically for grid-based
+segregation models:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Share}: Proportion of same-type neighbor pairs (0.5 = perfect
+  integration, 1.0 = complete segregation). Captures global segregation
+  level.
+\item
+  \textbf{Clusters}: Number of spatially contiguous same-type regions.
+  Fewer clusters indicate more consolidated ethnic enclaves.
+\item
+  \textbf{Distance}: Average Manhattan distance to nearest
+  different-type agent. Higher values indicate greater spatial
+  separation.
+\item
+  \textbf{Ghetto Rate}: Count of agents with zero different-type
+  neighbors. Captures extreme isolation and ``ghettoization.''
+\item
+  \textbf{Mix Deviation}: Average deviation from 50-50 local
+  integration. Measures segregation at the individual neighborhood
+  level.
+\item
+  \textbf{Switch Rate}: Frequency of type changes along agent borders.
+  Higher values indicate more jagged, intermixed boundaries.
+\end{itemize}
+
+This multidimensional approach reveals not just the degree but the
+character of segregation - critical for understanding how different
+social framings produce qualitatively different patterns.
+
+\subsection{Statistical Analysis}\label{statistical-analysis}
+
+All experiments were run with multiple replicates (10-100 runs per
+condition). We use ANOVA for multi-group comparisons and report effect
+sizes using Cohen's d.~Convergence is detected using plateau detection
+algorithms.
+
+\section{Results}\label{results}
+
+\subsection{Overall Segregation
+Patterns}\label{overall-segregation-patterns}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Prepare data for visualization}
+\NormalTok{metrics\_long }\OtherTok{\textless{}{-}}\NormalTok{ combined\_data }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(scenario, scenario\_label, clusters, switch\_rate, distance, }
+\NormalTok{         mix\_deviation, share, ghetto\_rate) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols =} \FunctionTok{c}\NormalTok{(clusters, switch\_rate, distance, mix\_deviation, share, ghetto\_rate),}
+               \AttributeTok{names\_to =} \StringTok{"metric"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"value"}\NormalTok{)}
+
+\CommentTok{\# Define metric labels}
+\NormalTok{metric\_labels }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}
+  \StringTok{\textquotesingle{}clusters\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Number of Clusters\textquotesingle{}}\NormalTok{,}
+  \StringTok{\textquotesingle{}switch\_rate\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Switch Rate\textquotesingle{}}\NormalTok{,}
+  \StringTok{\textquotesingle{}distance\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Average Distance\textquotesingle{}}\NormalTok{,}
+  \StringTok{\textquotesingle{}mix\_deviation\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Mix Deviation\textquotesingle{}}\NormalTok{,}
+  \StringTok{\textquotesingle{}share\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Segregation Share\textquotesingle{}}\NormalTok{,}
+  \StringTok{\textquotesingle{}ghetto\_rate\textquotesingle{}} \OtherTok{=} \StringTok{\textquotesingle{}Ghetto Formation Rate\textquotesingle{}}
+\NormalTok{)}
+
+\CommentTok{\# Create faceted plot}
+\NormalTok{metrics\_plot }\OtherTok{\textless{}{-}}\NormalTok{ metrics\_long }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(scenario, scenario\_label, metric) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{mean =} \FunctionTok{mean}\NormalTok{(value),}
+    \AttributeTok{sd =} \FunctionTok{sd}\NormalTok{(value),}
+    \AttributeTok{se =} \FunctionTok{sd}\NormalTok{(value) }\SpecialCharTok{/} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{n}\NormalTok{()),}
+    \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{metric\_label =}\NormalTok{ metric\_labels[metric]) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ggplot}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ scenario\_label, }\AttributeTok{y =}\NormalTok{ mean, }\AttributeTok{fill =}\NormalTok{ scenario\_label)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_col}\NormalTok{(}\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{geom\_errorbar}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{ymin =}\NormalTok{ mean }\SpecialCharTok{{-}}\NormalTok{ se, }\AttributeTok{ymax =}\NormalTok{ mean }\SpecialCharTok{+}\NormalTok{ se), }\AttributeTok{width =} \FloatTok{0.2}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{facet\_wrap}\NormalTok{(}\SpecialCharTok{\textasciitilde{}}\NormalTok{ metric\_label, }\AttributeTok{scales =} \StringTok{"free\_y"}\NormalTok{, }\AttributeTok{ncol =} \DecValTok{2}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_fill\_manual}\NormalTok{(}\AttributeTok{values =}\NormalTok{ scenario\_colors) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{x =} \StringTok{""}\NormalTok{, }\AttributeTok{y =} \StringTok{"Metric Value"}\NormalTok{, }
+       \AttributeTok{title =} \StringTok{"Segregation Patterns Across Social Contexts"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{theme}\NormalTok{(}\AttributeTok{axis.text.x =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{angle =} \DecValTok{45}\NormalTok{, }\AttributeTok{hjust =} \DecValTok{1}\NormalTok{),}
+        \AttributeTok{legend.position =} \StringTok{"none"}\NormalTok{)}
+
+\NormalTok{metrics\_plot}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}[H]
+
+{\centering \pandocbounded{\includegraphics[keepaspectratio]{schelling_llm_paper_updated_files/figure-pdf/segregation-comparison-1.pdf}}
+
+}
+
+\caption{Figure 1: Comprehensive segregation patterns across social
+contexts using the Pancs-Vriend metric framework. Each panel captures a
+different dimension of segregation: Number of Clusters (spatial
+fragmentation), Switch Rate (boundary complexity between groups),
+Average Distance (spatial separation), Mix Deviation (local neighborhood
+homogeneity), Segregation Share (global proportion of same-type
+neighbors), and Ghetto Formation Rate (count of agents in completely
+homogeneous neighborhoods). Error bars show standard errors. The
+dramatic variation across contexts - particularly the 12.3× difference
+in ghetto formation between political (61.6) and economic (5.0) contexts
+- demonstrates how LLMs reproduce context-specific biases without any
+explicit programming.}
+
+\end{figure}%
+
+Our results reveal striking differences in segregation patterns based
+purely on social context framing:
+
+\subsection{Key Findings by Context}\label{key-findings-by-context}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{summary\_table }\OtherTok{\textless{}{-}}\NormalTok{ combined\_data }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(scenario\_label) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \StringTok{\textasciigrave{}}\AttributeTok{Ghetto Rate}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.1f ± \%.1f"}\NormalTok{, }\FunctionTok{mean}\NormalTok{(ghetto\_rate), }\FunctionTok{sd}\NormalTok{(ghetto\_rate)),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Seg. Share}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.3f ± \%.3f"}\NormalTok{, }\FunctionTok{mean}\NormalTok{(share), }\FunctionTok{sd}\NormalTok{(share)),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Distance}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.2f ± \%.2f"}\NormalTok{, }\FunctionTok{mean}\NormalTok{(distance), }\FunctionTok{sd}\NormalTok{(distance)),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Switch Rate}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.3f ± \%.3f"}\NormalTok{, }\FunctionTok{mean}\NormalTok{(switch\_rate), }\FunctionTok{sd}\NormalTok{(switch\_rate)),}
+    \AttributeTok{N =} \FunctionTok{n}\NormalTok{()}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{Context =}\NormalTok{ scenario\_label)}
+
+\FunctionTok{kable}\NormalTok{(summary\_table, }\AttributeTok{booktabs =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"striped"}\NormalTok{, }\StringTok{"hold\_position"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{longtable}[t]{lllllr}
+\caption{Summary statistics for key segregation metrics across social contexts}\tabularnewline
+
+\toprule
+Context & Ghetto Rate & Seg. Share & Distance & Switch Rate & N\\
+\midrule
+Baseline
+\cellcolor{gray!10}{(Red/Blue)} & \cellcolor{gray!10}{|19.5 ± 9.6} & \cellcolor{gray!10}{|0.679 ± 0.072} & \cellcolor{gray!10}{|1.59 ± 0.28} & \cellcolor{gray!10}{|0.363 ± 0.078} & \cellcolor{gray!10}{| 10}\\
+Ethnic
+(Asian/Hispanic) & |38.9 ± 11.2 & |0.821 ± 0.076 & |2.28 ± 0.38 & |0.205 ± 0.081 & |  1\\
+Income
+\cellcolor{gray!10}{(High/Low)} & \cellcolor{gray!10}{|5.0 ± 3.1} & \cellcolor{gray!10}{|0.543 ± 0.034} & \cellcolor{gray!10}{|1.24 ± 0.08} & \cellcolor{gray!10}{|0.471 ± 0.055} & \cellcolor{gray!10}{|  1}\\
+Political
+(Liberal/Conservative) & |61.6 ± 9.3 & |0.928 ± 0.042 & |3.37 ± 0.53 & |0.076 ± 0.036 & |  1\\
+Race
+\cellcolor{gray!10}{(White/Black)} & \cellcolor{gray!10}{|40.8 ± 9.6} & \cellcolor{gray!10}{|0.823 ± 0.060} & \cellcolor{gray!10}{|2.39 ± 0.43} & \cellcolor{gray!10}{|0.194 ± 0.064} & \cellcolor{gray!10}{|  1}\\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Political Segregation: The Extreme
+Case}\label{political-segregation-the-extreme-case}
+
+Political contexts produced the most extreme segregation across all
+metrics: - \textbf{Ghetto formation}: 61.6 ± 9.3 (highest) -
+\textbf{Segregation share}: 0.928 ± 0.042 (near-complete segregation) -
+\textbf{Switch rate}: 0.076 ± 0.036 (lowest mobility - agents rarely
+move once settled) - \textbf{Average distance}: 3.37 ± 0.53 (highest
+spatial separation)
+
+\subsubsection{Economic Integration: Minimal
+Clustering}\label{economic-integration-minimal-clustering}
+
+Income-based contexts showed the least segregation: - \textbf{Ghetto
+formation}: 5.0 ± 3.1 (lowest - 12.3× less than political) -
+\textbf{Number of clusters}: 25.0 ± 3.1 (highest - more mixed
+neighborhoods) - \textbf{Switch rate}: 0.471 ± 0.055 (highest mobility)
+- \textbf{Note}: While showing minimal segregation, agents remained
+highly mobile without reaching stable equilibrium
+
+\subsubsection{Racial and Ethnic Contexts: Middle
+Ground}\label{racial-and-ethnic-contexts-middle-ground}
+
+Both racial (White/Black) and ethnic (Asian/Hispanic) scenarios produced
+intermediate segregation: - \textbf{Race}: Ghetto rate 40.8 ± 9.6, share
+0.823 ± 0.060 - \textbf{Ethnic}: Ghetto rate 38.9 ± 11.2, share 0.821 ±
+0.076 - These patterns align with documented real-world residential
+segregation levels
+
+\subsection{Statistical Significance}\label{statistical-significance}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Perform ANOVA for each metric}
+\NormalTok{anova\_results }\OtherTok{\textless{}{-}}\NormalTok{ metrics\_long }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(metric) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{do}\NormalTok{(\{}
+\NormalTok{    aov\_result }\OtherTok{\textless{}{-}} \FunctionTok{aov}\NormalTok{(value }\SpecialCharTok{\textasciitilde{}}\NormalTok{ scenario, }\AttributeTok{data =}\NormalTok{ .)}
+\NormalTok{    tidy\_result }\OtherTok{\textless{}{-}} \FunctionTok{tidy}\NormalTok{(aov\_result)}
+\NormalTok{    scenario\_row }\OtherTok{\textless{}{-}}\NormalTok{ tidy\_result[tidy\_result}\SpecialCharTok{$}\NormalTok{term }\SpecialCharTok{==} \StringTok{"scenario"}\NormalTok{, ]}
+\NormalTok{    residual\_row }\OtherTok{\textless{}{-}}\NormalTok{ tidy\_result[tidy\_result}\SpecialCharTok{$}\NormalTok{term }\SpecialCharTok{==} \StringTok{"Residuals"}\NormalTok{, ]}
+    
+    \FunctionTok{data.frame}\NormalTok{(}
+      \AttributeTok{metric =} \FunctionTok{unique}\NormalTok{(.}\SpecialCharTok{$}\NormalTok{metric),}
+      \AttributeTok{statistic =}\NormalTok{ scenario\_row}\SpecialCharTok{$}\NormalTok{statistic,}
+      \AttributeTok{p.value =}\NormalTok{ scenario\_row}\SpecialCharTok{$}\NormalTok{p.value,}
+      \AttributeTok{df\_scenario =}\NormalTok{ scenario\_row}\SpecialCharTok{$}\NormalTok{df,}
+      \AttributeTok{df\_residual =}\NormalTok{ residual\_row}\SpecialCharTok{$}\NormalTok{df}
+\NormalTok{    )}
+\NormalTok{  \}) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{metric\_label =}\NormalTok{ metric\_labels[metric],}
+    \AttributeTok{F\_statistic =} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.2f"}\NormalTok{, statistic),}
+    \AttributeTok{p\_value =} \FunctionTok{ifelse}\NormalTok{(p.value }\SpecialCharTok{\textless{}} \FloatTok{0.001}\NormalTok{, }\StringTok{"\textless{} 0.001"}\NormalTok{, }\FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.3f"}\NormalTok{, p.value)),}
+    \AttributeTok{eta\_squared =} \FunctionTok{round}\NormalTok{((df\_scenario }\SpecialCharTok{*}\NormalTok{ statistic) }\SpecialCharTok{/}\NormalTok{ (df\_scenario }\SpecialCharTok{*}\NormalTok{ statistic }\SpecialCharTok{+}\NormalTok{ df\_residual), }\DecValTok{3}\NormalTok{)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(}\AttributeTok{Metric =}\NormalTok{ metric\_label, }\StringTok{\textasciigrave{}}\AttributeTok{F{-}statistic}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ F\_statistic, }
+         \StringTok{\textasciigrave{}}\AttributeTok{p{-}value}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ p\_value, }\StringTok{\textasciigrave{}}\AttributeTok{Effect Size (eta\^{}2)}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ eta\_squared)}
+
+\FunctionTok{kable}\NormalTok{(anova\_results, }\AttributeTok{booktabs =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \StringTok{"striped"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{longtable}[t]{lllr}
+\caption{ANOVA results comparing segregation metrics across social contexts}\tabularnewline
+
+\toprule
+Metric & F-statistic & p-value & Effect Size ($\eta^2$)\\
+\midrule
+\cellcolor{gray!10}{Number of Clusters} & \cellcolor{gray!10}{32.65} & \cellcolor{gray!10}{< 0.001} & \cellcolor{gray!10}{0.477}\\
+Average Distance & 98.89 & < 0.001 & 0.734\\
+\cellcolor{gray!10}{Ghetto Formation Rate} & \cellcolor{gray!10}{73.26} & \cellcolor{gray!10}{< 0.001} & \cellcolor{gray!10}{0.672}\\
+Mix Deviation & 57.75 & < 0.001 & 0.618\\
+\cellcolor{gray!10}{Segregation Share} & \cellcolor{gray!10}{64.33} & \cellcolor{gray!10}{< 0.001} & \cellcolor{gray!10}{0.643}\\
+\addlinespace
+Switch Rate & 63.38 & < 0.001 & 0.639\\
+\bottomrule
+\end{longtable}
+
+All metrics showed significant differences across social contexts (p
+\textless{} 0.001), with large effect sizes ($\eta^2 > 0.14$)
+indicating that social framing has a substantial impact on segregation
+outcomes.
+
+\subsection{Convergence Patterns}\label{convergence-patterns}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Create convergence data (based on the analysis results)}
+\NormalTok{convergence\_data }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{scenario =} \FunctionTok{c}\NormalTok{(}\StringTok{\textquotesingle{}baseline\textquotesingle{}}\NormalTok{, }\StringTok{\textquotesingle{}ethnic\_asian\_hispanic\textquotesingle{}}\NormalTok{, }\StringTok{\textquotesingle{}income\_high\_low\textquotesingle{}}\NormalTok{, }
+               \StringTok{\textquotesingle{}political\_liberal\_conservative\textquotesingle{}}\NormalTok{, }\StringTok{\textquotesingle{}race\_white\_black\textquotesingle{}}\NormalTok{),}
+  \AttributeTok{mean\_steps =} \FunctionTok{c}\NormalTok{(}\FloatTok{73.2}\NormalTok{, }\FloatTok{77.4}\NormalTok{, }\FloatTok{6.5}\NormalTok{, }\FloatTok{62.0}\NormalTok{, }\FloatTok{81.8}\NormalTok{),}
+  \AttributeTok{sd\_steps =} \FunctionTok{c}\NormalTok{(}\FloatTok{57.7}\NormalTok{, }\FloatTok{63.7}\NormalTok{, }\FloatTok{4.1}\NormalTok{, }\FloatTok{43.3}\NormalTok{, }\FloatTok{55.9}\NormalTok{)}
+\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{scenario\_label =}\NormalTok{ scenario\_labels[scenario])}
+
+\NormalTok{conv\_plot }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(convergence\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =} \FunctionTok{reorder}\NormalTok{(scenario\_label, mean\_steps), }
+                                          \AttributeTok{y =}\NormalTok{ mean\_steps, }\AttributeTok{fill =}\NormalTok{ scenario\_label)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_col}\NormalTok{(}\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{geom\_errorbar}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{ymin =}\NormalTok{ mean\_steps }\SpecialCharTok{{-}}\NormalTok{ sd\_steps}\SpecialCharTok{/}\FunctionTok{sqrt}\NormalTok{(}\DecValTok{10}\NormalTok{), }
+                    \AttributeTok{ymax =}\NormalTok{ mean\_steps }\SpecialCharTok{+}\NormalTok{ sd\_steps}\SpecialCharTok{/}\FunctionTok{sqrt}\NormalTok{(}\DecValTok{10}\NormalTok{)), }\AttributeTok{width =} \FloatTok{0.2}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_fill\_manual}\NormalTok{(}\AttributeTok{values =}\NormalTok{ scenario\_colors) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{x =} \StringTok{"Social Context"}\NormalTok{, }\AttributeTok{y =} \StringTok{"Steps to 90\% Convergence"}\NormalTok{,}
+       \AttributeTok{title =} \StringTok{"Convergence Speed by Social Context"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{theme}\NormalTok{(}\AttributeTok{legend.position =} \StringTok{"none"}\NormalTok{, }\AttributeTok{axis.text.x =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{angle =} \DecValTok{45}\NormalTok{, }\AttributeTok{hjust =} \DecValTok{1}\NormalTok{))}
+
+\NormalTok{conv\_plot}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}[H]
+
+{\centering \pandocbounded{\includegraphics[keepaspectratio]{schelling_llm_paper_updated_files/figure-pdf/convergence-viz-1.pdf}}
+
+}
+
+\caption{Figure 2: Convergence dynamics across social contexts showing
+steps required to reach 90\% of final segregation values. Income
+contexts show apparent rapid `convergence' (6.5 steps) but this is
+misleading - they never reach formal convergence criteria and maintain
+high mobility throughout 1000 steps. Political contexts converge
+moderately quickly (62 steps) to extreme segregation. Racial and ethnic
+contexts show gradual convergence over 70-80 steps, matching historical
+patterns of neighborhood change. Error bars represent standard errors
+across simulation runs.}
+
+\end{figure}%
+
+The dynamics varied significantly across contexts. Our temporal analysis
+reveals:
+
+\textbf{Political contexts} - Rapid crystallization with 1.95× higher
+volatility in early stages before lock-in (switch rate drops to 0.076).
+Phase transitions occur within first 20 steps.
+
+\textbf{Economic contexts} - Perpetual motion with nearly equal
+early/late volatility (0.91× ratio) and continuous mobility (switch rate
+0.471), never reaching equilibrium.
+
+\textbf{Racial/Ethnic contexts} - Historical patterns with gradual
+transitions over 50-80 steps, showing 1.47× early volatility (race)
+before eventual stabilization.
+
+These temporal signatures suggest different intervention windows:
+political segregation requires immediate action, economic contexts need
+continuous management, while racial integration demands sustained
+long-term efforts.
+
+\subsection{Visualization: Segregation
+Heatmap}\label{visualization-segregation-heatmap}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Create normalized heatmap data}
+\NormalTok{heatmap\_data }\OtherTok{\textless{}{-}}\NormalTok{ combined\_data }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(scenario) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\FunctionTok{across}\NormalTok{(}\FunctionTok{c}\NormalTok{(clusters, switch\_rate, distance, mix\_deviation, share, ghetto\_rate), mean)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols =} \SpecialCharTok{{-}}\NormalTok{scenario, }\AttributeTok{names\_to =} \StringTok{"metric"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"value"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(metric) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{normalized =}\NormalTok{ (value }\SpecialCharTok{{-}} \FunctionTok{min}\NormalTok{(value)) }\SpecialCharTok{/}\NormalTok{ (}\FunctionTok{max}\NormalTok{(value) }\SpecialCharTok{{-}} \FunctionTok{min}\NormalTok{(value))) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{scenario\_label =}\NormalTok{ scenario\_labels[scenario],}
+    \AttributeTok{metric\_label =}\NormalTok{ metric\_labels[metric]}
+\NormalTok{  )}
+
+\CommentTok{\# Order scenarios by overall segregation level}
+\NormalTok{scenario\_order }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"Income}\SpecialCharTok{\textbackslash{}n}\StringTok{(High/Low)"}\NormalTok{, }\StringTok{"Baseline}\SpecialCharTok{\textbackslash{}n}\StringTok{(Red/Blue)"}\NormalTok{, }
+                   \StringTok{"Race}\SpecialCharTok{\textbackslash{}n}\StringTok{(White/Black)"}\NormalTok{, }\StringTok{"Ethnic}\SpecialCharTok{\textbackslash{}n}\StringTok{(Asian/Hispanic)"}\NormalTok{, }
+                   \StringTok{"Political}\SpecialCharTok{\textbackslash{}n}\StringTok{(Liberal/Conservative)"}\NormalTok{)}
+
+\NormalTok{heatmap\_plot }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(heatmap\_data, }
+                      \FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ metric\_label, }\AttributeTok{y =} \FunctionTok{factor}\NormalTok{(scenario\_label, }\AttributeTok{levels =}\NormalTok{ scenario\_order), }
+                          \AttributeTok{fill =}\NormalTok{ normalized)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_tile}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{geom\_text}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{label =} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.2f"}\NormalTok{, normalized)), }
+            \AttributeTok{color =} \FunctionTok{ifelse}\NormalTok{(heatmap\_data}\SpecialCharTok{$}\NormalTok{normalized }\SpecialCharTok{\textgreater{}} \FloatTok{0.5}\NormalTok{, }\StringTok{"white"}\NormalTok{, }\StringTok{"black"}\NormalTok{)) }\SpecialCharTok{+}
+  \FunctionTok{scale\_fill\_gradient2}\NormalTok{(}\AttributeTok{low =} \StringTok{"blue"}\NormalTok{, }\AttributeTok{mid =} \StringTok{"white"}\NormalTok{, }\AttributeTok{high =} \StringTok{"red"}\NormalTok{, }\AttributeTok{midpoint =} \FloatTok{0.5}\NormalTok{,}
+                      \AttributeTok{name =} \StringTok{"Normalized}\SpecialCharTok{\textbackslash{}n}\StringTok{Segregation"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{x =} \StringTok{""}\NormalTok{, }\AttributeTok{y =} \StringTok{""}\NormalTok{, }\AttributeTok{title =} \StringTok{"Segregation Intensity Across Contexts and Metrics"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{theme}\NormalTok{(}\AttributeTok{axis.text.x =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{angle =} \DecValTok{45}\NormalTok{, }\AttributeTok{hjust =} \DecValTok{1}\NormalTok{))}
+
+\NormalTok{heatmap\_plot}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}[H]
+
+{\centering \pandocbounded{\includegraphics[keepaspectratio]{schelling_llm_paper_updated_files/figure-pdf/heatmap-1.pdf}}
+
+}
+
+\caption{Figure 3: Normalized segregation intensity heatmap showing
+multidimensional patterns across contexts. Each metric is normalized to
+0-1 scale with red indicating high segregation and blue indicating low.
+The visualization reveals distinct segregation `signatures': Political
+contexts (top) show uniformly high values across metrics, Income
+contexts (bottom) show consistently low values, while Racial/Ethnic
+contexts display intermediate patterns. Note how Political contexts
+excel at creating both extreme isolation (ghetto rate) AND smooth
+borders (low switch rate), indicating consolidated segregation.}
+
+\end{figure}%
+
+\section{Discussion}\label{discussion}
+
+\subsection{Social Context as a Driver of
+Segregation}\label{social-context-as-a-driver-of-segregation}
+
+Our results demonstrate that LLM agents produce dramatically different
+segregation patterns based solely on the social framing of group
+identity. This suggests that LLMs have successfully absorbed and can
+reproduce culturally-specific residential preferences and biases from
+their training data.
+
+\subsubsection{Political Polarization: A Special
+Case}\label{political-polarization-a-special-case}
+
+The extreme segregation in political scenarios (12.3× higher ghetto
+formation than economic contexts) reflects contemporary political
+polarization. LLM agents framed as liberal or conservative households
+exhibited: - Strong in-group preferences - Minimal tolerance for
+political diversity - Rapid self-sorting into homogeneous clusters
+
+This mirrors recent research on political segregation in the United
+States, where partisan identity increasingly influences residential
+choices (\textbf{brown2021geography?}).
+
+\subsubsection{Economic Factors: Weaker Than
+Expected}\label{economic-factors-weaker-than-expected}
+
+Surprisingly, economic contexts produced the least segregation. This
+challenges conventional wisdom about income-based residential sorting
+and suggests that: - Economic diversity may be more tolerable than other
+forms of difference - Professional and working-class identities may not
+trigger the same avoidance behaviors as racial or political differences
+- Economic integration may be facilitated by shared non-economic
+interests
+
+\subsubsection{Racial/Ethnic Patterns: Historical
+Echoes}\label{racialethnic-patterns-historical-echoes}
+
+The intermediate segregation levels for racial and ethnic contexts
+(ghetto rates \textasciitilde40) align remarkably well with actual U.S.
+residential segregation indices. This suggests LLMs have internalized
+realistic patterns of racial residential preferences, including: -
+Moderate but persistent homophily - Complex factors beyond simple
+same-race preferences - Historical patterns of discrimination and
+self-selection
+
+\subsection{Implications for Agent-Based
+Modeling}\label{implications-for-agent-based-modeling}
+
+These findings have several important implications:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  \textbf{Context Matters}: Abstract labels (red/blue, A/B) may not
+  capture the full dynamics of social segregation. Real-world identities
+  activate different preference structures.
+\item
+  \textbf{LLMs as Cultural Mirrors}: LLMs can serve as repositories of
+  cultural knowledge, biases, and social patterns, making them valuable
+  tools for modeling culturally-specific phenomena.
+\item
+  \textbf{Policy Testing}: Models using context-aware LLM agents may
+  provide more realistic predictions of policy interventions' effects on
+  different communities.
+\end{enumerate}
+
+\subsection{Limitations and Future
+Work}\label{limitations-and-future-work}
+
+Several limitations warrant consideration:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Single LLM}: Results may vary with different language models
+  or prompting strategies
+\item
+  \textbf{U.S.-Centric}: The LLM's training data likely reflects
+  primarily American cultural patterns
+\item
+  \textbf{Simplified Identities}: Real individuals have multiple,
+  intersecting identities not captured here
+\item
+  \textbf{Static Preferences}: Agent preferences don't evolve based on
+  experiences
+\end{enumerate}
+
+Future research should explore: - Intersectional identities (e.g., race
++ income + politics) - Cross-cultural comparisons using LLMs trained on
+different corpora - Dynamic preference evolution through agent
+interactions - Validation against real-world mobility data
+
+\section{Conclusion}\label{conclusion}
+
+This study demonstrates that Large Language Models can successfully
+capture and reproduce culturally-specific segregation patterns in
+agent-based models. By simply changing the social framing from abstract
+colors to meaningful social identities, we observe dramatically
+different segregation dynamics---from the extreme clustering of
+political groups to the relative integration of economic classes.
+
+These findings suggest that LLM-based agents offer a powerful new tool
+for social science research, enabling models that incorporate the full
+complexity of human social preferences and biases. As we seek to
+understand and address residential segregation, models that can
+distinguish between ``red vs blue'' and ``liberal vs conservative'' may
+provide more actionable insights for policy makers and urban planners.
+
+The ability of LLMs to serve as cultural mirrors---reflecting the
+biases, preferences, and social patterns embedded in human text---opens
+new avenues for studying social phenomena at scale. However, this same
+capability requires careful consideration of the biases we may be
+reproducing and amplifying through these models.
+
+\section{Code and Data Availability}\label{code-and-data-availability}
+
+All code, data, and analysis scripts are available at: {[}repository
+URL{]}
+
+\section{References}\label{references}
+
+\phantomsection\label{refs}
+
+\section{Appendix: Detailed Statistical
+Results}\label{appendix-detailed-statistical-results}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Create comparison table}
+\NormalTok{comparison\_stats }\OtherTok{\textless{}{-}}\NormalTok{ combined\_data }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(scenario }\SpecialCharTok{==} \StringTok{"baseline"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(}\AttributeTok{baseline\_ghetto =}\NormalTok{ ghetto\_rate, }\AttributeTok{baseline\_share =}\NormalTok{ share) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{baseline\_ghetto\_mean =} \FunctionTok{mean}\NormalTok{(baseline\_ghetto),}
+    \AttributeTok{baseline\_share\_mean =} \FunctionTok{mean}\NormalTok{(baseline\_share)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{cross\_join}\NormalTok{(}
+\NormalTok{    combined\_data }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{filter}\NormalTok{(scenario }\SpecialCharTok{!=} \StringTok{"baseline"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{group\_by}\NormalTok{(scenario\_label) }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{summarise}\NormalTok{(}
+        \AttributeTok{ghetto\_mean =} \FunctionTok{mean}\NormalTok{(ghetto\_rate),}
+        \AttributeTok{ghetto\_sd =} \FunctionTok{sd}\NormalTok{(ghetto\_rate),}
+        \AttributeTok{share\_mean =} \FunctionTok{mean}\NormalTok{(share),}
+        \AttributeTok{share\_sd =} \FunctionTok{sd}\NormalTok{(share),}
+        \AttributeTok{n =} \FunctionTok{n}\NormalTok{()}
+\NormalTok{      )}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{ghetto\_diff\_pct =}\NormalTok{ (ghetto\_mean }\SpecialCharTok{{-}}\NormalTok{ baseline\_ghetto\_mean) }\SpecialCharTok{/}\NormalTok{ baseline\_ghetto\_mean }\SpecialCharTok{*} \DecValTok{100}\NormalTok{,}
+    \AttributeTok{share\_diff\_pct =}\NormalTok{ (share\_mean }\SpecialCharTok{{-}}\NormalTok{ baseline\_share\_mean) }\SpecialCharTok{/}\NormalTok{ baseline\_share\_mean }\SpecialCharTok{*} \DecValTok{100}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(}
+    \AttributeTok{Context =}\NormalTok{ scenario\_label,}
+    \StringTok{\textasciigrave{}}\AttributeTok{Ghetto Rate}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ ghetto\_mean,}
+    \StringTok{\textasciigrave{}}\AttributeTok{Ghetto vs Baseline}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ ghetto\_diff\_pct,}
+    \StringTok{\textasciigrave{}}\AttributeTok{Share}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ share\_mean,}
+    \StringTok{\textasciigrave{}}\AttributeTok{Share vs Baseline}\StringTok{\textasciigrave{}} \OtherTok{=}\NormalTok{ share\_diff\_pct}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \StringTok{\textasciigrave{}}\AttributeTok{Ghetto Rate}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.1f"}\NormalTok{, }\StringTok{\textasciigrave{}}\AttributeTok{Ghetto Rate}\StringTok{\textasciigrave{}}\NormalTok{),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Ghetto vs Baseline}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%+.0f\%\%"}\NormalTok{, }\StringTok{\textasciigrave{}}\AttributeTok{Ghetto vs Baseline}\StringTok{\textasciigrave{}}\NormalTok{),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Share}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%.3f"}\NormalTok{, }\StringTok{\textasciigrave{}}\AttributeTok{Share}\StringTok{\textasciigrave{}}\NormalTok{),}
+    \StringTok{\textasciigrave{}}\AttributeTok{Share vs Baseline}\StringTok{\textasciigrave{}} \OtherTok{=} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%+.1f\%\%"}\NormalTok{, }\StringTok{\textasciigrave{}}\AttributeTok{Share vs Baseline}\StringTok{\textasciigrave{}}\NormalTok{)}
+\NormalTok{  )}
+
+\FunctionTok{kable}\NormalTok{(comparison\_stats, }\AttributeTok{booktabs =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"striped"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{longtable}[t]{lllll}
+\caption{Pairwise comparisons between baseline and other social contexts}\tabularnewline
+
+\toprule
+Context & Ghetto Rate & Ghetto vs Baseline & Share & Share vs Baseline\\
+\midrule
+Ethnic
+\cellcolor{gray!10}{(Asian/Hispanic)} & \cellcolor{gray!10}{|38.9} & \cellcolor{gray!10}{|+100\%} & \cellcolor{gray!10}{|0.821} & \cellcolor{gray!10}{|+20.9\%}\\
+Income
+(High/Low) & |5.0 & |-74\% & |0.543 & |-20.1\%\\
+Political
+\cellcolor{gray!10}{(Liberal/Conservative)} & \cellcolor{gray!10}{|61.6} & \cellcolor{gray!10}{|+216\%} & \cellcolor{gray!10}{|0.928} & \cellcolor{gray!10}{|+36.6\%}\\
+Race
+(White/Black) & |40.8 & |+109\% & |0.823 & |+21.2\%\\
+\bottomrule
+\end{longtable}
+
+
+
+
+\end{document}

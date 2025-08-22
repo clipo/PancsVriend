@@ -1,0 +1,9 @@
+schelling_llm_paper_updated_JEIC.R
+schelling_llm_paper_updated_JEIC.pdf
+schelling_llm_paper_updated_JEIC.tex
+
+->
+schelling_llm.tex
+
+
+schelling_llm_paper_updated_files/

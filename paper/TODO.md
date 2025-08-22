@@ -40,6 +40,27 @@
    - ✅ Abstract written (189 words, within 150-250 limit)
    - ✅ References compiled in author-year format with DOIs (`references.bib`)
 
+....
+
+4. NOw I want ot make an Overleaf version
+	I want to make a new GitHub project of Schelling Paper
+	
+	I want to include the tex file from Nency
+		
+		
+	
+	I will put the files to export there into
+		export_to_overleaf
+	
+	AND THEN zip that and give it to overleaf
+	
+	I am putting it in 
+		llm_schelling_paper_submit_JEIC/
+	
+
+....
+
+
 4. **Prepare submission materials**
    - Write cover letter explaining research contribution and fit to journal scope
    - Prepare supplementary materials (code, data, additional results)

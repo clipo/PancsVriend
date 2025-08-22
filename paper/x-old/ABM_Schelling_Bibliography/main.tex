@@ -1,0 +1,44 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[
+backend=biber,
+style=alphabetic,
+sorting=ynt
+]{biblatex}
+
+
+\addbibresource{bib.bib}
+
+\title{Bibliography management: \texttt{biblatex} package}
+\author{Share\LaTeX}
+\date{ }
+
+\title{Schelling bibliography in the Journal of Economic Interaction and Coordination}
+\author{}
+\date{August 2025}
+
+\begin{document}
+
+\maketitle
+\section*{Literature review}
+
+\textcite{vicario2024dynamic} leverage Schelling's model to assess how household wealth drives segregation. The underlying mechanism is that the agent's utility function is increasing in neighborhood quality.
+ Unlike the original Schelling model, which is static, they build a dynamic model of wealth, where the agent's wealth evolves as a continuous variable. They find that segregation emerges as a result of positive neighborhood externalities, which in turn further increases wealth inequality. When perturbations are introduced that allow agents to make suboptimal decisions, segregation is mitigated.
+
+\textcite{bonakdar2023dissimilarity} study the impact of residential segregation on housing prices in rich and impoverished neighborhoods. They find that while homophily drives up house prices among rich households, a preference for high-status neighborhoods does not generate similar dynamics. 
+Their agent-based model improves upon the canonical Schelling model by incorporating agents' education and income in addition to ethnicity. Relocation in the model is constrained by the availability of better housing.
+
+Rather than extending Schelling’s model, this paper compares its results to the SimSeg model. In \textcite{li2020racial} offer a probabilistic framework of residential segregation using real data from US income data. The authors develop a numerical model of residential segregation based on income and race. Using a measure of racial consciousness that allows them to distinguish the impact of race from that of income in a multi-neighborhood, their model extends the two-neighborhood model of Sethi and Somanathan. 
+
+% On a similar front, \textcite{bargigli2025new}
+
+% \cite{abella2022aging} \\
+% % \textcite{abella2022aging}
+% % \parencite{abella2022}\\
+% Build upon the basic Schelling model of racial segregation to study how the duration of the time spent in a satisfied state affects the segregation and satisfaction levels of agents. Conceptualizing emotional attachment to place as aging, they introduce the idea of memory into the model: the longer an agent remains satisfied, the less inclined it becomes to relocate. The results counterintuitively reveal that aging amplifies overall satisfaction and segregation even at high tolerance levels, thereby reinforcing the self-perpetuating dynamics of cluster formation.
+% While our study doesn't not incorporate memory, we study the various social segregation based on social constructs such as race, gender, political ideology through large language models.
+
+
+\printbibliography
+
+\end{document}
