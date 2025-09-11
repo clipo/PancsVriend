@@ -13,7 +13,7 @@ import argparse
 from base_simulation import Simulation
 from multiprocessing import Pool, cpu_count
 
-def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10):
+def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10, max_retries=5):
     """
     Check if LLM connection is active and working
     
@@ -22,6 +22,7 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
     - llm_url: API URL (overrides config.py)
     - llm_api_key: API key (overrides config.py)
     - timeout: Connection timeout in seconds
+    - max_retries: Max retry attempts on transient failures (timeouts/connection errors)
     
     Returns:
     - True if connection successful
@@ -35,63 +36,76 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
     print(f"URL: {url}")
     print(f"Model: {model}")
     
-    try:
-        test_payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": "Respond with only the word 'OK' and nothing else."}],
-            "stream": False,
-            "temperature": 0
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        start_time = time.time()
-        response = requests.post(url, headers=headers, json=test_payload, timeout=timeout)
-        elapsed = time.time() - start_time
-        
-        if response.status_code != 200:
-            print(f"❌ LLM connection failed - HTTP {response.status_code}")
-            print(f"Response: {response.text}")
+    test_payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": "Respond with only the word 'OK' and nothing else."}],
+        "stream": False,
+        "temperature": 0
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            start_time = time.time()
+            response = requests.post(url, headers=headers, json=test_payload, timeout=timeout)
+            elapsed = time.time() - start_time
+
+            if response.status_code != 200:
+                print(f"❌ LLM connection failed - HTTP {response.status_code}")
+                print(f"Response: {response.text}")
+                # Retry only for server errors (5xx) if attempts remain
+                if attempt < max_retries and 500 <= response.status_code < 600:
+                    print(f"↻ Retrying... ({attempt}/{max_retries})")
+                    time.sleep(1)
+                    continue
+                return False
+
+            data = response.json()
+
+            # Check for proper response structure
+            if "choices" not in data or not data["choices"]:
+                print("❌ LLM connection failed - Invalid response structure")
+                print(f"Response: {data}")
+                return False
+
+            content = data["choices"][0]["message"]["content"].strip()
+            print(f"✅ LLM connection successful (response time: {elapsed:.2f}s)")
+            print(f"Test response: '{content}'")
+            return True
+
+        except requests.exceptions.Timeout:
+            print(f"❌ Timeout after {timeout}s (attempt {attempt}/{max_retries})")
+            if attempt < max_retries:
+                time.sleep(5)
+                continue
+            print("The LLM server is not responding. Please check:")
+            print("1. Is the Ollama server running?")
+            print("2. Is the URL correct?")
+            print("3. Is the model loaded?")
             return False
-        
-        data = response.json()
-        
-        # Check for proper response structure
-        if "choices" not in data or not data["choices"]:
-            print("❌ LLM connection failed - Invalid response structure")
-            print(f"Response: {data}")
+
+        except requests.exceptions.ConnectionError as e:
+            print(f"❌ Connection error (attempt {attempt}/{max_retries})")
+            print(f"Error: {e}")
+            if attempt < max_retries:
+                time.sleep(1)
+                continue
+            print("\nPlease check:")
+            print("1. Is the Ollama server running?")
+            print("2. Is the URL correct?")
+            print("3. Is your network connection working?")
             return False
-        
-        content = data["choices"][0]["message"]["content"].strip()
-        print(f"✅ LLM connection successful (response time: {elapsed:.2f}s)")
-        print(f"Test response: '{content}'")
-        
-        return True
-        
-    except requests.exceptions.Timeout:
-        print(f"❌ LLM connection failed - Timeout after {timeout}s")
-        print("The LLM server is not responding. Please check:")
-        print("1. Is the Ollama server running?")
-        print("2. Is the URL correct?")
-        print("3. Is the model loaded?")
-        return False
-        
-    except requests.exceptions.ConnectionError as e:
-        print("❌ LLM connection failed - Connection error")
-        print(f"Error: {e}")
-        print("\nPlease check:")
-        print("1. Is the Ollama server running?")
-        print("2. Is the URL correct?")
-        print("3. Is your network connection working?")
-        return False
-        
-    except Exception as e:
-        print("❌ LLM connection failed - Unexpected error")
-        print(f"Error: {type(e).__name__}: {e}")
-        return False
+
+        except Exception as e:
+            print("❌ LLM connection failed - Unexpected error")
+            print(f"Error: {type(e).__name__}: {e}")
+            return False
+
+    return False
 
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, run_id=None, step=None):
@@ -163,7 +177,7 @@ class LLMAgent(Agent):
         
         return "\n".join([" ".join(row) for row in context_with_position])
     
-    def get_llm_decision(self, r, c, grid, max_retries=30):
+    def get_llm_decision(self, r, c, grid, max_retries=300):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
@@ -191,7 +205,7 @@ class LLMAgent(Agent):
                     "stream": False,
                     "temperature": 0.3,  # Lower temperature for more consistent responses
                     "max_tokens": 50,    # Limit response length
-                    "timeout": 20000     # 20 second timeout in milliseconds
+                    "timeout": 10000     # 10 second timeout in milliseconds
                 }
                 
                 headers = {
@@ -267,7 +281,7 @@ class LLMAgent(Agent):
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
                     print(f"[{timestamp}] [LLM Timeout] Retry {attempt + 1}/{max_retries} for agent at ({r},{c}) [run {self.run_id}, step {self.step}]")
-                    time.sleep(10)  # Wait 10 seconds before retry
+                    time.sleep(5)  # Wait 5 seconds before retry
                     continue
                 else:
                     print(f"[{timestamp}] [LLM Error] Max retries exceeded ({max_retries}) for agent at ({r},{c}) [run {self.run_id}, step {self.step}]")
@@ -276,7 +290,7 @@ class LLMAgent(Agent):
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if attempt < max_retries:
                     print(f"[{timestamp}] [LLM Error] Exception - Retry {attempt + 1}/{max_retries}: {e} [run {self.run_id}, step {self.step}]")
-                    time.sleep(60)  # Wait 1 minute before retry
+                    time.sleep(5)  # Wait 5 seconds before retry
                     continue
                 else:
                     print(f"[{timestamp}] [LLM Error] Exception: Unhandled error after {max_retries} retries: {e} [run {self.run_id}, step {self.step}]")
@@ -311,40 +325,49 @@ class LLMSimulation(Simulation):
         """Create LLM agent with simulation parameters"""
         return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id, self.step)
 
-    def run_step(self):
+    def run_step(self, verbose_move_log: bool = False):
         """Override run_step to track LLM metrics and add timestamps"""
         step_start_time = datetime.now()
         
-        # Update total LLM metrics from all agents
+        # Sync step/run_id to agents (for accurate logging) and update total LLM metrics
         for r in range(cfg.GRID_SIZE):
             for c in range(cfg.GRID_SIZE):
                 agent = self.grid[r][c]
-                if agent is not None and hasattr(agent, 'llm_call_count'):
-                    self.total_llm_calls += agent.llm_call_count
-                    self.total_llm_time += agent.llm_call_time
-                    # Reset agent counters to avoid double counting
-                    agent.llm_call_count = 0
-                    agent.llm_call_time = 0.0
-        
+                if agent is not None:
+                    # Ensure agents know the current simulation step and run id
+                    try:
+                        agent.step = self.step
+                        agent.run_id = self.run_id
+                    except Exception:
+                        pass
+
+                    # Aggregate and reset LLM metrics if present
+                    if hasattr(agent, 'llm_call_count'):
+                        self.total_llm_calls += agent.llm_call_count
+                        self.total_llm_time += agent.llm_call_time
+                        # Reset agent counters to avoid double counting
+                        agent.llm_call_count = 0
+                        agent.llm_call_time = 0.0
+
         # Call parent run_step
-        result = super().run_step()
-        
+        result = super().run_step(verbose_move_log=verbose_move_log)
+
         # Add timestamp for step completion
         step_end_time = datetime.now()
         step_duration = (step_end_time - step_start_time).total_seconds()
-        
+
         # Only print timestamp for longer steps or periodically
-        if step_duration > 30 or (hasattr(self, 'step') and self.step % 10 == 0):
+        if step_duration > 10: # or (hasattr(self, 'step') and self.step % 10 == 0)
             print(f"[{step_end_time.strftime('%Y-%m-%d %H:%M:%S')}] Step {getattr(self, 'step', '?')} completed in {step_duration:.1f}s [run {self.run_id}]")
-        
+
         return result
 
-    def run_single_simulation(self, output_dir=None, max_steps=1000):
+    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
         print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
         
-        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=False)
+        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=show_progress)
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
