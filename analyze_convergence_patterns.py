@@ -13,6 +13,7 @@ scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
+    'economic_high_working' : "llm_economic_high_working_20250728_220134",
     'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
     'race_white_black': 'llm_race_white_black_20250718_195455'
 }
@@ -21,6 +22,7 @@ scenario_labels = {
     'baseline': 'Baseline (Control)',
     'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'income_high_low': 'Income (High/Low)',
+    'economic_high_working': 'Economic (High/Working)',
     'political_liberal_conservative': 'Political (Liberal/Conservative)',
     'race_white_black': 'Race (White/Black)'
 }
@@ -58,7 +60,7 @@ for idx, metric in enumerate(metrics):
             ci = 1.96 * std_values / np.sqrt(count_values)
             
             # Plot only up to step 100 for clarity
-            max_step = min(100, mean_values.index.max())
+            max_step = min(1000, mean_values.index.max())
             steps = mean_values.index[mean_values.index <= max_step]
             
             # Plot mean line

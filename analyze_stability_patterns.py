@@ -15,6 +15,7 @@ scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
+    'economic_high_working' : "llm_economic_high_working_20250728_220134",
     'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
     'race_white_black': 'llm_race_white_black_20250718_195455'
 }
@@ -23,6 +24,7 @@ scenario_labels = {
     'baseline': 'Baseline',
     'ethnic_asian_hispanic': 'Ethnic',
     'income_high_low': 'Income',
+    'economic_high_working': 'Economic',
     'political_liberal_conservative': 'Political',
     'race_white_black': 'Race'
 }
@@ -103,6 +105,7 @@ def analyze_stability():
             # Calculate coefficient of variation for each step
             cv_by_step = []
             steps = sorted(df['step'].unique())[:150]  # First 150 steps
+            # steps = sorted(df['step'].unique()) 
             
             for step in steps:
                 step_data = df[df['step'] == step]['share']

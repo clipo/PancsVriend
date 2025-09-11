@@ -16,24 +16,26 @@ scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
+    'economic_high_working' : "llm_economic_high_working_20250728_220134",
     'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
     'race_white_black': 'llm_race_white_black_20250718_195455'
 }
 
 scenario_labels = {
-    'baseline': 'Baseline (Red/Blue)',
+    'baseline': 'Baseline (Control)',
     'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'income_high_low': 'Economic (High/Low Income)',
+    'economic_high_working': 'Economic (High/Working)',
     'political_liberal_conservative': 'Political (Liberal/Conservative)',
     'race_white_black': 'Racial (White/Black)'
 }
 
-# Enhanced color scheme for clarity
 scenario_colors = {
     'baseline': '#666666',  # Gray for neutral
     'race_white_black': '#e74c3c',  # Red for racial
     'ethnic_asian_hispanic': '#f39c12',  # Orange for ethnic
     'income_high_low': '#27ae60',  # Green for economic
+    'economic_high_working': '#2ecc71',  # Light Green for economic
     'political_liberal_conservative': '#8e44ad'  # Purple for political
 }
 
