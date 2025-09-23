@@ -2,6 +2,7 @@
 # Contains all CONTEXT_SCENARIOS for LLM and baseline runners
 
 CONTEXT_SCENARIOS = {
+
     'baseline': {
         'type_a': 'red team resident',
         'type_b': 'blue team resident',
@@ -24,6 +25,8 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+    
     'race_white_black': {
         'type_a': 'white middle class family',
         'type_b': 'Black family',
@@ -47,6 +50,8 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+
     'ethnic_asian_hispanic': {
         'type_a': 'Asian American family',
         'type_b': 'Hispanic/Latino family',
@@ -70,9 +75,11 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+
     'income_high_low': {
         'type_a': 'high-income household',
-        'type_b': 'working-class household',
+        'type_b': 'low-income household',
         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
 You are looking at your immediate 3x3 neighborhood:
@@ -93,6 +100,8 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+
     'economic_high_working': {
         'type_a': 'high-income household',
         'type_b': 'working-class household',
@@ -116,6 +125,8 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+
     'political_liberal_conservative': {
         'type_a': 'politically liberal household',
         'type_b': 'politically conservative household',
@@ -138,5 +149,73 @@ Based on this neighborhood, do you want to move to a different position or stay 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
 Your response:"""
-    }
+    },
+
+
+    # New generic 01 context
+    '01': {
+        'type_a': 'group 0',
+        'type_b': 'group 1',
+        'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: 0 and 1.
+
+{context}
+
+Where:
+- X = Your current position (center)
+- S = neighbors who are {agent_type}s
+- O = neighbors who are {opposite_type}s
+- E = empty houses you could move to
+- # = area outside the immediate neighborhood
+
+As a member of group 0 or group 1, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
+
+IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+
+Your response:""",
+    },
+
+    # New generic AB context
+    'AB': {
+        'type_a': 'resident group A',
+        'type_b': 'resident group B',
+        'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: A and B.
+
+{context}
+
+Where:
+- X = Your current position (center)
+- S = neighbors who are {agent_type}s
+- O = neighbors who are {opposite_type}s
+- E = empty houses you could move to
+- # = area outside the immediate neighborhood
+
+As a member of group A or B, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
+
+IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+
+Your response:"""
+    },
+
+    'green_yellow': {
+        'type_a': 'green team resident',
+        'type_b': 'yellow team resident',
+        'prompt_template': """You are a {agent_type} living in a neighborhood, considering whether to move to a different house.
+
+{context}
+
+Where:
+- X = Your current position (center)
+- S = neighbors who are also {agent_type}s like you
+- O = neighbors from the {opposite_type} community  
+- E = empty houses you could move to
+- # = area outside the neighborhood
+
+As a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.
+
+Based on this neighborhood, do you want to move to a different position or stay where you are?
+
+IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+
+Your response:"""
+    },
 }
