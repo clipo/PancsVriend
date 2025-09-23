@@ -13,6 +13,7 @@ sns.set_palette("husl")
 # Define scenarios
 scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
+    'green_yellow': 'llm_green_yellow_20250912_072712',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
     'economic_high_working' : "llm_economic_high_working_20250728_220134",
@@ -22,6 +23,7 @@ scenarios = {
 
 scenario_labels = {
     'baseline': 'Baseline',
+    'green_yellow': 'Green/Yellow',
     'ethnic_asian_hispanic': 'Ethnic',
     'income_high_low': 'Income',
     'economic_high_working': 'Economic',

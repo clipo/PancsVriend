@@ -15,6 +15,7 @@ EXP_DIR.mkdir(parents=True, exist_ok=True)
 # Scenarios and labels (kept consistent with other analysis scripts)
 scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
+    'green_yellow': 'llm_green_yellow_20250912_072712',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
     'economic_high_working' : "llm_economic_high_working_20250728_220134",
@@ -24,6 +25,7 @@ scenarios = {
 
 scenario_labels = {
     'baseline': 'Baseline (Control)',
+    'green_yellow': 'Green/Yellow',
     'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'income_high_low': 'Economic (High/Low Income)',
     'economic_high_working': 'Economic (High/Working)',
@@ -33,6 +35,7 @@ scenario_labels = {
 
 scenario_colors = {
     'baseline': '#666666',  # Gray for neutral
+    'green_yellow': "#bcdb34",  # Blue for neutral
     'race_white_black': '#e74c3c',  # Red for racial
     'ethnic_asian_hispanic': '#f39c12',  # Orange for ethnic
     'income_high_low': '#27ae60',  # Green for economic

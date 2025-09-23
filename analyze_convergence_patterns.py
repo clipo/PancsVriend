@@ -11,6 +11,7 @@ sns.set_palette("husl")
 # Define scenarios and their paths
 scenarios = {
     'baseline': 'llm_baseline_20250703_101243',
+    'green_yellow': 'llm_green_yellow_20250912_072712',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
     'income_high_low': 'llm_income_high_low_20250724_154316',
     'economic_high_working' : "llm_economic_high_working_20250728_220134",
@@ -20,6 +21,7 @@ scenarios = {
 
 scenario_labels = {
     'baseline': 'Baseline (Control)',
+    'green_yellow': 'Green/Yellow',
     'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'income_high_low': 'Income (High/Low)',
     'economic_high_working': 'Economic (High/Working)',
@@ -138,8 +140,7 @@ x = np.arange(len(metrics))
 width = 0.15
 multiplier = 0
 
-for scenario_name in ['baseline', 'income_high_low', 'race_white_black', 
-                     'ethnic_asian_hispanic', 'political_liberal_conservative']:
+for scenario_name in scenarios.keys():
     if scenario_name in convergence_data:
         values = [convergence_data[scenario_name].get(metric, 0) for metric in metrics]
         offset = width * multiplier
