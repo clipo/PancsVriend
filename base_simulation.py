@@ -286,12 +286,14 @@ class Simulation:
         return output_dir, results, convergence_data
 
     @staticmethod
-    def load_results_from_output(output_dir):
+    def load_results_from_output(output_dir, force_recompute: bool = False):
         """
         Load simulation results from stored output files to feed into analyze_results function.
         
         Args:
             output_dir (str): Directory containing saved simulation outputs
+            force_recompute (bool): If True, ignore existing analysis files and rebuild
+                from raw logs/states when possible.
             
         Returns:
             tuple: (results, n_runs) where results is a list of result dictionaries
@@ -303,7 +305,7 @@ class Simulation:
         metrics_file = os.path.join(output_dir, "metrics_history.csv")
         convergence_file = os.path.join(output_dir, "convergence_summary.csv")
         
-        if os.path.exists(metrics_file) and os.path.exists(convergence_file):
+        if (not force_recompute) and os.path.exists(metrics_file) and os.path.exists(convergence_file):
             print(f"Loading existing analysis files from {output_dir}")
             
             # Load pre-computed metrics and convergence data
@@ -354,11 +356,23 @@ class Simulation:
                 max_step = move_df['step'].max() if not move_df.empty else 0
                 
                 # Check if simulation converged (look for patterns in the data)
-                # A simple heuristic: if the last few steps have no moves, it converged
-                recent_steps = move_df[move_df['step'] >= max_step - 5] if max_step >= 5 else move_df
-                recent_moves = recent_steps['moved'].sum() if not recent_steps.empty else 0
-                converged = recent_moves == 0 and max_step > 0
-                convergence_step = max_step if converged else None
+                # Use the configured NO_MOVE_THRESHOLD for the trailing window.
+                threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
+                step_moves = move_df.groupby('step')['moved'].sum() if not move_df.empty else pd.Series(dtype=int)
+                # Consider exactly the last `threshold` steps (or all if fewer)
+                if not step_moves.empty:
+                    window = step_moves.tail(threshold)
+                    # Converged if all moves are zero across the trailing window AND we had at least one step
+                    if len(window) == threshold and (window == 0).all():
+                        converged = True
+                        # Convergence step is the first step in the zero window
+                        convergence_step = window.index[0]
+                    else:
+                        converged = False
+                        convergence_step = None
+                else:
+                    converged = False
+                    convergence_step = None
                 
                 # Try to reconstruct metrics history from the move log
                 # Group by step and calculate basic metrics if available
@@ -441,12 +455,14 @@ class Simulation:
         return results, n_runs
 
     @staticmethod
-    def load_and_analyze_results(output_dir):
+    def load_and_analyze_results(output_dir, force_recompute: bool = False):
         """
         Convenience function that loads stored simulation outputs and runs analysis.
         
         Args:
             output_dir (str): Directory containing saved simulation outputs
+            force_recompute (bool): If True, ignore existing analysis files and rebuild
+                from raw logs/states when possible.
             
         Returns:
             tuple: (output_dir, results, convergence_data) from analyze_results
@@ -454,7 +470,7 @@ class Simulation:
         print(f"Loading and analyzing results from: {output_dir}")
         
         # Load the results from stored output
-        results, n_runs = Simulation.load_results_from_output(output_dir)
+        results, n_runs = Simulation.load_results_from_output(output_dir, force_recompute=force_recompute)
         
         if not results:
             raise ValueError(f"No simulation results found in {output_dir}")
