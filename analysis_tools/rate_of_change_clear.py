@@ -5,39 +5,17 @@ import seaborn as sns
 from pathlib import Path
 from scipy.signal import savgol_filter
 from matplotlib.gridspec import GridSpec
-import matplotlib.patches as mpatches
+from experiment_list_for_analysis import (
+    SCENARIOS as scenarios,
+    SCENARIO_LABELS as scenario_labels,
+    SCENARIO_COLORS as scenario_colors,
+)
 
 # Set style for clarity
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("Set2")
 
-# Define scenarios and their paths
-scenarios = {
-    'baseline': 'llm_baseline_20250703_101243',
-    'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working' : "llm_economic_high_working_20250728_220134",
-    'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
-    'race_white_black': 'llm_race_white_black_20250718_195455'
-}
-
-scenario_labels = {
-    'baseline': 'Baseline (Control)',
-    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
-    'income_high_low': 'Economic (High/Low Income)',
-    'economic_high_working': 'Economic (High/Working)',
-    'political_liberal_conservative': 'Political (Liberal/Conservative)',
-    'race_white_black': 'Racial (White/Black)'
-}
-
-scenario_colors = {
-    'baseline': '#666666',  # Gray for neutral
-    'race_white_black': '#e74c3c',  # Red for racial
-    'ethnic_asian_hispanic': '#f39c12',  # Orange for ethnic
-    'income_high_low': '#27ae60',  # Green for economic
-    'economic_high_working': '#2ecc71',  # Light Green for economic
-    'political_liberal_conservative': '#8e44ad'  # Purple for political
-}
+# Scenarios, labels, colors imported from shared module
 
 def calculate_rate_of_change(series, window=5):
     """Calculate smoothed rate of change"""
@@ -283,13 +261,15 @@ def create_clear_dynamics_visualization():
                  fontsize=16, fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig('experiments/rate_of_change_clear.png', dpi=300, bbox_inches='tight')
-    plt.savefig('experiments/rate_of_change_clear.pdf', bbox_inches='tight')
+    out_dir = Path('reports')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_dir / 'rate_of_change_clear.png', dpi=300, bbox_inches='tight')
+    plt.savefig(out_dir / 'rate_of_change_clear.pdf', bbox_inches='tight')
     
     print("Clear dynamics visualization created successfully!")
     print("\nFiles saved:")
-    print("- experiments/rate_of_change_clear.png")
-    print("- experiments/rate_of_change_clear.pdf")
+    print(f"- {out_dir / 'rate_of_change_clear.png'}")
+    print(f"- {out_dir / 'rate_of_change_clear.pdf'}")
 
 if __name__ == "__main__":
     create_clear_dynamics_visualization()

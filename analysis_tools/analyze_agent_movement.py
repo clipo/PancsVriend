@@ -284,8 +284,9 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
     }
     df_all['type_label'] = df_all['type_id'].map(type_names)
 
-    # Create per-experiment output dir
-    analysis_dir = experiment_dir / "analysis"
+    # Create per-experiment output dir under reports/movement_analysis to centralize outputs
+    base_reports = Path('reports') / 'movement_analysis'
+    analysis_dir = base_reports / experiment_dir.name
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
     # 1) P(move) by type (bar plot)

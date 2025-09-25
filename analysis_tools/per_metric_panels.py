@@ -4,44 +4,21 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 from scipy.signal import savgol_filter
+from experiment_list_for_analysis import (
+    SCENARIOS as scenarios,
+    SCENARIO_LABELS as scenario_labels,
+    SCENARIO_COLORS as scenario_colors,
+)
 
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("Set2")
 
 BASE_DIR = Path(__file__).resolve().parent
 EXP_DIR = BASE_DIR / "experiments"
-EXP_DIR.mkdir(parents=True, exist_ok=True)
+OUT_DIR = BASE_DIR / "reports"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Scenarios and labels (kept consistent with other analysis scripts)
-scenarios = {
-    'baseline': 'llm_baseline_20250703_101243',
-    'green_yellow': 'llm_green_yellow_20250912_072712',
-    'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working' : "llm_economic_high_working_20250728_220134",
-    'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
-    'race_white_black': 'llm_race_white_black_20250718_195455'
-}
-
-scenario_labels = {
-    'baseline': 'Baseline (Control)',
-    'green_yellow': 'Green/Yellow',
-    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
-    'income_high_low': 'Economic (High/Low Income)',
-    'economic_high_working': 'Economic (High/Working)',
-    'political_liberal_conservative': 'Political (Liberal/Conservative)',
-    'race_white_black': 'Racial (White/Black)'
-}
-
-scenario_colors = {
-    'baseline': '#666666',  # Gray for neutral
-    'green_yellow': "#bcdb34",  # Blue for neutral
-    'race_white_black': '#e74c3c',  # Red for racial
-    'ethnic_asian_hispanic': '#f39c12',  # Orange for ethnic
-    'income_high_low': '#27ae60',  # Green for economic
-    'economic_high_working': '#2ecc71',  # Light Green for economic
-    'political_liberal_conservative': '#8e44ad'  # Purple for political
-}
+# Scenarios, labels, colors imported from shared module
 
 metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
 metric_labels = {
@@ -184,8 +161,8 @@ def make_metric_panel(metric: str, data_by_scenario: dict):
     plt.tight_layout(rect=[0, 0.02, 1, 0.95])
 
     # Save
-    out_png = EXP_DIR / f"metric_panel_{metric}.png"
-    out_pdf = EXP_DIR / f"metric_panel_{metric}.pdf"
+    out_png = OUT_DIR / f"metric_panel_{metric}.png"
+    out_pdf = OUT_DIR / f"metric_panel_{metric}.pdf"
     fig.savefig(str(out_png), dpi=300, bbox_inches='tight')
     fig.savefig(str(out_pdf), bbox_inches='tight')
     plt.close(fig)

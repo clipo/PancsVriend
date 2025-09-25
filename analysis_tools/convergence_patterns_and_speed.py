@@ -3,31 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
+from experiment_list_for_analysis import (
+    SCENARIOS as scenarios,
+    SCENARIO_LABELS as scenario_labels,
+)
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
-# Define scenarios and their paths
-scenarios = {
-    'baseline': 'llm_baseline_20250703_101243',
-    'green_yellow': 'llm_green_yellow_20250912_072712',
-    'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working' : "llm_economic_high_working_20250728_220134",
-    'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
-    'race_white_black': 'llm_race_white_black_20250718_195455'
-}
-
-scenario_labels = {
-    'baseline': 'Baseline (Control)',
-    'green_yellow': 'Green/Yellow',
-    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
-    'income_high_low': 'Income (High/Low)',
-    'economic_high_working': 'Economic (High/Working)',
-    'political_liberal_conservative': 'Political (Liberal/Conservative)',
-    'race_white_black': 'Race (White/Black)'
-}
+# Scenarios and labels are imported from shared module
 
 # Create figure for time series
 fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -84,8 +69,10 @@ for idx, metric in enumerate(metrics):
 plt.suptitle('Convergence Patterns of Segregation Metrics Across Scenarios', 
              fontsize=16, fontweight='bold', y=0.98)
 plt.tight_layout()
-plt.savefig('experiments/convergence_patterns.png', dpi=300, bbox_inches='tight')
-plt.savefig('experiments/convergence_patterns.pdf', bbox_inches='tight')
+OUT_DIR = Path('reports')
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+plt.savefig(OUT_DIR / 'convergence_patterns.png', dpi=300, bbox_inches='tight')
+plt.savefig(OUT_DIR / 'convergence_patterns.pdf', bbox_inches='tight')
 
 # Calculate convergence speed (steps to reach 90% of final value)
 print("\nCONVERGENCE ANALYSIS:")
@@ -156,9 +143,9 @@ ax2.legend(loc='upper right')
 ax2.grid(True, alpha=0.3, axis='y')
 
 plt.tight_layout()
-plt.savefig('experiments/convergence_speed_comparison.png', dpi=300, bbox_inches='tight')
-plt.savefig('experiments/convergence_speed_comparison.pdf', bbox_inches='tight')
+plt.savefig(OUT_DIR / 'convergence_speed_comparison.png', dpi=300, bbox_inches='tight')
+plt.savefig(OUT_DIR / 'convergence_speed_comparison.pdf', bbox_inches='tight')
 
 print("\n\nFigures saved to:")
-print("  - experiments/convergence_patterns.png")
-print("  - experiments/convergence_speed_comparison.png")
+print(f"  - {OUT_DIR / 'convergence_patterns.png'}")
+print(f"  - {OUT_DIR / 'convergence_speed_comparison.png'}")

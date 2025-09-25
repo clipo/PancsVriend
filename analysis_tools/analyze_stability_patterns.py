@@ -3,33 +3,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-from scipy import stats
-import matplotlib.patches as mpatches
+# from scipy import stats  # unused
+# import matplotlib.patches as mpatches  # unused
+from analysis_tools.experiment_list_for_analysis import (
+    SCENARIOS as scenarios,
+    SCENARIO_LABELS as scenario_labels,
+)
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
-# Define scenarios
-scenarios = {
-    'baseline': 'llm_baseline_20250703_101243',
-    'green_yellow': 'llm_green_yellow_20250912_072712',
-    'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working' : "llm_economic_high_working_20250728_220134",
-    'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
-    'race_white_black': 'llm_race_white_black_20250718_195455'
-}
-
-scenario_labels = {
-    'baseline': 'Baseline',
-    'green_yellow': 'Green/Yellow',
-    'ethnic_asian_hispanic': 'Ethnic',
-    'income_high_low': 'Income',
-    'economic_high_working': 'Economic',
-    'political_liberal_conservative': 'Political',
-    'race_white_black': 'Race'
-}
+# scenarios and labels now imported from centralized module
 
 def calculate_stability_score(df, metric, window=10):
     """Calculate stability score based on variance in rolling windows"""
@@ -94,7 +79,9 @@ def analyze_stability():
     
     plt.suptitle('Stability Analysis: How Consistent Are Segregation Patterns?', fontsize=16, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('experiments/stability_analysis.png', dpi=300, bbox_inches='tight')
+    out_dir = Path('reports')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_dir / 'stability_analysis.png', dpi=300, bbox_inches='tight')
     
     # Create trajectory variance plot
     fig2, ax = plt.subplots(figsize=(12, 8))
@@ -127,7 +114,7 @@ def analyze_stability():
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('experiments/trajectory_variance.png', dpi=300, bbox_inches='tight')
+    plt.savefig(out_dir / 'trajectory_variance.png', dpi=300, bbox_inches='tight')
     
     print("\nSTABILITY ANALYSIS SUMMARY")
     print("=" * 60)

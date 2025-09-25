@@ -5,40 +5,18 @@ import seaborn as sns
 from pathlib import Path
 from scipy import stats
 from scipy.signal import savgol_filter
-import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
+from experiment_list_for_analysis import (
+    SCENARIOS as scenarios,
+    SCENARIO_LABELS as scenario_labels,
+    SCENARIO_COLORS as scenario_colors,
+)
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
-# Define scenarios and their paths
-scenarios = {
-    'baseline': 'llm_baseline_20250703_101243',
-    'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working' : "llm_economic_high_working_20250728_220134",
-    'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
-    'race_white_black': 'llm_race_white_black_20250718_195455'
-}
-
-scenario_labels = {
-    'baseline': 'Baseline (Control)',
-    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
-    'income_high_low': 'Economic (High/Low Income)',
-    'economic_high_working': 'Economic (High/Working)',
-    'political_liberal_conservative': 'Political (Liberal/Conservative)',
-    'race_white_black': 'Racial (White/Black)'
-}
-
-scenario_colors = {
-    'baseline': '#666666',  # Gray for neutral
-    'race_white_black': '#e74c3c',  # Red for racial
-    'ethnic_asian_hispanic': '#f39c12',  # Orange for ethnic
-    'income_high_low': '#27ae60',  # Green for economic
-    'economic_high_working': '#2ecc71',  # Light Green for economic
-    'political_liberal_conservative': '#8e44ad'  # Purple for political
-}
+# Scenarios, labels, and colors imported from shared module
 
 def calculate_rate_of_change(series, window=5):
     """Calculate smoothed rate of change"""
@@ -84,8 +62,7 @@ def analyze_dynamics():
     
     # Calculate average rate of change for each metric/scenario
     roc_matrix = []
-    scenario_order = ['income_high_low', 'baseline', 'race_white_black', 
-                     'ethnic_asian_hispanic', 'political_liberal_conservative']
+    scenario_order = list(scenarios.keys())
     
     for scenario in scenario_order:
         if scenario in all_data:
@@ -219,8 +196,10 @@ def analyze_dynamics():
     
     plt.suptitle('Dynamics of Segregation: How Different Contexts Evolve', fontsize=18, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('experiments/rate_of_change_analysis.png', dpi=300, bbox_inches='tight')
-    plt.savefig('experiments/rate_of_change_analysis.pdf', bbox_inches='tight')
+    out_dir = Path('reports')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_dir / 'rate_of_change_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig(out_dir / 'rate_of_change_analysis.pdf', bbox_inches='tight')
     
     # Additional Analysis: Phase Transitions
     fig2, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -265,8 +244,8 @@ def analyze_dynamics():
     
     plt.suptitle('Phase Transitions: When Segregation Patterns Shift', fontsize=16, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('experiments/phase_transitions_analysis.png', dpi=300, bbox_inches='tight')
-    plt.savefig('experiments/phase_transitions_analysis.pdf', bbox_inches='tight')
+    plt.savefig(out_dir / 'phase_transitions_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig(out_dir / 'phase_transitions_analysis.pdf', bbox_inches='tight')
     
     # Summary Statistics
     print("\nRATE OF CHANGE ANALYSIS SUMMARY")
@@ -296,4 +275,4 @@ def analyze_dynamics():
 
 if __name__ == "__main__":
     analyze_dynamics()
-    print("\nAnalysis complete! Check experiments/ folder for visualizations.")
+    print("\nAnalysis complete! Check reports/ folder for visualizations.")
