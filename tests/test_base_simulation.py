@@ -132,7 +132,7 @@ def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
     # Run load_and_analyze_results (should call analyze_results under the hood)
     output_dir = tmp_path / "integration"
     os.makedirs(output_dir)
-    out_dir, out_results, out_conv = Simulation.load_and_analyze_results(str(output_dir))
+    out_dir, out_results, out_conv = Simulation.load_and_analyze_results(output_dir=str(output_dir))
 
     # Check output files
     assert (output_dir / 'metrics_history.csv').exists(), "metrics_history.csv missing after integration"
