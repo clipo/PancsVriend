@@ -12,6 +12,11 @@ from context_scenarios import CONTEXT_SCENARIOS
 import argparse
 from base_simulation import Simulation
 from multiprocessing import Pool, cpu_count
+import pandas as pd
+import ast
+import glob
+import re
+import gzip
 
 def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10, max_retries=5):
     """
@@ -302,7 +307,8 @@ def llm_decision_function(agent, r, c, grid):
     return agent.get_llm_decision(r, c, grid)
 
 class LLMSimulation(Simulation):
-    def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None):
+    def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
+                 initial_int_grid=None, initial_step=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
@@ -314,7 +320,9 @@ class LLMSimulation(Simulation):
             agent_factory=self._create_llm_agent, 
             decision_func=llm_decision_function, 
             scenario=scenario,
-            random_seed=random_seed
+            random_seed=random_seed,
+            initial_int_grid=initial_int_grid,
+            initial_step=initial_step
         )
         
         # Track LLM metrics across all agents
@@ -376,10 +384,21 @@ class LLMSimulation(Simulation):
         return result
 
 def run_single_simulation(args):
-    """Run a single LLM simulation - compatible with baseline_runner structure"""
-    run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args
-    sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key)
-    result = sim.run_single_simulation(output_dir=output_dir, max_steps=1000)
+    """Run a single LLM simulation - compatible with baseline_runner structure.
+    Supports optional resume seeds and max_steps.
+    Args tuples supported:
+      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir)
+      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps)
+      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, initial_int_grid, initial_step)
+    """
+    run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args[:6]
+    max_steps = args[6] if len(args) >= 7 and args[6] is not None else 1000
+    initial_int_grid = args[7] if len(args) >= 8 else None
+    initial_step = args[8] if len(args) >= 9 else None
+
+    sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
+                        initial_int_grid=initial_int_grid, initial_step=initial_step)
+    result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps)
     
     # Add LLM-specific metrics to the result
     result.update({
@@ -388,6 +407,79 @@ def run_single_simulation(args):
         'avg_llm_call_time': sim.total_llm_time / max(sim.total_llm_calls, 1),
     })
     return result
+
+def _analyze_run_status(output_dir, run_id, max_steps):
+    """Classify a run by inspecting logs and extract resume seeds if needed.
+    Returns dict with keys: status in {'converged','reached_max','aborted','missing'},
+    last_step (int or None), next_step (int or None), seed_grid (2D list or None).
+    """
+    move_csv = os.path.join(output_dir, "move_logs", f"agent_moves_run_{run_id}.csv")
+    states_npz = os.path.join(output_dir, "states", f"states_run_{run_id}.npz")
+
+    if os.path.exists(move_csv):
+        try:
+            df = pd.read_csv(move_csv)
+        except Exception:
+            df = pd.DataFrame()
+        last_step = int(df['step'].max()) if (not df.empty and 'step' in df.columns) else -1
+        step_moves = df.groupby('step')['moved'].sum() if (not df.empty and 'moved' in df.columns) else pd.Series(dtype=int)
+        threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
+        converged = False
+        convergence_step = None
+        if not step_moves.empty:
+            window = step_moves.tail(threshold)
+            if len(window) == threshold and (window == 0).all():
+                converged = True
+                convergence_step = int(window.index[0])
+        reached_max = (last_step + 1) >= max_steps if last_step >= 0 else False
+
+        status = 'converged' if converged else ('reached_max' if reached_max else 'aborted')
+
+        # Extract last grid snapshot for resuming aborted runs
+        seed_grid = None
+        next_step = None
+        if status == 'aborted':
+            if 'grid' in df.columns and not df.empty:
+                try:
+                    raw = df.iloc[-1]['grid']
+                    if isinstance(raw, str):
+                        seed_grid = ast.literal_eval(raw)
+                    else:
+                        seed_grid = raw
+                except Exception:
+                    seed_grid = None
+            if seed_grid is None and os.path.exists(states_npz):
+                try:
+                    data = np.load(states_npz)
+                    arr = data['states']
+                    if len(arr) > 0:
+                        seed_grid = arr[-1].tolist()
+                except Exception:
+                    seed_grid = None
+            next_step = (last_step + 1) if last_step is not None and last_step >= 0 else None
+
+        return {
+            'status': status,
+            'last_step': None if last_step < 0 else last_step,
+            'next_step': next_step,
+            'seed_grid': seed_grid,
+            'convergence_step': convergence_step if converged else None
+        }
+
+    # No move log; try states as existence indicator
+    if os.path.exists(states_npz):
+        # Without move log, we can't infer steps reliably; treat as aborted with last grid
+        seed_grid = None
+        try:
+            data = np.load(states_npz)
+            arr = data['states']
+            if len(arr) > 0:
+                seed_grid = arr[-1].tolist()
+        except Exception:
+            seed_grid = None
+        return {'status': 'aborted', 'last_step': None, 'next_step': None, 'seed_grid': seed_grid, 'convergence_step': None}
+
+    return {'status': 'missing', 'last_step': None, 'next_step': None, 'seed_grid': None, 'convergence_step': None}
     
 def list_available_experiments():
     """List all available experiments that can be resumed"""
@@ -524,45 +616,6 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         if existing_run_ids:
             print(f"   Existing run IDs: {sorted(existing_run_ids)}")
         
-        if completed_runs >= n_runs:
-            print(f"⚠️  Experiment already complete! ({completed_runs}/{n_runs} runs)")
-            print("Loading existing results...")
-            # Load and return existing results
-            import glob
-            # Try different result file patterns
-            patterns_to_check = [
-                os.path.join(output_dir, "run_*.json.gz"),
-                os.path.join(output_dir, "states", "states_run_*.npz"),
-                os.path.join(output_dir, "states_run_*.npz"),
-            ]
-            
-            result_files = []
-            for pattern in patterns_to_check:
-                files = glob.glob(pattern)
-                if files:
-                    result_files = files
-                    break
-            
-            results = []
-            for result_file in sorted(result_files):
-                if result_file.endswith('.json.gz'):
-                    import gzip
-                    with gzip.open(result_file, 'rt') as f:
-                        results.append(json.load(f))
-                elif result_file.endswith('.npz'):
-                    # For .npz files, create a minimal result structure
-                    # Extract run number from filename
-                    import re
-                    match = re.search(r'run_(\d+)', result_file)
-                    run_id = int(match.group(1)) if match else 0
-                    results.append({
-                        'run_id': run_id,
-                        'converged': True,  # Assume converged if file exists
-                        'final_step': 'unknown',
-                        'file_path': result_file
-                    })
-            return output_dir, results
-        
         # Load existing config to match original parameters
         config_file = os.path.join(output_dir, "config.json")
         if os.path.exists(config_file):
@@ -571,45 +624,65 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
                 # Use original experiment parameters if not explicitly overridden
                 scenario = existing_config.get('scenario', scenario)
                 max_steps = existing_config.get('max_steps', max_steps)
+                orig_runs = existing_config.get('n_runs')
+                if orig_runs is not None and orig_runs != n_runs:
+                    print(f"📝 Updating config n_runs from {orig_runs} to {n_runs} to match CLI")
+                    existing_config['n_runs'] = n_runs
+                    try:
+                        with open(config_file, 'w') as fw:
+                            json.dump(existing_config, fw, indent=2)
+                    except Exception as e:
+                        print(f"Warning: failed to update config.json: {e}")
                 print("📋 Resuming with original experiment parameters:")
                 print(f"   Scenario: {scenario}")
                 print(f"   Max steps: {max_steps}")
         
-        remaining_runs = n_runs - completed_runs
-        print(f"🔄 Resuming experiment: {remaining_runs} runs remaining ({completed_runs}/{n_runs} completed)")
-        
-        # Generate missing run IDs to fill gaps
-        missing_run_ids = []
-        for i in range(n_runs):
-            if i not in existing_run_ids:
-                missing_run_ids.append(i)
-        
-        # Take only the number of missing runs we need
-        missing_run_ids = missing_run_ids[:remaining_runs]
-        
+        # Plan and classify all target run IDs
+        planned_run_ids = list(range(n_runs))
+        statuses = {}
+        for rid in planned_run_ids:
+            statuses[rid] = _analyze_run_status(output_dir, rid, max_steps)
+
+        completed_ids = [rid for rid, s in statuses.items() if s['status'] in ('converged', 'reached_max')]
+        aborted_items = [(rid, s) for rid, s in statuses.items() if s['status'] == 'aborted']
+        missing_run_ids = [rid for rid, s in statuses.items() if s['status'] == 'missing']
+
+        print(f"   Classified runs → completed: {len(completed_ids)}, aborted: {len(aborted_items)}, missing: {len(missing_run_ids)}")
+        print(f"     Aborted IDs: {[rid for rid,_ in aborted_items]}, Missing IDs: {missing_run_ids}")
+
+        if len(completed_ids) >= n_runs and not aborted_items and not missing_run_ids:
+            print(f"⚠️  Experiment already complete! ({len(completed_ids)}/{n_runs} runs)")
+            print("Loading existing results...")
+            # Load analysis from stored outputs for accurate results
+            out_dir, results, convergence_data = Simulation.load_and_analyze_results(output_dir, force_recompute=False)
+            return out_dir, results
+
+        # Prepare args: aborted runs (resume) first, then missing runs (new)
+        args_list = []
+        for rid, s in aborted_items:
+            seed_grid = s.get('seed_grid')
+            next_step = s.get('next_step')
+            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, seed_grid, next_step))
+        if aborted_items:
+            print(f"   Will resume aborted run IDs first: {[rid for rid,_ in aborted_items]}")
         if missing_run_ids:
             print(f"   Will execute missing run IDs: {missing_run_ids}")
-            
-        # Check for any gaps that would be filled (only if we have existing runs)
-        if existing_run_ids:
-            gaps_filled = [run_id for run_id in missing_run_ids if run_id < max(existing_run_ids)]
-            if gaps_filled:
-                print(f"   Filling gaps in run sequence: {gaps_filled}")
-            
-            # Check if we're extending beyond existing runs
-            extensions = [run_id for run_id in missing_run_ids if run_id > max(existing_run_ids)]
-            if extensions:
-                print(f"   Adding new runs beyond existing: {extensions}")
+        for rid in missing_run_ids:
+            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps))
+
+        runs_to_execute = len(args_list)
+        remaining_runs = runs_to_execute
     else:
         completed_runs = 0
-        remaining_runs = n_runs
         existing_run_ids = set()
-        missing_run_ids = list(range(n_runs))
         # Create output directory for new experiment
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"llm_{scenario}_{timestamp}"
         output_dir = f"experiments/{experiment_name}"
         os.makedirs(output_dir, exist_ok=True)
+        remaining_runs = n_runs
+        # Generate args list for new experiment
+        args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps) for i in range(n_runs)]
     
     # Check LLM connection first with potentially custom parameters
     if not check_llm_connection(llm_model, llm_url, llm_api_key):
@@ -639,14 +712,6 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         
         with open(f"{output_dir}/config.json", 'w') as f:
             json.dump(config_dict, f, indent=2)
-    
-    # Generate args list for remaining runs
-    if resume_experiment:
-        # For resumed experiments, use the missing run IDs to fill gaps
-        args_list = [(run_id, scenario, llm_model, llm_url, llm_api_key, output_dir) for run_id in missing_run_ids]
-    else:
-        # For new experiments, start from run 0
-        args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir) for i in range(n_runs)]
     
     # Determine number of processes to use
     runs_to_execute = remaining_runs if resume_experiment else n_runs
@@ -685,7 +750,6 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     # Load existing results if resuming
     if resume_experiment and completed_runs > 0:
         print(f"Loading {completed_runs} existing results...")
-        import glob
         # Try different result file patterns
         patterns_to_check = [
             os.path.join(output_dir, "run_*.json.gz"),
@@ -700,26 +764,35 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
                 existing_result_files = files
                 break
         
+        # Load existing results and filter out run_ids that were just re-executed
+        newly_executed_run_ids = {r['run_id'] for r in results}
+        
         existing_results = []
         for result_file in sorted(existing_result_files):
             if result_file.endswith('.json.gz'):
-                import gzip
                 with gzip.open(result_file, 'rt') as f:
-                    existing_results.append(json.load(f))
+                    result = json.load(f)
+                    # Skip if this run was just re-executed (avoids duplicates)
+                    if result.get('run_id') not in newly_executed_run_ids:
+                        existing_results.append(result)
             elif result_file.endswith('.npz'):
                 # For .npz files, create a minimal result structure
                 # Extract run number from filename
-                import re
                 match = re.search(r'run_(\d+)', result_file)
                 run_id = int(match.group(1)) if match else 0
-                existing_results.append({
-                    'run_id': run_id,
-                    'converged': True,  # Assume converged if file exists
-                    'final_step': 'unknown',
-                    'file_path': result_file
-                })
+                
+                # Skip if this run was just re-executed (avoids duplicates)
+                if run_id not in newly_executed_run_ids:
+                    existing_results.append({
+                        'run_id': run_id,
+                        'converged': True,  # Assume converged if file exists
+                        'convergence_step': None,  # Unknown from .npz file alone
+                        'final_step': 'unknown',
+                        'metrics_history': [],  # Empty metrics for .npz files
+                        'file_path': result_file
+                    })
         
-        # Combine existing and new results
+        # Combine existing and new results (no duplicates now)
         all_results = existing_results + results
         total_runs = len(all_results)
         print(f"Combined {len(existing_results)} existing + {len(results)} new = {total_runs} total results")

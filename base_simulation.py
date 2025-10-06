@@ -9,7 +9,8 @@ import pandas as pd
 from tqdm import tqdm
 
 class Simulation:
-    def __init__(self, run_id, agent_factory, decision_func, scenario='baseline', random_seed=None):
+    def __init__(self, run_id, agent_factory, decision_func, scenario='baseline', random_seed=None,
+                 initial_int_grid=None, initial_step=None):
         self.run_id = run_id
         self.scenario = scenario
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
@@ -29,11 +30,35 @@ class Simulation:
         if self.random_seed is None:
             np.random.seed(None)
 
-        self.populate_grid()
+        # Initialize grid either randomly or from a provided int grid (resume)
+        if initial_int_grid is not None:
+            self.populate_from_int_grid(initial_int_grid)
+            # Allow resuming at a specified step (next step index)
+            if initial_step is not None:
+                try:
+                    self.step = int(initial_step)
+                except Exception:
+                    pass
+        else:
+            self.populate_grid()
         # Save the initial grid state after population
         self.log_state_per_move()
         # Log a dummy "move" to record their initial state
         self.log_agent_move(None, None, None, None, False, None, 'initial_state', verbose_move_log=False)
+
+    def populate_from_int_grid(self, int_grid):
+        """Populate grid from a 2D numpy/list of ints (-1 empty, 0/1 type ids)."""
+        arr = np.array(int_grid)
+        assert arr.shape == (cfg.GRID_SIZE, cfg.GRID_SIZE), "initial_int_grid shape mismatch"
+        for r in range(cfg.GRID_SIZE):
+            for c in range(cfg.GRID_SIZE):
+                t = int(arr[r, c])
+                if t >= 0:
+                    agent = self.agent_factory(t)
+                    self.grid[r][c] = agent
+                    agent.starting_position = (r, c)
+                    agent.position_history = [(r, c)]
+                    agent.new_position = None
 
     def populate_grid(self):
         agents = [self.agent_factory(type_id) for type_id in ([0] * cfg.NUM_TYPE_A + [1] * cfg.NUM_TYPE_B)]
@@ -249,6 +274,35 @@ class Simulation:
     def log_state_per_move(self):
         """Save current grid state after a move."""
         self.states.append(self._grid_to_int())
+
+    # --- Resume helpers ---
+    def set_state_from_int_grid(self, int_grid, step=None):
+        """Set the current simulation grid from a 2D array/list of ints and optionally the next step.
+
+        int_grid: shape (GRID_SIZE, GRID_SIZE); -1 empty, otherwise type_id
+        step: if provided, sets self.step to this (the next step index)
+        """
+        if int_grid is None:
+            return
+        arr = np.array(int_grid)
+        if arr.shape != (cfg.GRID_SIZE, cfg.GRID_SIZE):
+            raise ValueError("int_grid shape mismatch with GRID_SIZE")
+        # Clear grid
+        self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
+        for r in range(cfg.GRID_SIZE):
+            for c in range(cfg.GRID_SIZE):
+                t = int(arr[r, c])
+                if t >= 0:
+                    agent = self.agent_factory(t)
+                    self.grid[r][c] = agent
+                    agent.starting_position = (r, c)
+                    agent.position_history = [(r, c)]
+                    agent.new_position = None
+        if step is not None:
+            try:
+                self.step = int(step)
+            except Exception:
+                pass
 
     @staticmethod
     def analyze_results(results, output_dir, n_runs):   
@@ -470,7 +524,16 @@ class Simulation:
         print(f"Loading and analyzing results from: {output_dir}")
         
         # Load the results from stored output
-        results, n_runs = Simulation.load_results_from_output(output_dir, force_recompute=force_recompute)
+        # Be robust to monkeypatched or older signatures that don't accept force_recompute
+        try:
+            results, n_runs = Simulation.load_results_from_output(output_dir, force_recompute=force_recompute)
+        except TypeError:
+            try:
+                # Try positional in case only positional args are supported
+                results, n_runs = Simulation.load_results_from_output(output_dir, force_recompute)
+            except TypeError:
+                # Fall back to legacy call with only output_dir
+                results, n_runs = Simulation.load_results_from_output(output_dir)
         
         if not results:
             raise ValueError(f"No simulation results found in {output_dir}")
