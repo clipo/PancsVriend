@@ -20,43 +20,51 @@ from __future__ import annotations
 # Canonical scenario -> experiment folder mapping
 SCENARIOS = {
     # Baselines
-    'baseline': 'llm_baseline_20250703_101243',
+    # 'baseline': 'llm_baseline_20250703_101243',
     'llm_baseline': 'llm_baseline_20250703_101243',
     'mech_baseline': 'baseline_20250729_174459',
 
     # Social contexts
     'green_yellow': 'llm_green_yellow_20250912_072712',
     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20250713_221759',
-    # 'income_high_low': 'llm_income_high_low_20250724_154316',
-    'economic_high_working': 'llm_economic_high_working_20250728_220134',
+    'income_high_low': 'llm_income_high_low_20251006_150254',
+    # 'economic_high_working': 'llm_economic_high_working_20250728_220134',
     'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
     'race_white_black': 'llm_race_white_black_20250718_195455',
 }
 
 # Human-friendly labels for plots
 SCENARIO_LABELS = {
-    'baseline': 'Baseline (Control)',
+    # 'baseline': 'Baseline (Control)',
     'llm_baseline': 'LLM Baseline',
     'mech_baseline': 'Mechanical Baseline',
-    'green_yellow': 'Green/Yellow',
-    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
-    # 'income_high_low': 'Economic (High/Low Income)',
-    'economic_high_working': 'Economic (High/Working)',
     'political_liberal_conservative': 'Political (Liberal/Conservative)',
+    'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'race_white_black': 'Racial (White/Black)',
+    'income_high_low': 'Economic (High/Low Income)',
+    # 'economic_high_working': 'Economic (High/Working)',
+    'green_yellow': 'Green/Yellow',
 }
-
+SCENARIO_ORDER = [
+    'mech_baseline',
+    'llm_baseline',
+    'green_yellow',
+    'political_liberal_conservative',
+    'race_white_black',
+    'ethnic_asian_hispanic',
+    # 'economic_high_working',
+    'income_high_low',
+]
 # Consistent colors for scenarios (hex codes)
 SCENARIO_COLORS = {
-    'baseline': '#666666',                    # Gray for neutral baseline
-    'llm_baseline': '#7f8c8d',                # Slate gray
-    'mech_baseline': '#4d4d4d',               # Darker gray
-    'green_yellow': '#16a085',                # Teal/green
-    'ethnic_asian_hispanic': '#f39c12',       # Orange
-    # 'income_high_low': '#27ae60',             # Green
-    'economic_high_working': '#2ecc71',       # Light green
-    'political_liberal_conservative': '#8e44ad',  # Purple
-    'race_white_black': '#e74c3c',            # Red
+    'mech_baseline': '#34495E',       # Dark slate - contrasts with LLM baseline
+    'llm_baseline': '#95A5A6',        # Light gray - neutral baseline
+    'green_yellow': '#27AE60',        # Emerald green - vibrant, nature-inspired
+    'political_liberal_conservative': '#E67E22', # Warm orange - distinctive, accessible
+    'race_white_black': '#E74C3C',    # Vivid red - high contrast, attention-grabbing
+    'ethnic_asian_hispanic': '#9B59B6', # Purple - distinct from red/blue politics
+    # 'economic_high_working': '#3498DB', # Bright blue - professional, clear
+    'income_high_low': '#3498DB', # Bright blue - professional, clear
 }
 
 # ---------------------------------------------------------------------------
@@ -197,7 +205,7 @@ def _parse_args_and_run():
     p.add_argument('--quiet', action='store_true', help='Suppress verbose step output.')
     args = p.parse_args()
     run_all_analyses(
-        recompute=args.no_recompute,
+        recompute=not args.no_recompute,
         movement_only=args.movement_only,
         include_movement=args.include_movement,
         verbose=not args.quiet,
