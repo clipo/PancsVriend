@@ -2,15 +2,33 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy import stats
 from pathlib import Path
 from experiment_list_for_analysis import (
-    SCENARIO_LABELS as scenario_labels,
+    SCENARIO_ORDER,
+    SCENARIO_LABELS,
+    SCENARIO_COLORS,
 )
 
-# Set style
-plt.style.use('seaborn-v0_8-darkgrid')
-sns.set_palette("husl")
+# Publication-ready style
+sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+plt.rcParams.update({
+    "figure.dpi": 120,
+    "savefig.dpi": 300,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.titleweight": "normal",
+    "axes.labelsize": 14,
+    "axes.titlesize": 18,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+    "legend.fontsize": 12,
+    "figure.titlesize": 18,
+    "axes.labelpad": 6,
+    "xtick.major.pad": 4,
+    "ytick.major.pad": 4,
+})
 
 # Load combined results from reports
 OUT_DIR = Path('reports')
@@ -30,78 +48,80 @@ metric_labels = {
 }
 
 # Create figure with subplots for each metric
-fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 axes = axes.flatten()
 
 metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
 
 for idx, metric in enumerate(metrics):
     ax = axes[idx]
-    
-    # Prepare data for plotting
+
+    # Prepare data and order
     plot_data = []
     plot_labels = []
-    
-    for scenario in scenario_labels.keys():
-        scenario_data = combined_df[combined_df['scenario'] == scenario][metric].values
-        if len(scenario_data) > 0:
-            plot_data.append(scenario_data)
-            plot_labels.append(scenario_labels[scenario])
-    
-    # Create violin plot with box plot overlay
-    parts = ax.violinplot(plot_data, positions=range(len(plot_labels)), 
-                         showmeans=True, showmedians=True, showextrema=False)
-    
-    # Customize violin plots
-    for pc in parts['bodies']:
-        pc.set_alpha(0.6)
-    
-    # Add box plots on top
-    bp = ax.boxplot(plot_data, positions=range(len(plot_labels)), 
-                    widths=0.15, patch_artist=True, showfliers=False)
-    
-    # Color box plots
-    colors = sns.color_palette("husl", len(plot_labels))
-    for patch, color in zip(bp['boxes'], colors):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.8)
-    
-    # Customize plot
-    ax.set_xticks(range(len(plot_labels)))
-    ax.set_xticklabels(plot_labels, rotation=45, ha='right')
-    ax.set_ylabel(metric_labels[metric])
-    ax.set_title(f'{metric_labels[metric]} by Scenario', fontsize=12, fontweight='bold')
-    
-    # Add grid
-    ax.yaxis.grid(True, alpha=0.3)
-    
-    # Add significance indicators
-    if metric in ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']:
-        # Perform pairwise t-tests against baseline
-        baseline_data = combined_df[combined_df['scenario'] == 'baseline'][metric].values
-        y_max = ax.get_ylim()[1]
-        
-        for i, scenario in enumerate(['ethnic_asian_hispanic', 'income_high_low', 
-                                     'political_liberal_conservative', 'race_white_black']):
-            if scenario in combined_df['scenario'].values:
-                scenario_data = combined_df[combined_df['scenario'] == scenario][metric].values
-                if len(scenario_data) > 0 and len(baseline_data) > 0:
-                    _, p_value = stats.ttest_ind(baseline_data, scenario_data)
-                    if p_value < 0.001:
-                        ax.text(i+1, y_max * 0.95, '***', ha='center', va='bottom', fontsize=10)
-                    elif p_value < 0.01:
-                        ax.text(i+1, y_max * 0.95, '**', ha='center', va='bottom', fontsize=10)
-                    elif p_value < 0.05:
-                        ax.text(i+1, y_max * 0.95, '*', ha='center', va='bottom', fontsize=10)
+    plot_keys = []
 
-plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', 
-             fontsize=16, fontweight='bold', y=0.98)
+    # Follow canonical scenario order from experiment list
+    for scenario in SCENARIO_ORDER:
+        vals = combined_df[combined_df['scenario'] == scenario][metric].values
+        if len(vals) > 0:
+            plot_data.append(vals)
+            plot_labels.append(SCENARIO_LABELS[scenario])
+            plot_keys.append(scenario)
+
+    positions = np.arange(len(plot_labels))
+
+    # Violin plot
+    parts = ax.violinplot(plot_data, positions=positions,
+                          showmeans=False, showmedians=False, showextrema=False)
+    for i, pc in enumerate(parts['bodies']):
+        col = SCENARIO_COLORS.get(plot_keys[i], '#999999')
+        pc.set_facecolor(col)
+        pc.set_edgecolor(col)
+        pc.set_alpha(0.35)
+        pc.set_linewidth(1.0)
+
+    # Box plot overlay
+    bp = ax.boxplot(plot_data, positions=positions,
+                    widths=0.18, patch_artist=True, showfliers=False)
+    for i, patch in enumerate(bp['boxes']):
+        col = SCENARIO_COLORS.get(plot_keys[i], '#999999')
+        patch.set_facecolor(col)
+        patch.set_edgecolor(col)
+        patch.set_alpha(0.65)
+        patch.set_linewidth(1.0)
+    for i, med in enumerate(bp['medians']):
+        med.set_color('black')
+        med.set_linewidth(1.2)
+    for wl in bp['whiskers']:
+        wl.set_color('#777777')
+        wl.set_linewidth(1.0)
+    for cap in bp['caps']:
+        cap.set_color('#777777')
+        cap.set_linewidth(1.0)
+
+    # Axes formatting
+    ax.set_xticks(positions)
+    if idx < 3:
+        # Top row: hide x tick labels to avoid repetition
+        ax.set_xticklabels([])
+        ax.tick_params(axis='x', which='both', length=0, labelbottom=False)
+    else:
+        # Bottom row: show scenario labels once per column
+        ax.set_xticklabels(plot_labels, rotation=30, ha='right')
+    ax.set_ylabel(metric_labels[metric])
+    ax.set_title(f'{metric_labels[metric]} by Scenario', pad=8)
+    ax.grid(True, axis='y', alpha=0.25)
+    sns.despine(ax=ax)
+
+    # Significance markers removed for cleaner, publication-focused visuals
+
+plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', y=0.98)
 
 # Add legend for significance
-significance_text = '* p < 0.05, ** p < 0.01, *** p < 0.001 (vs. baseline)'
-plt.figtext(0.99, 0.01, significance_text, ha='right', va='bottom', fontsize=10, style='italic')
+# Significance footnote removed
 
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0.04, 1, 0.94], h_pad=1.5)
 plt.savefig(OUT_DIR / 'segregation_metrics_comparison.png', dpi=300, bbox_inches='tight')
 plt.savefig(OUT_DIR / 'segregation_metrics_comparison.pdf', bbox_inches='tight')
 
@@ -111,7 +131,8 @@ fig2, ax2 = plt.subplots(figsize=(10, 6))
 # Calculate mean values for heatmap using only scenarios actually present
 heatmap_data = []
 scenarios_present = []
-for scenario in scenario_labels.keys():
+# Follow canonical scenario order from experiment list
+for scenario in SCENARIO_ORDER:
     if scenario in combined_df['scenario'].values:
         scenario_df = combined_df[combined_df['scenario'] == scenario]
         if scenario_df.empty:
@@ -139,11 +160,11 @@ else:
     ax2.set_xticks(np.arange(len(metrics)))
     ax2.set_yticks(np.arange(len(scenarios_present)))
     ax2.set_xticklabels([metric_labels[m] for m in metrics], rotation=45, ha='right')
-    ax2.set_yticklabels([scenario_labels[s] for s in scenarios_present])
+    ax2.set_yticklabels([SCENARIO_LABELS[s] for s in scenarios_present])
 
     # Add colorbar
     cbar = plt.colorbar(im, ax=ax2)
-    cbar.set_label('Normalized Segregation Level', rotation=270, labelpad=20)
+    cbar.set_label('Normalized Segregation Level', rotation=270, labelpad=18)
 
     # Add text annotations safely
     for i in range(len(scenarios_present)):
@@ -152,9 +173,10 @@ else:
                      ha="center", va="center", color="black" if heatmap_array[i, j] < 0.5 else "white")
 
     ax2.set_title('Normalized Segregation Metrics Heatmap\n(Higher values indicate more segregation)',
-                  fontsize=14, fontweight='bold', pad=20)
+                  pad=14)
+    sns.despine(ax=ax2, left=False, bottom=False)
 
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0.02, 1, 1])
 plt.savefig(OUT_DIR / 'segregation_heatmap.png', dpi=300, bbox_inches='tight')
 plt.savefig(OUT_DIR / 'segregation_heatmap.pdf', bbox_inches='tight')
 
@@ -172,8 +194,8 @@ for metric in metrics:
     # Ensure keys are strings when accessing scenario_labels
     max_key = str(max_scenario)
     min_key = str(min_scenario)
-    max_label = scenario_labels.get(max_key, max_key)
-    min_label = scenario_labels.get(min_key, min_key)
+    max_label = SCENARIO_LABELS.get(max_key, max_key)
+    min_label = SCENARIO_LABELS.get(min_key, min_key)
     print(f"  Highest: {max_label} ({metric_means[max_scenario]:.3f})")
     print(f"  Lowest: {min_label} ({metric_means[min_scenario]:.3f})")
     print(f"  Ratio: {metric_means[max_scenario]/metric_means[min_scenario]:.2f}x")
