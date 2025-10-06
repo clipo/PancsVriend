@@ -473,6 +473,7 @@ def main():
     parser.add_argument("--experiments-dir", type=str, default="experiments", help="Path to experiments directory")
     parser.add_argument("--out-dir", type=str, default="reports/movement_analysis", help="Directory for combined summary outputs")
     parser.add_argument("--only", type=str, nargs="*", help="Limit to specific experiment folder names (space-separated or a single comma-separated string)")
+    parser.add_argument("--no-recompute", action="store_true", help="Load cached analyzed dataframe instead of recomputing")
     args = parser.parse_args()
 
     experiments_dir = Path(args.experiments_dir)
@@ -491,6 +492,23 @@ def main():
                     flattened.append(item.strip())
         only_names = flattened if flattened else None
 
+    # Cached combined dataframe path
+    combined_path = summary_out_dir / "movement_neighbor_summary_all.csv"
+
+    if args.no_recompute:
+        # Load cached dataframe for plotting only
+        if combined_path.exists():
+            df_all_exp = pd.read_csv(combined_path)
+            make_summary_plots(df_all_exp, summary_out_dir)
+            print(f"Loaded cached analyzed data from: {combined_path}")
+            print(f"Summary plots written to: {summary_out_dir}")
+            return 0
+        else:
+            print(f"Cached analyzed dataframe not found at {combined_path}.")
+            print("Run without --no-recompute to generate it.")
+            return 1
+
+    # Recompute workflow
     exp_dirs = list_experiments(experiments_dir, only=only_names)
     if not exp_dirs:
         if only_names:
@@ -510,9 +528,21 @@ def main():
         return 0
 
     df_all_exp = pd.concat(all_frames, ignore_index=True)
+    # Save combined analyzed dataframe for future --no-recompute runs
+    try:
+        summary_out_dir.mkdir(parents=True, exist_ok=True)
+        df_all_exp.to_csv(combined_path, index=False)
+        print(f"Saved combined analyzed dataframe to: {combined_path}")
+    except Exception as e:
+        print(f"Warning: failed to write combined dataframe: {e}")
+
     make_summary_plots(df_all_exp, summary_out_dir)
     print(f"Summary plots written to: {summary_out_dir}")
     return 0
+
+# Early entrypoint to avoid running duplicate blocks below if present
+if __name__ == "__main__":
+    raise SystemExit(main())
 
 
 if __name__ == "__main__":
