@@ -1,5 +1,5 @@
 {
-  "n_runs": 100,
+  "n_runs": 50,
   "max_steps": 1000,
   "grid_size": 10,
   "num_type_a": 40,
