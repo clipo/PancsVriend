@@ -1,0 +1,21 @@
+{
+  "n_runs": 10,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "scenario": "income_high_low",
+  "llm_model": "mixtral:8x22b-instruct",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key_last4": "0465",
+  "no_move_threshold": 5,
+  "timestamp": "20251006_150255",
+  "context_info": {
+    "type_a": "high-income household",
+    "type_b": "low-income household",
+    "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nYou are looking at your immediate 3x3 neighborhood:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors from households similar to yours ({agent_type}s)\n- O = neighbors from {opposite_type}s\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person making housing decisions, consider your economic priorities: affordability, property values, proximity to work, schools, and the kind of community environment that matches your lifestyle and budget.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+  },
+  "parallel_execution": true,
+  "n_processes": 2,
+  "cpu_count": 124
+}
