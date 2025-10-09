@@ -28,6 +28,8 @@ Notes
 - We derive PRE-decision neighbor stats from states[i-1] for the i-th move entry.
   The first log entry is a dummy 'initial_state' and is skipped.
 - If JSON logs are missing, we fall back to CSV. If states are missing, that run is skipped.
+- Aggregated summaries are written as gzip-compressed CSV (.csv.gz) files; legacy uncompressed
+    caches are still read automatically when present.
 """
 
 from __future__ import annotations
@@ -97,16 +99,18 @@ def iter_move_logs_json(experiment_dir: Path) -> List[int]:
 
 
 def iter_move_logs_csv(experiment_dir: Path) -> List[int]:
+    """Return run ids for CSV or compressed CSV move logs."""
     move_dir = experiment_dir / "move_logs"
     if not move_dir.exists():
         return []
-    run_ids = []
-    for f in move_dir.glob("agent_moves_run_*.csv"):
-        try:
-            rid = int(f.stem.split("_")[-1])
-        except ValueError:
-            continue
-        run_ids.append(rid)
+    run_ids = set()
+    for ext in (".csv.gz", ".csv"):
+        for f in move_dir.glob(f"agent_moves_run_*{ext}"):
+            try:
+                rid = int(f.stem.split("_")[-1].split(".")[0])
+            except ValueError:
+                continue
+            run_ids.add(rid)
     return sorted(run_ids)
 
 
@@ -122,13 +126,20 @@ def load_move_log_json(experiment_dir: Path, run_id: int) -> Optional[List[dict]
 
 
 def load_move_log_csv(experiment_dir: Path, run_id: int) -> Optional[pd.DataFrame]:
-    path = experiment_dir / "move_logs" / f"agent_moves_run_{run_id}.csv"
-    if not path.exists():
-        return None
-    try:
-        return pd.read_csv(path)
-    except Exception:
-        return None
+    """Load CSV (optionally gzip-compressed) move logs for a run."""
+    move_dir = experiment_dir / "move_logs"
+    candidates = [
+        move_dir / f"agent_moves_run_{run_id}.csv.gz",
+        move_dir / f"agent_moves_run_{run_id}.csv",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            return pd.read_csv(path, compression="infer")
+        except Exception:
+            continue
+    return None
 
 
 def count_neighbors(pre_grid: np.ndarray, r: int, c: int, agent_type: int) -> Tuple[int, int]:
@@ -343,8 +354,9 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
     plt.savefig(out2, dpi=150)
     plt.close()
 
-    # Save aggregated CSV for this experiment
-    df_all.to_csv(analysis_dir / "movement_neighbor_summary.csv", index=False)
+    # Save aggregated CSV for this experiment (compressed to reduce footprint)
+    per_exp_path = analysis_dir / "movement_neighbor_summary.csv.gz"
+    df_all.to_csv(per_exp_path, index=False, compression="gzip")
 
     # Write to summary_out_dir if provided (for combined plots later)
     if summary_out_dir is not None:
@@ -492,21 +504,28 @@ def main():
                     flattened.append(item.strip())
         only_names = flattened if flattened else None
 
-    # Cached combined dataframe path
-    combined_path = summary_out_dir / "movement_neighbor_summary_all.csv"
+    # Cached combined dataframe path (compressed)
+    combined_path = summary_out_dir / "movement_neighbor_summary_all.csv.gz"
 
     if args.no_recompute:
         # Load cached dataframe for plotting only
         if combined_path.exists():
-            df_all_exp = pd.read_csv(combined_path)
+            df_all_exp = pd.read_csv(combined_path, compression="infer")
             make_summary_plots(df_all_exp, summary_out_dir)
             print(f"Loaded cached analyzed data from: {combined_path}")
             print(f"Summary plots written to: {summary_out_dir}")
             return 0
-        else:
-            print(f"Cached analyzed dataframe not found at {combined_path}.")
-            print("Run without --no-recompute to generate it.")
-            return 1
+        # Backward compatibility: fallback to legacy uncompressed cache if present
+        legacy_combined = summary_out_dir / "movement_neighbor_summary_all.csv"
+        if legacy_combined.exists():
+            df_all_exp = pd.read_csv(legacy_combined)
+            make_summary_plots(df_all_exp, summary_out_dir)
+            print(f"Loaded cached analyzed data from legacy CSV: {legacy_combined}")
+            print(f"Summary plots written to: {summary_out_dir}")
+            return 0
+        print(f"Cached analyzed dataframe not found at {combined_path}.")
+        print("Run without --no-recompute to generate it.")
+        return 1
 
     # Recompute workflow
     exp_dirs = list_experiments(experiments_dir, only=only_names)
@@ -531,8 +550,12 @@ def main():
     # Save combined analyzed dataframe for future --no-recompute runs
     try:
         summary_out_dir.mkdir(parents=True, exist_ok=True)
-        df_all_exp.to_csv(combined_path, index=False)
+        df_all_exp.to_csv(combined_path, index=False, compression="gzip")
         print(f"Saved combined analyzed dataframe to: {combined_path}")
+        # Clean up any legacy uncompressed cache to avoid stale large files
+        legacy_combined = summary_out_dir / "movement_neighbor_summary_all.csv"
+        if legacy_combined.exists():
+            legacy_combined.unlink()
     except Exception as e:
         print(f"Warning: failed to write combined dataframe: {e}")
 
@@ -541,9 +564,5 @@ def main():
     return 0
 
 # Early entrypoint to avoid running duplicate blocks below if present
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 if __name__ == "__main__":
     raise SystemExit(main())
