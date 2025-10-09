@@ -40,6 +40,8 @@ import gzip
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import math
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -365,118 +367,91 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
 
 
 def make_summary_plots(df_all_exp: pd.DataFrame, out_dir: Path) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Prepare data: clip shares and bin into deciles for line plots
-    d = df_all_exp.copy()
-    d['share_same'] = d['share_same'].clip(0, 1)
-    bins_list = [i / 10 for i in range(11)]
-    d['share_bin'] = pd.cut(d['share_same'], bins=bins_list, include_lowest=True)
-
-    # --- Part 1: Barplot of Move probabilities for each experiment ---
-    # Compute per-experiment per-type P(move)
-    bar_df = (
-        d.groupby(['experiment', 'scenario', 'type_label'])['moved']
-         .mean()
-         .reset_index()
-    )
-
-    # Shorten experiment names using scenario display name when available
-    def short_name(row):
-        scen = row['scenario'] if pd.notna(row['scenario']) else ''
-        if scen:
-            return scen.replace('_', ' ').title()
-        return row['experiment']
-
-    bar_df['experiment_short'] = bar_df.apply(short_name, axis=1)
-
-    # Dynamic sizing: width scales with number of categories, height a bit larger for readability
-    n_bars = bar_df['experiment_short'].nunique()
-    plt.figure(figsize=(max(8, 0.7 * n_bars), 5.5))
-    ax_bar = sns.barplot(
-        data=bar_df,
-        x='experiment_short',
-        y='moved',
-        hue='type_label',
-        palette='Set2',
-        width=5.0  # make bars thicker
-    )
-    ax_bar.set_title('P(move) by experiment (short names) and agent type')
-    ax_bar.set_xlabel('Experiment (scenario)')
-    ax_bar.set_ylabel('Probability of moving')
-    ax_bar.set_ylim(0, 1)
-    plt.xticks(rotation=45, ha='right')
-    handles, labels = ax_bar.get_legend_handles_labels()
-    if handles and labels:
-        # Place legend to the right of the bar plot; slightly closer and aligned
-        ax_bar.legend(handles, labels, title='Agent Type', loc='center left', bbox_to_anchor=(0.98, 0.5))
-    # Leave extra right margin for legend and x tick labels
-    plt.tight_layout(rect=(0, 0, 0.88, 1))
-    plt.savefig(str(out_dir / 'summary_movement_probability_by_type.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-
-    # --- Part 2: Per-experiment line plots of P(move) vs share (each experiment its own subplot) ---
-    prob_by_exp = (
-        d.groupby(['experiment', 'type_label', 'share_bin'])['moved']
-         .mean()
-         .reset_index()
-    )
-    prob_by_exp['share_mid'] = prob_by_exp['share_bin'].apply(
-        lambda b: (b.left + b.right) / 2 if hasattr(b, 'left') else np.nan
-    )
-
-    experiments = prob_by_exp['experiment'].unique().tolist()
-    n_exp = len(experiments)
-    if n_exp == 0:
+    if df_all_exp.empty:
+        print("No data provided for summary plots; skipping stitching.")
         return
 
-    ncols = min(3, n_exp)
-    nrows = int(np.ceil(n_exp / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4.0, nrows * 3.2), sharey=True)
-    axes = np.atleast_1d(axes).flatten()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    # We'll collect a global mapping of type -> handle (first occurrence) for a common legend
-    global_type_handles = {}
-    for idx, exp_name in enumerate(experiments):
-        ax = axes[idx]
-        exp_data = prob_by_exp[prob_by_exp['experiment'] == exp_name]
+    experiments = (
+        df_all_exp.get('experiment', pd.Series(dtype=str))
+                 .dropna()
+                 .astype(str)
+                 .unique()
+                 .tolist()
+    )
 
-        # Determine types present and assign colors (consistent per figure)
-        types_present = sorted(exp_data['type_label'].unique())
-        palette = sns.color_palette('Set1', n_colors=max(1, len(types_present)))
-        color_map = {t: palette[i] for i, t in enumerate(types_present)}
+    if not experiments:
+        print("No experiment identifiers found in dataframe; skipping summary plots.")
+        return
 
-        for type_label, td in exp_data.groupby('type_label'):
-            td_sorted = td.sort_values('share_mid')
-            line, = ax.plot(td_sorted['share_mid'], td_sorted['moved'], marker='o', color=color_map[type_label], label=type_label)
-            # Register the first handle we see for this type for the global legend
-            if type_label not in global_type_handles:
-                global_type_handles[type_label] = line
+    experiments = sorted(experiments)
 
-        ax.set_title(exp_name, fontsize=10)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.grid(True, alpha=0.25)
-        if idx % ncols == 0:
-            ax.set_ylabel('P(move)')
-        ax.set_xlabel('Share same-type neighbors')
+    # Each analyze_experiment call creates two per-experiment plots. Stitch them across experiments.
+    plot_specs = [
+        {
+            'filename': 'movement_probability_by_type.png',
+            'summary_name': 'summary_movement_probability_by_type.png',
+            'title': 'P(move) by type — summary',
+        },
+        {
+            'filename': 'move_probability_vs_neighbor_ratio.png',
+            'summary_name': 'summary_move_probability_vs_neighbor_ratio.png',
+            'title': 'P(move) vs share same-type neighbors — summary',
+        },
+    ]
 
-    # Hide any unused axes
-    for j in range(n_exp, len(axes)):
-        fig.delaxes(axes[j])
+    for spec in plot_specs:
+        images: List[np.ndarray] = []
+        labels: List[str] = []
+        missing: List[Path] = []
 
-    # Add a single common legend to the right of the figure using the collected handles
-    if global_type_handles:
-        handles = [global_type_handles[k] for k in sorted(global_type_handles.keys())]
-        labels = [k for k in sorted(global_type_handles.keys())]
-        # Place legend just outside the axes but closer to the subplots
-        fig.legend(handles, labels, title='Agent Type', loc='center left', bbox_to_anchor=(0.96, 0.5))
+        for exp in experiments:
+            img_path = out_dir / exp / spec['filename']
+            if img_path.exists():
+                try:
+                    images.append(plt.imread(img_path))
+                    labels.append(exp)
+                except Exception as exc:
+                    print(f"  Warning: failed to read {img_path}: {exc}")
+            else:
+                missing.append(img_path)
 
-    fig.suptitle('P(move) vs neighbor share — per experiment', fontsize=12)
-    # Leave a smaller right margin to accommodate the closer legend
-    fig.tight_layout(rect=(0, 0, 0.94, 0.95))
-    fig.savefig(str(out_dir / 'summary_by_experiment.png'), dpi=150, bbox_inches='tight')
-    plt.close()
+        if missing:
+            for path in missing:
+                print(f"  Info: per-experiment plot missing for summary: {path}")
+
+        if not images:
+            print(f"No images available to stitch for {spec['filename']}; skipping.")
+            continue
+
+        n_images = len(images)
+        n_cols = min(3, n_images)
+        n_rows = math.ceil(n_images / n_cols)
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3.5 * n_rows))
+        axes_arr = np.array(axes).reshape(-1)
+
+        for ax in axes_arr[n_images:]:
+            ax.axis('off')
+
+        for ax, img, label in zip(axes_arr, images, labels):
+            ax.imshow(img)
+            ax.set_title(label, fontsize=10)
+            ax.axis('off')
+
+        fig.suptitle(spec['title'], fontsize=14, weight='bold')
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+
+        summary_path = out_dir / spec['summary_name']
+        try:
+            fig.savefig(str(summary_path), dpi=150)
+            print(f"Summary plot written: {summary_path}")
+        except Exception as exc:
+            print(f"Warning: failed to save summary plot {summary_path}: {exc}")
+        finally:
+            plt.close(fig)
+
 
 
 
