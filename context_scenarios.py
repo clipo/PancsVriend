@@ -218,4 +218,28 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 
 Your response:"""
     },
+
+    'gender_man_woman': {
+        'type_a': 'Man',
+        'type_b': 'Woman',
+        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
+
+Your immediate 3x3 neighborhood looks like this:
+{context}
+
+Where:
+- X = Your current position (center)
+- S = neighbors who are {agent_type}s like you
+- O = neighbors who are {opposite_type}s
+- E = empty houses available to move to  
+- # = outside the immediate area
+
+As a real person with your own experiences, preferences, and social connections, think about where you would genuinely prefer to live. Consider factors like community comfort, social dynamics, safety perceptions, and the kind of neighborhood environment where you feel most at ease.
+
+Based on this neighborhood, do you want to move to a different position or stay where you are?
+
+IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+
+Your response:"""
+    },
 }

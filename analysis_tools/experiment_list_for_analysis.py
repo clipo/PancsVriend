@@ -36,14 +36,14 @@ SCENARIOS = {
 # Human-friendly labels for plots
 SCENARIO_LABELS = {
     # 'baseline': 'Baseline (Control)',
-    'llm_baseline': 'LLM Baseline',
+    'llm_baseline': 'Color (Red/Blue)',
     'mech_baseline': 'Mechanical Baseline',
     'political_liberal_conservative': 'Political (Liberal/Conservative)',
     'ethnic_asian_hispanic': 'Ethnic (Asian/Hispanic)',
     'race_white_black': 'Racial (White/Black)',
     'income_high_low': 'Economic (High/Low Income)',
     # 'economic_high_working': 'Economic (High/Working)',
-    'green_yellow': 'Green/Yellow',
+    'green_yellow': 'Color (Green/Yellow)',
 }
 SCENARIO_ORDER = [
     'mech_baseline',
@@ -58,10 +58,10 @@ SCENARIO_ORDER = [
 # Consistent colors for scenarios (hex codes)
 SCENARIO_COLORS = {
     'mech_baseline': '#34495E',       # Dark slate - contrasts with LLM baseline
-    'llm_baseline': '#95A5A6',        # Light gray - neutral baseline
+    'llm_baseline': '#E74C3C',        # Light gray - neutral baseline
     'green_yellow': '#27AE60',        # Emerald green - vibrant, nature-inspired
     'political_liberal_conservative': '#E67E22', # Warm orange - distinctive, accessible
-    'race_white_black': '#E74C3C',    # Vivid red - high contrast, attention-grabbing
+    'race_white_black': '#95A5A6',    # Vivid red - high contrast, attention-grabbing
     'ethnic_asian_hispanic': '#9B59B6', # Purple - distinct from red/blue politics
     # 'economic_high_working': '#3498DB', # Bright blue - professional, clear
     'income_high_low': '#3498DB', # Bright blue - professional, clear
