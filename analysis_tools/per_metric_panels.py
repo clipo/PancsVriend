@@ -162,13 +162,10 @@ def make_metric_panel(metric: str, data_by_scenario: dict):
 
     # Save
     out_png = OUT_DIR / f"metric_panel_{metric}.png"
-    out_pdf = OUT_DIR / f"metric_panel_{metric}.pdf"
     fig.savefig(str(out_png), dpi=300, bbox_inches='tight')
-    fig.savefig(str(out_pdf), bbox_inches='tight')
     plt.close(fig)
 
     print(f"Saved: {out_png}")
-    print(f"Saved: {out_pdf}")
 
 
 def main():

@@ -199,7 +199,6 @@ def analyze_dynamics():
     out_dir = Path('reports')
     out_dir.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_dir / 'rate_of_change_analysis.png', dpi=300, bbox_inches='tight')
-    plt.savefig(out_dir / 'rate_of_change_analysis.pdf', bbox_inches='tight')
     
     # Additional Analysis: Phase Transitions
     fig2, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -245,7 +244,6 @@ def analyze_dynamics():
     plt.suptitle('Phase Transitions: When Segregation Patterns Shift', fontsize=16, fontweight='bold')
     plt.tight_layout()
     plt.savefig(out_dir / 'phase_transitions_analysis.png', dpi=300, bbox_inches='tight')
-    plt.savefig(out_dir / 'phase_transitions_analysis.pdf', bbox_inches='tight')
     
     # Summary Statistics
     print("\nRATE OF CHANGE ANALYSIS SUMMARY")

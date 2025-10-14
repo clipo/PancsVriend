@@ -16,7 +16,6 @@ plt.rcParams.update({
     "figure.dpi": 120,
     "savefig.dpi": 300,
     # Embed fonts in vector outputs and avoid Type 3 fonts
-    "pdf.fonttype": 42,
     "ps.fonttype": 42,
     # Ticks and lines
     "axes.spines.top": False,
@@ -120,7 +119,6 @@ plt.tight_layout(rect=[0, 0.08, 1, 0.94], h_pad=2.0)
 OUT_DIR = Path('reports')
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUT_DIR / 'convergence_patterns.png', dpi=300, bbox_inches='tight')
-plt.savefig(OUT_DIR / 'convergence_patterns.pdf', bbox_inches='tight')
 
 # Calculate convergence speed (steps to reach 90% of final value)
 print("\nCONVERGENCE ANALYSIS:")
@@ -210,7 +208,6 @@ if handles2:
 
 plt.tight_layout(rect=[0, 0.12, 1, 1])
 plt.savefig(OUT_DIR / 'convergence_speed_comparison.png', dpi=300, bbox_inches='tight')
-plt.savefig(OUT_DIR / 'convergence_speed_comparison.pdf', bbox_inches='tight')
 
 print("\n\nFigures saved to:")
 print(f"  - {OUT_DIR / 'convergence_patterns.png'}")

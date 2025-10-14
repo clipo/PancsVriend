@@ -14,7 +14,6 @@ sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
 plt.rcParams.update({
     "figure.dpi": 120,
     "savefig.dpi": 300,
-    "pdf.fonttype": 42,
     "ps.fonttype": 42,
     "axes.spines.top": False,
     "axes.spines.right": False,
@@ -123,7 +122,6 @@ plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', y
 
 plt.tight_layout(rect=[0, 0.04, 1, 0.94], h_pad=1.5)
 plt.savefig(OUT_DIR / 'segregation_metrics_comparison.png', dpi=300, bbox_inches='tight')
-plt.savefig(OUT_DIR / 'segregation_metrics_comparison.pdf', bbox_inches='tight')
 
 """Heatmap summarizing normalized segregation metrics across scenarios present in data."""
 fig2, ax2 = plt.subplots(figsize=(10, 6))
@@ -178,7 +176,6 @@ else:
 
 plt.tight_layout(rect=[0, 0.02, 1, 1])
 plt.savefig(OUT_DIR / 'segregation_heatmap.png', dpi=300, bbox_inches='tight')
-plt.savefig(OUT_DIR / 'segregation_heatmap.pdf', bbox_inches='tight')
 
 # Print summary statistics
 print("\nKEY FINDINGS:")

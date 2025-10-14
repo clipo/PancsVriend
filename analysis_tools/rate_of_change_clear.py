@@ -264,12 +264,10 @@ def create_clear_dynamics_visualization():
     out_dir = Path('reports')
     out_dir.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_dir / 'rate_of_change_clear.png', dpi=300, bbox_inches='tight')
-    plt.savefig(out_dir / 'rate_of_change_clear.pdf', bbox_inches='tight')
     
     print("Clear dynamics visualization created successfully!")
     print("\nFiles saved:")
     print(f"- {out_dir / 'rate_of_change_clear.png'}")
-    print(f"- {out_dir / 'rate_of_change_clear.pdf'}")
 
 if __name__ == "__main__":
     create_clear_dynamics_visualization()
