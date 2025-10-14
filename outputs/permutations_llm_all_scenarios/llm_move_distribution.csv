@@ -1,0 +1,181 @@
+scenario,agent_role,agent_label,num_similar,ratio_similar,total,move_count,move_rate
+01,type_a,group 0,0,0.0,10,0.0,0.0
+01,type_a,group 0,1,0.125,80,0.0,0.0
+01,type_a,group 0,2,0.25,280,0.0,0.0
+01,type_a,group 0,3,0.375,560,0.0,0.0
+01,type_a,group 0,4,0.5,700,0.0,0.0
+01,type_a,group 0,5,0.625,560,0.0,0.0
+01,type_a,group 0,6,0.75,280,0.0,0.0
+01,type_a,group 0,7,0.875,80,0.0,0.0
+01,type_a,group 0,8,1.0,10,0.0,0.0
+01,type_b,group 1,0,0.0,10,0.0,0.0
+01,type_b,group 1,1,0.125,80,0.0,0.0
+01,type_b,group 1,2,0.25,280,0.0,0.0
+01,type_b,group 1,3,0.375,560,0.0,0.0
+01,type_b,group 1,4,0.5,700,0.0,0.0
+01,type_b,group 1,5,0.625,560,0.0,0.0
+01,type_b,group 1,6,0.75,280,0.0,0.0
+01,type_b,group 1,7,0.875,80,0.0,0.0
+01,type_b,group 1,8,1.0,10,0.0,0.0
+AB,type_a,resident group A,0,0.0,10,0.0,0.0
+AB,type_a,resident group A,1,0.125,80,0.0,0.0
+AB,type_a,resident group A,2,0.25,280,0.0,0.0
+AB,type_a,resident group A,3,0.375,560,0.0,0.0
+AB,type_a,resident group A,4,0.5,700,0.0,0.0
+AB,type_a,resident group A,5,0.625,560,0.0,0.0
+AB,type_a,resident group A,6,0.75,280,0.0,0.0
+AB,type_a,resident group A,7,0.875,80,0.0,0.0
+AB,type_a,resident group A,8,1.0,10,0.0,0.0
+AB,type_b,resident group B,0,0.0,10,0.0,0.0
+AB,type_b,resident group B,1,0.125,80,0.0,0.0
+AB,type_b,resident group B,2,0.25,280,0.0,0.0
+AB,type_b,resident group B,3,0.375,560,0.0,0.0
+AB,type_b,resident group B,4,0.5,700,0.0,0.0
+AB,type_b,resident group B,5,0.625,560,0.0,0.0
+AB,type_b,resident group B,6,0.75,280,0.0,0.0
+AB,type_b,resident group B,7,0.875,80,0.0,0.0
+AB,type_b,resident group B,8,1.0,10,0.0,0.0
+baseline,type_a,red team resident,0,0.0,10,0.0,0.0
+baseline,type_a,red team resident,1,0.125,80,0.0,0.0
+baseline,type_a,red team resident,2,0.25,280,0.0,0.0
+baseline,type_a,red team resident,3,0.375,560,0.0,0.0
+baseline,type_a,red team resident,4,0.5,700,0.0,0.0
+baseline,type_a,red team resident,5,0.625,560,0.0,0.0
+baseline,type_a,red team resident,6,0.75,280,0.0,0.0
+baseline,type_a,red team resident,7,0.875,80,0.0,0.0
+baseline,type_a,red team resident,8,1.0,10,0.0,0.0
+baseline,type_b,blue team resident,0,0.0,10,0.0,0.0
+baseline,type_b,blue team resident,1,0.125,80,0.0,0.0
+baseline,type_b,blue team resident,2,0.25,280,3.0,0.010714285714285714
+baseline,type_b,blue team resident,3,0.375,560,1.0,0.0017857142857142857
+baseline,type_b,blue team resident,4,0.5,700,0.0,0.0
+baseline,type_b,blue team resident,5,0.625,560,0.0,0.0
+baseline,type_b,blue team resident,6,0.75,280,0.0,0.0
+baseline,type_b,blue team resident,7,0.875,80,0.0,0.0
+baseline,type_b,blue team resident,8,1.0,10,0.0,0.0
+economic_high_working,type_a,high-income household,0,0.0,10,0.0,0.0
+economic_high_working,type_a,high-income household,1,0.125,80,0.0,0.0
+economic_high_working,type_a,high-income household,2,0.25,280,5.0,0.017857142857142856
+economic_high_working,type_a,high-income household,3,0.375,560,19.0,0.033928571428571426
+economic_high_working,type_a,high-income household,4,0.5,700,14.0,0.02
+economic_high_working,type_a,high-income household,5,0.625,560,6.0,0.010714285714285714
+economic_high_working,type_a,high-income household,6,0.75,280,1.0,0.0035714285714285713
+economic_high_working,type_a,high-income household,7,0.875,80,0.0,0.0
+economic_high_working,type_a,high-income household,8,1.0,10,0.0,0.0
+economic_high_working,type_b,working-class household,0,0.0,10,0.0,0.0
+economic_high_working,type_b,working-class household,1,0.125,80,0.0,0.0
+economic_high_working,type_b,working-class household,2,0.25,280,17.0,0.060714285714285714
+economic_high_working,type_b,working-class household,3,0.375,560,23.0,0.04107142857142857
+economic_high_working,type_b,working-class household,4,0.5,700,21.0,0.03
+economic_high_working,type_b,working-class household,5,0.625,560,23.0,0.04107142857142857
+economic_high_working,type_b,working-class household,6,0.75,280,1.0,0.0035714285714285713
+economic_high_working,type_b,working-class household,7,0.875,80,0.0,0.0
+economic_high_working,type_b,working-class household,8,1.0,10,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,0,0.0,10,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,1,0.125,80,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,2,0.25,280,4.0,0.014285714285714285
+ethnic_asian_hispanic,type_a,Asian American family,3,0.375,560,6.0,0.010714285714285714
+ethnic_asian_hispanic,type_a,Asian American family,4,0.5,700,9.0,0.012857142857142857
+ethnic_asian_hispanic,type_a,Asian American family,5,0.625,560,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,6,0.75,280,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,7,0.875,80,0.0,0.0
+ethnic_asian_hispanic,type_a,Asian American family,8,1.0,10,0.0,0.0
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,0,0.0,10,0.0,0.0
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,1,0.125,80,2.0,0.025
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,2,0.25,280,26.0,0.09285714285714286
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,3,0.375,560,9.0,0.01607142857142857
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,4,0.5,700,7.0,0.01
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,5,0.625,560,0.0,0.0
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,6,0.75,280,0.0,0.0
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,7,0.875,80,0.0,0.0
+ethnic_asian_hispanic,type_b,Hispanic/Latino family,8,1.0,10,0.0,0.0
+gender_man_woman,type_a,Man,0,0.0,10,0.0,0.0
+gender_man_woman,type_a,Man,1,0.125,80,1.0,0.0125
+gender_man_woman,type_a,Man,2,0.25,280,12.0,0.04285714285714286
+gender_man_woman,type_a,Man,3,0.375,560,15.0,0.026785714285714284
+gender_man_woman,type_a,Man,4,0.5,700,16.0,0.022857142857142857
+gender_man_woman,type_a,Man,5,0.625,560,2.0,0.0035714285714285713
+gender_man_woman,type_a,Man,6,0.75,280,1.0,0.0035714285714285713
+gender_man_woman,type_a,Man,7,0.875,80,0.0,0.0
+gender_man_woman,type_a,Man,8,1.0,10,0.0,0.0
+gender_man_woman,type_b,Woman,0,0.0,10,0.0,0.0
+gender_man_woman,type_b,Woman,1,0.125,80,0.0,0.0
+gender_man_woman,type_b,Woman,2,0.25,280,15.0,0.05357142857142857
+gender_man_woman,type_b,Woman,3,0.375,560,20.0,0.03571428571428571
+gender_man_woman,type_b,Woman,4,0.5,700,12.0,0.017142857142857144
+gender_man_woman,type_b,Woman,5,0.625,560,3.0,0.005357142857142857
+gender_man_woman,type_b,Woman,6,0.75,280,0.0,0.0
+gender_man_woman,type_b,Woman,7,0.875,80,0.0,0.0
+gender_man_woman,type_b,Woman,8,1.0,10,0.0,0.0
+green_yellow,type_a,green team resident,0,0.0,10,0.0,0.0
+green_yellow,type_a,green team resident,1,0.125,80,0.0,0.0
+green_yellow,type_a,green team resident,2,0.25,280,0.0,0.0
+green_yellow,type_a,green team resident,3,0.375,560,0.0,0.0
+green_yellow,type_a,green team resident,4,0.5,700,0.0,0.0
+green_yellow,type_a,green team resident,5,0.625,560,0.0,0.0
+green_yellow,type_a,green team resident,6,0.75,280,0.0,0.0
+green_yellow,type_a,green team resident,7,0.875,80,0.0,0.0
+green_yellow,type_a,green team resident,8,1.0,10,0.0,0.0
+green_yellow,type_b,yellow team resident,0,0.0,10,0.0,0.0
+green_yellow,type_b,yellow team resident,1,0.125,80,0.0,0.0
+green_yellow,type_b,yellow team resident,2,0.25,280,0.0,0.0
+green_yellow,type_b,yellow team resident,3,0.375,560,0.0,0.0
+green_yellow,type_b,yellow team resident,4,0.5,700,0.0,0.0
+green_yellow,type_b,yellow team resident,5,0.625,560,0.0,0.0
+green_yellow,type_b,yellow team resident,6,0.75,280,0.0,0.0
+green_yellow,type_b,yellow team resident,7,0.875,80,0.0,0.0
+green_yellow,type_b,yellow team resident,8,1.0,10,0.0,0.0
+income_high_low,type_a,high-income household,0,0.0,10,0.0,0.0
+income_high_low,type_a,high-income household,1,0.125,80,0.0,0.0
+income_high_low,type_a,high-income household,2,0.25,280,3.0,0.010714285714285714
+income_high_low,type_a,high-income household,3,0.375,560,6.0,0.010714285714285714
+income_high_low,type_a,high-income household,4,0.5,700,2.0,0.002857142857142857
+income_high_low,type_a,high-income household,5,0.625,560,0.0,0.0
+income_high_low,type_a,high-income household,6,0.75,280,0.0,0.0
+income_high_low,type_a,high-income household,7,0.875,80,0.0,0.0
+income_high_low,type_a,high-income household,8,1.0,10,0.0,0.0
+income_high_low,type_b,low-income household,0,0.0,10,0.0,0.0
+income_high_low,type_b,low-income household,1,0.125,80,0.0,0.0
+income_high_low,type_b,low-income household,2,0.25,280,3.0,0.010714285714285714
+income_high_low,type_b,low-income household,3,0.375,560,2.0,0.0035714285714285713
+income_high_low,type_b,low-income household,4,0.5,700,5.0,0.007142857142857143
+income_high_low,type_b,low-income household,5,0.625,560,0.0,0.0
+income_high_low,type_b,low-income household,6,0.75,280,0.0,0.0
+income_high_low,type_b,low-income household,7,0.875,80,0.0,0.0
+income_high_low,type_b,low-income household,8,1.0,10,0.0,0.0
+political_liberal_conservative,type_a,politically liberal household,0,0.0,10,1.0,0.1
+political_liberal_conservative,type_a,politically liberal household,1,0.125,80,25.0,0.3125
+political_liberal_conservative,type_a,politically liberal household,2,0.25,280,71.0,0.25357142857142856
+political_liberal_conservative,type_a,politically liberal household,3,0.375,560,84.0,0.15
+political_liberal_conservative,type_a,politically liberal household,4,0.5,700,32.0,0.045714285714285714
+political_liberal_conservative,type_a,politically liberal household,5,0.625,560,12.0,0.02142857142857143
+political_liberal_conservative,type_a,politically liberal household,6,0.75,280,0.0,0.0
+political_liberal_conservative,type_a,politically liberal household,7,0.875,80,0.0,0.0
+political_liberal_conservative,type_a,politically liberal household,8,1.0,10,0.0,0.0
+political_liberal_conservative,type_b,politically conservative household,0,0.0,10,0.0,0.0
+political_liberal_conservative,type_b,politically conservative household,1,0.125,80,3.0,0.0375
+political_liberal_conservative,type_b,politically conservative household,2,0.25,280,10.0,0.03571428571428571
+political_liberal_conservative,type_b,politically conservative household,3,0.375,560,25.0,0.044642857142857144
+political_liberal_conservative,type_b,politically conservative household,4,0.5,700,10.0,0.014285714285714285
+political_liberal_conservative,type_b,politically conservative household,5,0.625,560,3.0,0.005357142857142857
+political_liberal_conservative,type_b,politically conservative household,6,0.75,280,0.0,0.0
+political_liberal_conservative,type_b,politically conservative household,7,0.875,80,0.0,0.0
+political_liberal_conservative,type_b,politically conservative household,8,1.0,10,0.0,0.0
+race_white_black,type_a,white middle class family,0,0.0,10,0.0,0.0
+race_white_black,type_a,white middle class family,1,0.125,80,0.0,0.0
+race_white_black,type_a,white middle class family,2,0.25,280,25.0,0.08928571428571429
+race_white_black,type_a,white middle class family,3,0.375,560,52.0,0.09285714285714286
+race_white_black,type_a,white middle class family,4,0.5,700,25.0,0.03571428571428571
+race_white_black,type_a,white middle class family,5,0.625,560,15.0,0.026785714285714284
+race_white_black,type_a,white middle class family,6,0.75,280,0.0,0.0
+race_white_black,type_a,white middle class family,7,0.875,80,0.0,0.0
+race_white_black,type_a,white middle class family,8,1.0,10,0.0,0.0
+race_white_black,type_b,Black family,0,0.0,10,0.0,0.0
+race_white_black,type_b,Black family,1,0.125,80,0.0,0.0
+race_white_black,type_b,Black family,2,0.25,280,1.0,0.0035714285714285713
+race_white_black,type_b,Black family,3,0.375,560,2.0,0.0035714285714285713
+race_white_black,type_b,Black family,4,0.5,700,10.0,0.014285714285714285
+race_white_black,type_b,Black family,5,0.625,560,2.0,0.0035714285714285713
+race_white_black,type_b,Black family,6,0.75,280,0.0,0.0
+race_white_black,type_b,Black family,7,0.875,80,0.0,0.0
+race_white_black,type_b,Black family,8,1.0,10,0.0,0.0
