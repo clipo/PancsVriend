@@ -111,11 +111,15 @@ ehthumbs.db
 .DS_Store
 
 # Project generated directories
-experiments/
-reports/
 
 # Project specific files
 *.pdf
 *.csv
 assign_runs.txt
 .Rproj.user
+
+# Allow this specific folder despite parent being ignored
+! reports/
+! reports/**/
+!experiments/
+!experiments/**/
