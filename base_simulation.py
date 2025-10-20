@@ -392,10 +392,13 @@ class Simulation:
             if not os.path.exists(move_logs_dir):
                 raise FileNotFoundError(f"Move logs directory not found: {move_logs_dir}")
             
-            # Find all run files
-            move_files = [f for f in os.listdir(move_logs_dir) if f.startswith("agent_moves_run_") and f.endswith(".csv")]
-            run_ids = [int(f.split("_")[-1].split(".")[0]) for f in move_files]
-            run_ids.sort()
+            # Find all run files (JSON logs are the canonical source)
+            move_files = [
+                f for f in os.listdir(move_logs_dir)
+                if f.startswith("agent_moves_run_") and f.endswith(".json.gz")
+            ]
+
+            run_ids = sorted({int(f.split("_")[-1].split(".")[0]) for f in move_files})
             
             print(f"Found {len(run_ids)} simulation runs: {run_ids}")
             
@@ -403,8 +406,11 @@ class Simulation:
                 print(f"Loading run {run_id}...")
                 
                 # Load agent move log to reconstruct metrics history
-                move_file = os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.csv")
-                move_df = pd.read_csv(move_file)
+                json_path = os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.json.gz")
+
+                with gzip.open(json_path, 'rt', encoding='utf-8') as f:
+                    move_records = json.load(f)
+                move_df = pd.DataFrame(move_records)
                 
                 # Extract convergence information from move log
                 max_step = move_df['step'].max() if not move_df.empty else 0
