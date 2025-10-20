@@ -113,7 +113,19 @@ def run_all_analyses(
             mod = importlib.import_module('analysis_tools.analyze_agent_movement')
             # Use default CLI behavior (reports/movement_analysis)
             # We'll call main() with adjusted argv semantics
-            mod.main()
+            import sys
+
+            original_argv = sys.argv[:]
+            module_path = getattr(mod, '__file__', None)
+            prog_name = str(Path(module_path)) if module_path else mod.__name__
+            try:
+                sys.argv = [prog_name]
+                result = mod.main()
+            finally:
+                sys.argv = original_argv
+
+            if isinstance(result, int) and result != 0:
+                raise RuntimeError(f"movement analysis exited with code {result}")
         steps.append(("analyze_agent_movement", _run_movement, {}))
 
     if movement_only:
