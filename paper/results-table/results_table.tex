@@ -1,0 +1,21 @@
+\begin{table}[htbp]
+{\centering
+\caption{Segregation Metrics Comparison Across Scenarios}
+\label{tab:segregation_metrics}
+\vspace{1.5em}
+$\begin{array}{r@{\quad}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c}
+\text{-clusters:} & \begin{pmatrix} \text{green/yellow} \\ \text{income} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{race:wht/blk} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{mechanical} \\ \text{political} \end{pmatrix} \\[2.5em]
+\text{distance:} & & & \begin{pmatrix} \text{green/yellow} \\ \text{income} \\ \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \\ \text{mechanical} \\ \text{race:wht/blk} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{political} \end{pmatrix} \\[3em]
+\text{ghetto\_rate:} & \begin{pmatrix} \text{green/yellow} \\ \text{income} \end{pmatrix} & <^{*} & \begin{pmatrix} \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \\ \text{race:wht/blk} \end{pmatrix} & <^{**} & \begin{pmatrix} \text{mechanical} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{political} \end{pmatrix} \\[2.5em]
+\text{mix\_deviation:} & & & \begin{pmatrix} \text{green/yellow} \end{pmatrix} & <^{**} & \begin{pmatrix} \text{income} \\ \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \\ \text{mechanical} \\ \text{race:wht/blk} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{political} \end{pmatrix} \\[3em]
+\text{share:} & \begin{pmatrix} \text{green/yellow} \\ \text{income} \end{pmatrix} & <^{*} & \begin{pmatrix} \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \\ \text{race:wht/blk} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{mechanical} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{political} \end{pmatrix} \\[2.5em]
+\text{-switch\_rate:} & & & \begin{pmatrix} \text{green/yellow} \\ \text{income} \\ \text{llm\_baseline} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{ethnicity} \\ \text{mechanical} \\ \text{race:wht/blk} \end{pmatrix} & <^{***} & \begin{pmatrix} \text{political} \end{pmatrix}
+\end{array}$
+}
+
+\vspace{2em}
+
+\small{Six metrics where more of the metric is associated with higher segregation.\\
+Higher clusters and switch\_rate are associated with \textit{less} segregation, so -clusters and -switch\_rate are presented here for easier comparison.\\
+Note: There is general agreement with the order.}
+\end{table}

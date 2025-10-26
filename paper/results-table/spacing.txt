@@ -1,0 +1,12 @@
+
+
+                     (b)
+metric1:       (a) < (c) < (d)
+              
+metric2:    (e) < (f) < (g) < (h)
+
+                  (i)   (k)
+metric3:          (j) < (l) 
+                  (m)
+				  
+				  

@@ -1,0 +1,4 @@
+notes file: results-table, created on Fri Oct 24 21:41:10 EDT 2025
+-------
+ 
+modify so each line of inequalities is centered
