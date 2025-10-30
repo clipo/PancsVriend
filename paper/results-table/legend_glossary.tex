@@ -1,0 +1,62 @@
+\section*{Legend and Glossary}
+
+\subsection*{Social Context Scenarios}
+
+The segregation metrics compare agent behavior across five distinct social contexts within the Schelling framework:
+
+\begin{description}
+\item[\textbf{green/yellow (Baseline Control)}] Generic ``red vs blue'' teams without social connotations, serving as a neutral baseline
+\item[\textbf{race:wht/blk (Racial Context)}] ``White middle-class families'' vs ``Black families'' - captures residential preferences based on racial identity
+\item[\textbf{ethnicity (Ethnic Context)}] ``Asian American families'' vs ``Hispanic/Latino families'' - examines ethnicity-based residential patterns  
+\item[\textbf{income (Economic Context)}] ``High-income professionals'' vs ``Working-class families'' - tests segregation based on economic class
+\item[\textbf{political (Political Context)}] ``Liberal households'' vs ``Conservative households'' - measures political polarization in residential choices
+\item[\textbf{llm\_baseline}] LLM agents using the baseline control scenario
+\item[\textbf{mechanical}] Traditional utility-maximizing agents with threshold-based decision rules (non-LLM baseline)
+\end{description}
+
+\subsection*{Segregation Metrics}
+
+The analysis employs the Pancs-Vriend framework with six complementary metrics designed specifically for grid-based segregation models:
+
+\begin{description}
+\item[\textbf{Share}] Proportion of same-type neighbor pairs (0.5 = perfect integration, 1.0 = complete segregation). Captures global segregation level.
+
+\item[\textbf{Clusters}] Number of spatially contiguous same-type regions. Fewer clusters indicate more consolidated ethnic enclaves. \textit{Note: Presented as -clusters since higher cluster counts indicate less segregation.}
+
+\item[\textbf{Distance}] Average Manhattan distance to nearest different-type agent. Higher values indicate greater spatial separation between groups.
+
+\item[\textbf{Ghetto Rate}] Count of agents with zero different-type neighbors. Captures extreme isolation and ``ghettoization'' - the most severe form of segregation.
+
+\item[\textbf{Mix Deviation}] Average deviation from 50-50 local integration. Measures segregation at the individual neighborhood level.
+
+\item[\textbf{Switch Rate}] Frequency of type changes along agent borders. Higher values indicate more jagged, intermixed boundaries. \textit{Note: Presented as -switch\_rate since higher switch rates indicate less segregation.}
+\end{description}
+
+\subsection*{Statistical Significance Notation}
+
+The inequality symbols indicate the strength of statistical relationships between scenarios:
+
+\begin{description}
+\item[\textbf{<}] Strong consensus ($\geq$5 out of 6 metrics agree) - highly significant difference
+\item[\textbf{$\leq$}] Weak consensus ($\geq$1 metric agrees, no disagreement) - generally supported relationship  
+\item[\textbf{$\leq$\textsuperscript{?}}] Mixed evidence (both agreements and disagreements) - uncertain relationship
+\item[\textbf{=}] Perfect agreement (all 6 metrics agree) - equivalent segregation levels
+\end{description}
+
+\subsection*{Significance Levels}
+
+Statistical significance is denoted by asterisk superscripts:
+
+\begin{description}
+\item[\textbf{*}] p < 0.05 (statistically significant)
+\item[\textbf{**}] p < 0.01 (highly significant)  
+\item[\textbf{***}] p < 0.001 (extremely significant)
+\end{description}
+
+\subsection*{Interpretation}
+
+\textbf{Overall Ordering:} The consensus ranking synthesizes evidence across all six metrics to provide a single ordering from lowest to highest segregation levels.
+
+\textbf{Individual Metrics:} Each metric captures a different dimension of segregation - from global patterns (Share) to local isolation (Ghetto Rate) to spatial structure (Clusters, Distance). 
+
+\textbf{Key Finding:} Political contexts produce the most extreme segregation (ghetto rate: 61.6, segregation share: 0.928), while economic contexts show minimal clustering (ghetto rate: 5.0, share: 0.543) - a 12.3× difference in ghetto formation based solely on social framing.

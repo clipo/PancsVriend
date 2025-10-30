@@ -1,0 +1,27 @@
+SEGREGATION METRICS COMPARISON ACROSS LLM SCENARIOS
+===================================================
+
+OVERALL CONSENSUS ORDERING:
+income ≤ green/yellow ≤ llm_baseline < race:wht/blk ≤ ethnicity < political
+
+--------------------------------------------------------------------------------
+
+-clusters      : (green/yellow, income) <^*** llm_baseline <^*** race:wht/blk <^*** ethnicity <^*** political
+
+distance       : (green/yellow, income, llm_baseline) <^*** (ethnicity, race:wht/blk) <^*** political
+
+ghetto_rate    : (green/yellow, income) <^* llm_baseline <^*** (ethnicity, race:wht/blk) <^** political
+
+mix_deviation  : green/yellow <^** (income, llm_baseline) <^*** (ethnicity, race:wht/blk) <^*** political
+
+share          : (green/yellow, income) <^* llm_baseline <^*** (ethnicity, race:wht/blk) <^*** political
+
+-switch_rate   : (green/yellow, income, llm_baseline) <^*** (ethnicity, race:wht/blk) <^*** political
+
+--------------------------------------------------------------------------------
+NOTES:
+- Six metrics where more of the metric is associated with higher segregation
+- Higher clusters and switch_rate are associated with LESS segregation,
+  so -clusters and -switch_rate are presented for easier comparison
+- Significance levels: * p<0.05, ** p<0.01, *** p<0.001
+- Inequality symbols: < (strong consensus), ≤ (weak consensus), ≤? (mixed evidence)

@@ -1,0 +1,8 @@
+\contentsline {section}{\numberline {1}Results Tables}{2}{}%
+\contentsline {subsection}{\numberline {1.1}Complete Analysis (All Scenarios)}{2}{}%
+\contentsline {subsection}{\numberline {1.2}LLM-Only Analysis}{4}{}%
+\contentsline {section}{\numberline {2}Documentation}{6}{}%
+\contentsline {section}{\numberline {3}Methodology Notes}{7}{}%
+\contentsline {subsection}{\numberline {3.1}Consensus Ordering Calculation}{7}{}%
+\contentsline {subsection}{\numberline {3.2}Key Research Implications}{8}{}%
+\contentsline {section}{\numberline {4}References}{8}{}%

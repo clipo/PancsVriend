@@ -1,0 +1,78 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.8in, landscape]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{afterpage}
+
+\begin{document}
+
+\title{Segregation Metrics Analysis: Complete Results and Documentation}
+\author{}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+This document presents comprehensive segregation metrics comparing LLM agent behavior across five social contexts within the Schelling framework: baseline control (green/yellow), racial (race:wht/blk), ethnic (ethnicity), economic (income), and political contexts. The analysis employs the Pancs-Vriend framework with six segregation metrics and includes both individual metric comparisons and an overall consensus ordering derived from cross-metric agreement patterns.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Results Tables}
+
+The following tables present segregation metric comparisons across different social contexts. Table~\ref{tab:segregation_metrics} shows the complete analysis including mechanical agents, while Table~\ref{tab:segregation_metrics_llm} focuses exclusively on LLM-based scenarios. Each table includes an overall consensus ordering synthesized from all six metrics, followed by individual metric comparisons with statistical significance indicators.
+
+\subsection{Complete Analysis (All Scenarios)}
+
+\input{results_table}
+
+\newpage
+
+\subsection{LLM-Only Analysis}
+
+\input{results_table_llmonly}
+
+\newpage
+
+\section{Documentation}
+
+\input{legend_glossary}
+
+\section{Methodology Notes}
+
+\subsection{Consensus Ordering Calculation}
+
+The overall ordering represents a synthesis of evidence across all six segregation metrics. For each adjacent pair of scenarios in the ordering:
+
+\begin{itemize}
+\item We count how many metrics support each possible relationship (less than, greater than, or equal)
+\item Consensus rules are applied:
+  \begin{itemize}
+  \item Strong consensus ($<$): $\geq$5 out of 6 metrics agree on direction
+  \item Weak consensus ($\leq$): $\geq$1 metric agrees with no disagreement  
+  \item Mixed evidence ($\leq^?$): Both agreement and disagreement present
+  \item Perfect agreement ($=$): All 6 metrics show identical values
+  \end{itemize}
+\end{itemize}
+
+\subsection{Key Research Implications}
+
+The results demonstrate that LLM agents produce dramatically different segregation patterns based solely on social context framing:
+
+\begin{itemize}
+\item \textbf{Political contexts} show extreme segregation (ghetto rate: 61.6, share: 0.928)
+\item \textbf{Economic contexts} show minimal clustering (ghetto rate: 5.0, share: 0.543)  
+\item This represents a \textbf{12.3× difference} in ghetto formation based purely on social framing
+\item All scenarios differ significantly from baseline (p < 0.001)
+\end{itemize}
+
+These findings suggest that LLMs can capture culturally-embedded preferences and biases, producing segregation dynamics that vary realistically with social context.
+
+\section{References}
+
+For complete methodological details and theoretical background, see:
+
+\textit{Social Context Matters: How Large Language Model Agents Reproduce Real-World Segregation Patterns in the Schelling Model} (Pancs \& Vriend, submitted to Journal of Economic Interaction and Coordination).
+
+\end{document}

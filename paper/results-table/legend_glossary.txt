@@ -1,0 +1,97 @@
+SEGREGATION METRICS ANALYSIS: LEGEND AND GLOSSARY
+===============================================
+
+SOCIAL CONTEXT SCENARIOS
+------------------------
+
+The segregation metrics compare agent behavior across five distinct social contexts 
+within the Schelling framework:
+
+• green/yellow (Baseline Control): Generic "red vs blue" teams without social 
+  connotations, serving as a neutral baseline
+
+• race:wht/blk (Racial Context): "White middle-class families" vs "Black families" - 
+  captures residential preferences based on racial identity
+
+• ethnicity (Ethnic Context): "Asian American families" vs "Hispanic/Latino families" - 
+  examines ethnicity-based residential patterns
+
+• income (Economic Context): "High-income professionals" vs "Working-class families" - 
+  tests segregation based on economic class
+
+• political (Political Context): "Liberal households" vs "Conservative households" - 
+  measures political polarization in residential choices
+
+• llm_baseline: LLM agents using the baseline control scenario
+
+• mechanical: Traditional utility-maximizing agents with threshold-based decision 
+  rules (non-LLM baseline)
+
+
+SEGREGATION METRICS (PANCS-VRIEND FRAMEWORK)
+-------------------------------------------
+
+• Share: Proportion of same-type neighbor pairs (0.5 = perfect integration, 
+  1.0 = complete segregation). Captures global segregation level.
+
+• Clusters: Number of spatially contiguous same-type regions. Fewer clusters indicate 
+  more consolidated ethnic enclaves. Note: Presented as -clusters since higher cluster 
+  counts indicate less segregation.
+
+• Distance: Average Manhattan distance to nearest different-type agent. Higher values 
+  indicate greater spatial separation between groups.
+
+• Ghetto Rate: Count of agents with zero different-type neighbors. Captures extreme 
+  isolation and "ghettoization" - the most severe form of segregation.
+
+• Mix Deviation: Average deviation from 50-50 local integration. Measures segregation 
+  at the individual neighborhood level.
+
+• Switch Rate: Frequency of type changes along agent borders. Higher values indicate 
+  more jagged, intermixed boundaries. Note: Presented as -switch_rate since higher 
+  switch rates indicate less segregation.
+
+
+STATISTICAL SIGNIFICANCE NOTATION
+---------------------------------
+
+The inequality symbols indicate the strength of statistical relationships between scenarios:
+
+• < : Strong consensus (≥5 out of 6 metrics agree) - highly significant difference
+• ≤ : Weak consensus (≥1 metric agrees, no disagreement) - generally supported relationship
+• ≤? : Mixed evidence (both agreements and disagreements) - uncertain relationship
+• = : Perfect agreement (all 6 metrics agree) - equivalent segregation levels
+
+
+SIGNIFICANCE LEVELS
+------------------
+
+Statistical significance is denoted by asterisk superscripts:
+
+• * : p < 0.05 (statistically significant)
+• ** : p < 0.01 (highly significant)
+• *** : p < 0.001 (extremely significant)
+
+
+INTERPRETATION
+-------------
+
+Overall Ordering: The consensus ranking synthesizes evidence across all six metrics 
+to provide a single ordering from lowest to highest segregation levels.
+
+Individual Metrics: Each metric captures a different dimension of segregation - from 
+global patterns (Share) to local isolation (Ghetto Rate) to spatial structure 
+(Clusters, Distance).
+
+Key Finding: Political contexts produce the most extreme segregation (ghetto rate: 61.6, 
+segregation share: 0.928), while economic contexts show minimal clustering (ghetto rate: 5.0, 
+share: 0.543) - a 12.3× difference in ghetto formation based solely on social framing.
+
+
+CITATION
+--------
+
+For complete methodological details, see:
+"Social Context Matters: How Large Language Model Agents Reproduce Real-World 
+Segregation Patterns in the Schelling Model" (Pancs & Vriend, submitted to Journal 
+of Economic Interaction and Coordination)
