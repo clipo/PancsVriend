@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 class Simulation:
     def __init__(self, run_id, agent_factory, decision_func, scenario='baseline', random_seed=None,
-                 initial_int_grid=None, initial_step=None):
+                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None):
         self.run_id = run_id
         self.scenario = scenario
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
@@ -45,6 +45,14 @@ class Simulation:
         self.log_state_per_move()
         # Log a dummy "move" to record their initial state
         self.log_agent_move(None, None, None, None, False, None, 'initial_state', verbose_move_log=False)
+
+        if initial_no_move_steps is not None:
+            try:
+                parsed_streak = int(initial_no_move_steps)
+                if parsed_streak >= 0:
+                    self.no_move_steps = parsed_streak
+            except Exception:
+                pass
 
     def populate_from_int_grid(self, int_grid):
         """Populate grid from a 2D numpy/list of ints (-1 empty, 0/1 type ids)."""

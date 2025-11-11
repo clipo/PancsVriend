@@ -680,8 +680,12 @@ def test_load_results_from_output_raw_data(tmp_path):
         {'step': 0, 'agent_id': 123, 'type_id': 0, 'moved': True, 'grid': '[[0, -1], [-1, 1]]'},
         {'step': 1, 'agent_id': 123, 'type_id': 0, 'moved': False, 'grid': '[[0, -1], [-1, 1]]'}
     ]
-    pd.DataFrame(move_data).to_csv(move_logs_dir / "agent_moves_run_1.csv", index=False)
     
+    pd.DataFrame(move_data).to_csv(move_logs_dir / "agent_moves_run_1.csv", index=False)
+    # Also save as JSON.gz for completeness
+    with gzip.open(move_logs_dir / "agent_moves_run_1.json.gz", "wt", encoding="utf-8") as f:
+        json.dump(move_data, f)
+
     # Mock cfg.GRID_SIZE for consistent testing
     with patch.object(cfg, 'GRID_SIZE', 2):
         results, n_runs = Simulation.load_results_from_output(str(tmp_path))

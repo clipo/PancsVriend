@@ -1,5 +1,4 @@
 import json
-import os
 import requests
 import pytest
 import time
@@ -293,6 +292,17 @@ def test_llm_simulation_create_llm_agent():
     assert agent.scenario == 'baseline'
 
 
+def test_llm_simulation_initial_no_move_steps(monkeypatch):
+    """Simulation should honor provided initial no-move streak when resuming."""
+    monkeypatch.setattr(cfg, "GRID_SIZE", 2)
+    monkeypatch.setattr(cfg, "NUM_TYPE_A", 2)
+    monkeypatch.setattr(cfg, "NUM_TYPE_B", 2)
+
+    sim = llm_runner.LLMSimulation(run_id=1, scenario='baseline', initial_no_move_steps=3)
+
+    assert sim.no_move_steps == 3
+
+
 def test_llm_decision_function_forwards():
     class Dummy:
         def __init__(self):
@@ -531,3 +541,126 @@ def test_context_grid_boundary_conditions(monkeypatch):
         
         # Center should always be X
         assert rows[1].split()[1] == "X"
+
+
+def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
+    """Resume should use stored config values for scenario, steps, model, URL, and n_processes."""
+    monkeypatch.chdir(tmp_path)
+
+    experiment_name = "llm_resume_config"
+    exp_dir = tmp_path / "experiments" / experiment_name
+    exp_dir.mkdir(parents=True)
+
+    config_data = {
+        "n_runs": 2,
+        "max_steps": 777,
+        "grid_size": 10,
+        "num_type_a": 10,
+        "num_type_b": 10,
+        "scenario": "ethnic_asian_hispanic",
+        "llm_model": "gemma3:27b",
+        "llm_url": "https://llm.example/api",
+        "llm_api_key_last4": "9999",
+        "no_move_threshold": 5,
+        "timestamp": "20250101_000000",
+        "context_info": CONTEXT_SCENARIOS["ethnic_asian_hispanic"],
+        "parallel_execution": True,
+        "n_processes": 2,
+        "cpu_count": 8,
+    }
+    (exp_dir / "config.json").write_text(json.dumps(config_data))
+
+    statuses = {
+        0: {
+            "status": "aborted",
+            "last_step": 12,
+            "next_step": 13,
+            "seed_grid": [[-1]],
+            "convergence_step": None,
+            "no_move_streak": 4,
+        },
+        1: {
+            "status": "missing",
+            "last_step": None,
+            "next_step": None,
+            "seed_grid": None,
+            "convergence_step": None,
+            "no_move_streak": 0,
+        },
+    }
+
+    monkeypatch.setattr(llm_runner, "_analyze_run_status", lambda out_dir, run_id, max_steps: statuses[run_id])
+    monkeypatch.setattr(llm_runner, "check_llm_connection", lambda *args, **kwargs: True)
+    monkeypatch.setattr(llm_runner, "tqdm", lambda iterable, **kwargs: iterable)
+    monkeypatch.setattr(llm_runner, "cpu_count", lambda: 8)
+    pool_calls = []
+
+    class DummyPool:
+        def __init__(self, processes):
+            pool_calls.append(processes)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def imap(self, func, iterable):
+            for item in iterable:
+                yield func(item)
+
+    monkeypatch.setattr(llm_runner, "Pool", DummyPool)
+
+    captured_args = []
+
+    def fake_run_single(args):
+        captured_args.append(args)
+        run_id, scenario_arg, llm_model_arg, llm_url_arg, llm_api_key_arg = args[:5]
+        max_steps_arg = args[6] if len(args) >= 7 else None
+        seed_grid_arg = args[7] if len(args) >= 8 else None
+        initial_step_arg = args[8] if len(args) >= 9 else None
+        streak_arg = args[9] if len(args) >= 10 else None
+        return {
+            "run_id": run_id,
+            "converged": True,
+            "convergence_step": None,
+            "final_step": max_steps_arg,
+            "metrics_history": [],
+            "llm_call_count": 0,
+            "avg_llm_call_time": 0.0,
+            "seed_grid": seed_grid_arg,
+            "initial_step": initial_step_arg,
+            "no_move_streak": streak_arg,
+        }
+
+    monkeypatch.setattr(llm_runner, "run_single_simulation", fake_run_single)
+
+    def fake_analyze(results, output_dir, n_runs):
+        return output_dir, results, [{"converged": True, "convergence_step": None} for _ in results]
+
+    monkeypatch.setattr(llm_runner.Simulation, "analyze_results", staticmethod(fake_analyze))
+
+    monkeypatch.setattr(cfg, "OLLAMA_MODEL", "default-model")
+    monkeypatch.setattr(cfg, "OLLAMA_URL", "default-url")
+    monkeypatch.setattr(cfg, "OLLAMA_API_KEY", "default-key")
+
+    out_dir, final_results = llm_runner.run_llm_experiment(resume_experiment=experiment_name)
+
+    assert out_dir == f"experiments/{experiment_name}"
+    assert pool_calls == [config_data["n_processes"]]
+    assert len(captured_args) == config_data["n_runs"]
+
+    for args in captured_args:
+        assert args[1] == config_data["scenario"]
+        assert args[2] == config_data["llm_model"]
+        assert args[3] == config_data["llm_url"]
+        assert args[6] == config_data["max_steps"]
+
+    # First arg corresponds to resumed (aborted) run
+    resumed_args = captured_args[0]
+    assert resumed_args[7] == statuses[0]["seed_grid"]
+    assert resumed_args[8] == statuses[0]["next_step"]
+    assert resumed_args[9] == statuses[0]["no_move_streak"]
+
+    assert len(final_results) == config_data["n_runs"]
+    assert all(result["llm_call_count"] == 0 for result in final_results)

@@ -308,7 +308,7 @@ def llm_decision_function(agent, r, c, grid):
 
 class LLMSimulation(Simulation):
     def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
-                 initial_int_grid=None, initial_step=None):
+                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
@@ -322,7 +322,8 @@ class LLMSimulation(Simulation):
             scenario=scenario,
             random_seed=random_seed,
             initial_int_grid=initial_int_grid,
-            initial_step=initial_step
+            initial_step=initial_step,
+            initial_no_move_steps=initial_no_move_steps
         )
         
         # Track LLM metrics across all agents
@@ -395,9 +396,11 @@ def run_single_simulation(args):
     max_steps = args[6] if len(args) >= 7 and args[6] is not None else 1000
     initial_int_grid = args[7] if len(args) >= 8 else None
     initial_step = args[8] if len(args) >= 9 else None
+    initial_no_move_steps = args[9] if len(args) >= 10 else None
 
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
-                        initial_int_grid=initial_int_grid, initial_step=initial_step)
+                        initial_int_grid=initial_int_grid, initial_step=initial_step,
+                        initial_no_move_steps=initial_no_move_steps)
     result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps)
     
     # Add LLM-specific metrics to the result
@@ -426,11 +429,20 @@ def _analyze_run_status(output_dir, run_id, max_steps):
         threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
         converged = False
         convergence_step = None
+        no_move_streak = 0
         if not step_moves.empty:
             window = step_moves.tail(threshold)
             if len(window) == threshold and (window == 0).all():
                 converged = True
                 convergence_step = int(window.index[0])
+            # Count trailing zero-move steps for resuming aborted runs
+            for moves in reversed(step_moves.tolist()):
+                if pd.isna(moves):
+                    break
+                if int(moves) == 0:
+                    no_move_streak += 1
+                else:
+                    break
         reached_max = (last_step + 1) >= max_steps if last_step >= 0 else False
 
         status = 'converged' if converged else ('reached_max' if reached_max else 'aborted')
@@ -463,7 +475,8 @@ def _analyze_run_status(output_dir, run_id, max_steps):
             'last_step': None if last_step < 0 else last_step,
             'next_step': next_step,
             'seed_grid': seed_grid,
-            'convergence_step': convergence_step if converged else None
+            'convergence_step': convergence_step if converged else None,
+            'no_move_streak': int(no_move_streak)
         }
 
     # No move log; try states as existence indicator
@@ -477,9 +490,8 @@ def _analyze_run_status(output_dir, run_id, max_steps):
                 seed_grid = arr[-1].tolist()
         except Exception:
             seed_grid = None
-        return {'status': 'aborted', 'last_step': None, 'next_step': None, 'seed_grid': seed_grid, 'convergence_step': None}
-
-    return {'status': 'missing', 'last_step': None, 'next_step': None, 'seed_grid': None, 'convergence_step': None}
+        return {'status': 'aborted', 'last_step': None, 'next_step': None, 'seed_grid': seed_grid, 'convergence_step': None, 'no_move_streak': 0}
+    return {'status': 'missing', 'last_step': None, 'next_step': None, 'seed_grid': None, 'convergence_step': None, 'no_move_streak': 0}
     
 def list_available_experiments():
     """List all available experiments that can be resumed"""
@@ -565,24 +577,24 @@ def check_existing_experiment(experiment_name):
     completed_runs = len(existing_run_ids)
     return True, completed_runs, output_dir, existing_run_ids
 
-def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None, resume_experiment=None):
+def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None, resume_experiment=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
     Parameters:
     -----------
-    scenario : str
-        Scenario context to use for the experiment
-    n_runs : int
-        Number of simulation runs to perform
-    max_steps : int
-        Maximum steps per simulation
-    llm_model : str, optional
-        LLM model to use (overrides config.py)
-    llm_url : str, optional
-        LLM API URL (overrides config.py)
-    llm_api_key : str, optional
-        LLM API key (overrides config.py)
+    scenario : str or None
+        Scenario context to use. When resuming and omitted, falls back to the stored experiment config.
+    n_runs : int or None
+        Number of simulation runs to perform. When resuming and omitted, uses the stored experiment config.
+    max_steps : int or None
+        Maximum steps per simulation. When resuming and omitted, uses the stored experiment config.
+    llm_model : str or None
+        LLM model to use (overrides config.py if provided; otherwise uses config/defaults).
+    llm_url : str or None
+        LLM API URL (overrides config.py if provided; otherwise uses config/defaults).
+    llm_api_key : str or None
+        LLM API key to use (overrides config.py if provided; otherwise uses config/defaults).
     parallel : bool
         Whether to use parallel processing
     n_processes : int, optional
@@ -616,16 +628,56 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         if existing_run_ids:
             print(f"   Existing run IDs: {sorted(existing_run_ids)}")
         
-        # Load existing config to match original parameters
+        # Load existing config to match original parameters when CLI does not override them
         config_file = os.path.join(output_dir, "config.json")
+        config_defaults_used = []
+        config_values_from_file = {}
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 existing_config = json.load(f)
-                # Use original experiment parameters if not explicitly overridden
-                scenario = existing_config.get('scenario', scenario)
-                max_steps = existing_config.get('max_steps', max_steps)
+                if scenario is None:
+                    scenario_from_config = existing_config.get('scenario')
+                    if scenario_from_config:
+                        scenario = scenario_from_config
+                        config_defaults_used.append('scenario')
+                        config_values_from_file['scenario'] = scenario_from_config
+                if max_steps is None:
+                    max_steps_from_config = existing_config.get('max_steps')
+                    if max_steps_from_config is not None:
+                        max_steps = max_steps_from_config
+                        config_defaults_used.append('max_steps')
+                        config_values_from_file['max_steps'] = max_steps_from_config
+                if llm_model is None:
+                    llm_model_from_config = existing_config.get('llm_model')
+                    if llm_model_from_config:
+                        llm_model = llm_model_from_config
+                        config_defaults_used.append('llm_model')
+                        config_values_from_file['llm_model'] = llm_model_from_config
+                if llm_url is None:
+                    llm_url_from_config = existing_config.get('llm_url')
+                    if llm_url_from_config:
+                        llm_url = llm_url_from_config
+                        config_defaults_used.append('llm_url')
+                        config_values_from_file['llm_url'] = llm_url_from_config
+                if llm_api_key is None and existing_config.get('llm_api_key_last4'):
+                    # API key cannot be reconstructed from last4; fall back to cfg if not provided
+                    pass
+                if n_runs is None:
+                    n_runs_from_config = existing_config.get('n_runs')
+                    if n_runs_from_config is not None:
+                        n_runs = n_runs_from_config
+                        config_defaults_used.append('n_runs')
+                        config_values_from_file['n_runs'] = n_runs_from_config
+                if n_processes is None:
+                    n_proc_from_config = existing_config.get('n_processes')
+                    if isinstance(n_proc_from_config, int) and n_proc_from_config > 0:
+                        n_processes = n_proc_from_config
+                        config_defaults_used.append('n_processes')
+                        config_values_from_file['n_processes'] = n_proc_from_config
+
+                # Persist new n_runs value if CLI provided different target count
                 orig_runs = existing_config.get('n_runs')
-                if orig_runs is not None and orig_runs != n_runs:
+                if orig_runs is not None and n_runs is not None and orig_runs != n_runs:
                     print(f"📝 Updating config n_runs from {orig_runs} to {n_runs} to match CLI")
                     existing_config['n_runs'] = n_runs
                     try:
@@ -633,9 +685,44 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
                             json.dump(existing_config, fw, indent=2)
                     except Exception as e:
                         print(f"Warning: failed to update config.json: {e}")
-                print("📋 Resuming with original experiment parameters:")
-                print(f"   Scenario: {scenario}")
-                print(f"   Max steps: {max_steps}")
+        else:
+            existing_config = {}
+            print("⚠️ config.json not found for this experiment; falling back to default settings where necessary.")
+
+        # Apply fallback defaults if config did not supply missing values
+        scenario = scenario or 'baseline'
+        max_steps = max_steps if (isinstance(max_steps, int) and max_steps > 0) else 1000
+        n_runs = n_runs if (isinstance(n_runs, int) and n_runs > 0) else (completed_runs if completed_runs > 0 else 10)
+        llm_model = llm_model or cfg.OLLAMA_MODEL
+        llm_url = llm_url or cfg.OLLAMA_URL
+        llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if not isinstance(n_processes, int) or n_processes < 1:
+            n_processes = None
+
+        value_map = {
+            'scenario': scenario,
+            'max_steps': max_steps,
+            'llm_model': llm_model,
+            'llm_url': llm_url,
+            'n_runs': n_runs,
+            'n_processes': n_processes,
+        }
+        config_defaults_used = [key for key in config_defaults_used if value_map.get(key) == config_values_from_file.get(key)]
+
+        print("📋 Resuming with experiment parameters:")
+        print(f"   Scenario: {scenario}{' (from config)' if 'scenario' in config_defaults_used else ''}")
+        print(f"   Max steps: {max_steps}{' (from config)' if 'max_steps' in config_defaults_used else ''}")
+        if 'n_runs' in config_defaults_used:
+            print(f"   Total planned runs: {n_runs} (from config)")
+        else:
+            print(f"   Total planned runs: {n_runs}")
+        if 'llm_model' in config_defaults_used:
+            print(f"   LLM model: {llm_model} (from config)")
+        if 'llm_url' in config_defaults_used:
+            print(f"   LLM URL: {llm_url} (from config)")
+        if n_processes is not None:
+            suffix = " (from config)" if 'n_processes' in config_defaults_used else ""
+            print(f"   Parallel processes: {n_processes}{suffix}")
         
         # Plan and classify all target run IDs
         planned_run_ids = list(range(n_runs))
@@ -662,9 +749,13 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
         for rid, s in aborted_items:
             seed_grid = s.get('seed_grid')
             next_step = s.get('next_step')
-            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, seed_grid, next_step))
+            no_move_streak = s.get('no_move_streak')
+            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, seed_grid, next_step, no_move_streak))
         if aborted_items:
             print(f"   Will resume aborted run IDs first: {[rid for rid,_ in aborted_items]}")
+            for rid, s in aborted_items:
+                if s.get('no_move_streak'):
+                    print(f"     Run {rid}: trailing no-move steps = {s['no_move_streak']}")
         if missing_run_ids:
             print(f"   Will execute missing run IDs: {missing_run_ids}")
         for rid in missing_run_ids:
@@ -675,6 +766,12 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
     else:
         completed_runs = 0
         existing_run_ids = set()
+        scenario = scenario or 'baseline'
+        max_steps = max_steps or 1000
+        n_runs = n_runs or 10
+        llm_model = llm_model or cfg.OLLAMA_MODEL
+        llm_url = llm_url or cfg.OLLAMA_URL
+        llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
         # Create output directory for new experiment
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"llm_{scenario}_{timestamp}"
@@ -699,9 +796,9 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
             'num_type_a': cfg.NUM_TYPE_A,
             'num_type_b': cfg.NUM_TYPE_B,
             'scenario': scenario,
-            'llm_model': llm_model or cfg.OLLAMA_MODEL,
-            'llm_url': llm_url or cfg.OLLAMA_URL,
-            'llm_api_key_last4': (llm_api_key or cfg.OLLAMA_API_KEY)[-4:] if (llm_api_key or cfg.OLLAMA_API_KEY) else None,
+            'llm_model': llm_model,
+            'llm_url': llm_url,
+            'llm_api_key_last4': (llm_api_key)[-4:] if llm_api_key else None,
             'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
             'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S"),
             'context_info': CONTEXT_SCENARIOS[scenario],
@@ -824,9 +921,9 @@ def run_llm_experiment(scenario='baseline', n_runs=10, max_steps=1000, llm_model
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM-based Schelling segregation simulations")
-    parser.add_argument('--runs', type=int, default=10, help='Number of simulation runs')
-    parser.add_argument('--max-steps', type=int, default=1000, help='Maximum steps per simulation')
-    parser.add_argument('--scenario', type=str, default='baseline', choices=list(CONTEXT_SCENARIOS.keys()), help='Scenario to simulate')
+    parser.add_argument('--runs', type=int, default=None, help='Number of simulation runs')
+    parser.add_argument('--max-steps', type=int, default=None, help='Maximum steps per simulation')
+    parser.add_argument('--scenario', type=str, default=None, choices=list(CONTEXT_SCENARIOS.keys()), help='Scenario to simulate')
     parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
     parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
     parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
