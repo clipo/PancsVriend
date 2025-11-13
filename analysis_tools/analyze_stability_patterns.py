@@ -3,12 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
+from typing import cast
 # from scipy import stats  # unused
 # import matplotlib.patches as mpatches  # unused
 from analysis_tools.experiment_list_for_analysis import (
     SCENARIOS as scenarios,
     SCENARIO_LABELS as scenario_labels,
 )
+from analysis_tools.output_paths import get_reports_dir
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -79,7 +81,7 @@ def analyze_stability():
     
     plt.suptitle('Stability Analysis: How Consistent Are Segregation Patterns?', fontsize=16, fontweight='bold')
     plt.tight_layout()
-    out_dir = Path('reports')
+    out_dir = get_reports_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_dir / 'stability_analysis.png', dpi=300, bbox_inches='tight')
     
@@ -159,9 +161,14 @@ def analyze_stability():
                 early_var = early_df.groupby('step')['share'].mean().var()
                 late_var = late_df.groupby('step')['share'].mean().var()
                 
-                if early_var > late_var * 2:
+                early_val_raw = cast(float, early_var) if early_var is not None else 0.0
+                late_val_raw = cast(float, late_var) if late_var is not None else 0.0
+                early_val = float(early_val_raw)
+                late_val = float(late_val_raw)
+
+                if early_val > late_val * 2:
                     pattern = "Quick stabilizer"
-                elif late_var > early_var * 2:
+                elif late_val > early_val * 2:
                     pattern = "Slow stabilizer"
                 else:
                     pattern = "Gradual stabilizer"

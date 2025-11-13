@@ -3,6 +3,7 @@ from pathlib import Path
 from scipy import stats
 import argparse
 from experiment_list_for_analysis import SCENARIOS as scenarios
+from analysis_tools.output_paths import get_reports_dir
 
 # Optional import for fallback reconstruction if metrics files are missing
 try:
@@ -106,7 +107,7 @@ def process_scenarios(recompute: bool = True):
                 print(f"  {scenario}: {mean_val:.4f} ± {std_val:.4f}")
 
     # Persist combined
-    out_path = Path('reports/combined_final_metrics.csv')
+    out_path = get_reports_dir() / 'combined_final_metrics.csv'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     combined_df.to_csv(out_path, index=False)
     print(f"\n\nSaved combined results to {out_path}")

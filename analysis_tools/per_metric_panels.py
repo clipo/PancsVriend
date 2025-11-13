@@ -9,13 +9,14 @@ from experiment_list_for_analysis import (
     SCENARIO_LABELS as scenario_labels,
     SCENARIO_COLORS as scenario_colors,
 )
+from analysis_tools.output_paths import get_reports_dir
 
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("Set2")
 
 BASE_DIR = Path(__file__).resolve().parent
 EXP_DIR = BASE_DIR / "experiments"
-OUT_DIR = BASE_DIR / "reports"
+OUT_DIR = get_reports_dir()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Scenarios, labels, colors imported from shared module
@@ -158,7 +159,7 @@ def make_metric_panel(metric: str, data_by_scenario: dict):
         ax_conv.axis('off')
 
     plt.suptitle(f"Comprehensive Panel — {metric_labels[metric]}", fontsize=16, fontweight='bold')
-    plt.tight_layout(rect=[0, 0.02, 1, 0.95])
+    plt.tight_layout(rect=(0.0, 0.02, 1.0, 0.95))
 
     # Save
     out_png = OUT_DIR / f"metric_panel_{metric}.png"

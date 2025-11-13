@@ -17,6 +17,12 @@ Notes:
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from typing import Union
+
+from analysis_tools.output_paths import set_reports_dir
+
 # Canonical scenario -> experiment folder mapping
 SCENARIOS = {
     # Baselines
@@ -75,6 +81,7 @@ def run_all_analyses(
     movement_only: bool = False,
     include_movement: bool = False,
     verbose: bool = True,
+    output_folder: Union[str, Path] = "reports",
 ):
     """Run the suite of analysis scripts in a recommended order.
 
@@ -97,6 +104,11 @@ def run_all_analyses(
     at_path = Path(__file__).resolve().parent
     if str(at_path) not in sys.path:
         sys.path.append(str(at_path))
+
+    previous_output_env = os.environ.get("PANCSVRIEND_REPORTS_DIR")
+    target_output = output_folder or "reports"
+    reports_dir = set_reports_dir(target_output)
+    reports_dir.mkdir(parents=True, exist_ok=True)
 
     steps = []  # (name, callable, kwargs)
 
@@ -214,6 +226,7 @@ def _parse_args_and_run():
     group = p.add_mutually_exclusive_group()
     group.add_argument('--movement-only', action='store_true', help='Run only movement analysis.')
     p.add_argument('--include-movement', action='store_true', help='Include movement analysis (off by default).')
+    p.add_argument('--output-folder', type=str, default='reports', help='Base directory to write analysis artifacts (default: reports).')
     p.add_argument('--quiet', action='store_true', help='Suppress verbose step output.')
     args = p.parse_args()
     run_all_analyses(
@@ -221,6 +234,7 @@ def _parse_args_and_run():
         movement_only=args.movement_only,
         include_movement=args.include_movement,
         verbose=not args.quiet,
+        output_folder=args.output_folder,
     )
 
 

@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
 from experiment_list_for_analysis import (
     SCENARIO_ORDER,
     SCENARIO_LABELS,
     SCENARIO_COLORS,
 )
+from analysis_tools.output_paths import get_reports_dir
 
 # Publication-ready style
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
@@ -30,7 +30,7 @@ plt.rcParams.update({
 })
 
 # Load combined results from reports
-OUT_DIR = Path('reports')
+OUT_DIR = get_reports_dir()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 combined_df = pd.read_csv(OUT_DIR / 'combined_final_metrics.csv')
 
@@ -120,7 +120,7 @@ plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', y
 # Add legend for significance
 # Significance footnote removed
 
-plt.tight_layout(rect=[0, 0.04, 1, 0.94], h_pad=1.5)
+plt.tight_layout(rect=(0.0, 0.04, 1.0, 0.94), h_pad=1.5)
 plt.savefig(OUT_DIR / 'segregation_metrics_comparison.png', dpi=300, bbox_inches='tight')
 
 """Heatmap summarizing normalized segregation metrics across scenarios present in data."""
@@ -174,7 +174,7 @@ else:
                   pad=14)
     sns.despine(ax=ax2, left=False, bottom=False)
 
-plt.tight_layout(rect=[0, 0.02, 1, 1])
+plt.tight_layout(rect=(0.0, 0.02, 1.0, 1.0))
 plt.savefig(OUT_DIR / 'segregation_heatmap.png', dpi=300, bbox_inches='tight')
 
 # Print summary statistics

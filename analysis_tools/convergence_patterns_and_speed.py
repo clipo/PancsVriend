@@ -9,6 +9,7 @@ from experiment_list_for_analysis import (
     SCENARIO_LABELS as scenario_labels,
     SCENARIO_COLORS as scenario_colors,
 )
+from analysis_tools.output_paths import get_reports_dir
 
 # Publication-ready seaborn theme
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.25)
@@ -115,8 +116,8 @@ fig.legend(uhandles, ulabels, loc='lower center', ncol=min(4, len(ulabels)),
 
 plt.suptitle('Convergence Patterns of Segregation Metrics Across Scenarios', y=0.98)
 sns.despine(fig=fig)
-plt.tight_layout(rect=[0, 0.08, 1, 0.94], h_pad=2.0)
-OUT_DIR = Path('reports')
+plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
+OUT_DIR = get_reports_dir()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUT_DIR / 'convergence_patterns.png', dpi=300, bbox_inches='tight')
 
@@ -206,7 +207,7 @@ if handles2:
                 frameon=False, bbox_to_anchor=(0.5, -0.04), fontsize=12,
                 labelspacing=0.8, borderaxespad=1.0, columnspacing=1.6, handlelength=2.0)
 
-plt.tight_layout(rect=[0, 0.12, 1, 1])
+plt.tight_layout(rect=(0.0, 0.12, 1.0, 1.0))
 plt.savefig(OUT_DIR / 'convergence_speed_comparison.png', dpi=300, bbox_inches='tight')
 
 print("\n\nFigures saved to:")

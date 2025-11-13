@@ -47,6 +47,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from context_scenarios import CONTEXT_SCENARIOS
+from analysis_tools.output_paths import get_reports_dir
 
 
 def load_config(experiment_dir: Path) -> Dict:
@@ -297,8 +298,8 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
     }
     df_all['type_label'] = df_all['type_id'].map(type_names)
 
-    # Create per-experiment output dir under reports/movement_analysis to centralize outputs
-    base_reports = Path('reports') / 'movement_analysis'
+    # Create per-experiment output dir under the configured reports directory
+    base_reports = get_reports_dir() / 'movement_analysis'
     analysis_dir = base_reports / experiment_dir.name
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
@@ -458,7 +459,12 @@ def make_summary_plots(df_all_exp: pd.DataFrame, out_dir: Path) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Analyze movement probability by type and neighbor ratio across experiments")
     parser.add_argument("--experiments-dir", type=str, default="experiments", help="Path to experiments directory")
-    parser.add_argument("--out-dir", type=str, default="reports/movement_analysis", help="Directory for combined summary outputs")
+    parser.add_argument(
+        "--out-dir",
+        type=str,
+        default=str(get_reports_dir() / "movement_analysis"),
+        help="Directory for combined summary outputs",
+    )
     parser.add_argument("--only", type=str, nargs="*", help="Limit to specific experiment folder names (space-separated or a single comma-separated string)")
     parser.add_argument("--no-recompute", action="store_true", help="Load cached analyzed dataframe instead of recomputing")
     args = parser.parse_args()

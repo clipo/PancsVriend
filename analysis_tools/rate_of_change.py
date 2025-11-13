@@ -11,6 +11,7 @@ from experiment_list_for_analysis import (
     SCENARIO_LABELS as scenario_labels,
     SCENARIO_COLORS as scenario_colors,
 )
+from analysis_tools.output_paths import get_reports_dir
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -196,7 +197,7 @@ def analyze_dynamics():
     
     plt.suptitle('Dynamics of Segregation: How Different Contexts Evolve', fontsize=18, fontweight='bold')
     plt.tight_layout()
-    out_dir = Path('reports')
+    out_dir = get_reports_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_dir / 'rate_of_change_analysis.png', dpi=300, bbox_inches='tight')
     
