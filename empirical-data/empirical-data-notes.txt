@@ -1,4 +1,6 @@
 
+empirical-data/
+
 These two subfolders contain census tract level data for RACE and INCOME.
 
 RACE: nhgis0002_csv/
