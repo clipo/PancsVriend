@@ -1,0 +1,246 @@
+--------------------------------------------------------------------------------
+Codebook for NHGIS data file 'nhgis0002_ds172_2010_tract'
+--------------------------------------------------------------------------------
+ 
+Contents
+    - Data Summary
+    - Data Dictionary
+    - Citation and Use
+ 
+Additional documentation on NHGIS data sources is available at: 
+    https://www.nhgis.org/documentation/tabular-data 
+ 
+--------------------------------------------------------------------------------
+Data Summary
+--------------------------------------------------------------------------------
+ 
+Year:             2010
+Geographic level: Census Tract (by State--County)
+Extent:           All areas
+Dataset:          2010 Census: SF 1a - P & H Tables [Blocks & Larger Areas]
+   NHGIS code:    2010_SF1a
+   NHGIS ID:      ds172
+Breakdown(s):     Geographic Component:
+                     Total area (00)
+ 
+Tables:
+ 
+1. Total Population
+   Universe:    Total population
+   Source code: P1
+   NHGIS code:  H7V
+ 
+2. Hispanic or Latino Origin
+   Universe:    Total population
+   Source code: P4
+   NHGIS code:  H7Y
+ 
+3. Race
+   Universe:    Total population
+   Source code: P8
+   NHGIS code:  H72
+ 
+--------------------------------------------------------------------------------
+Data Dictionary
+--------------------------------------------------------------------------------
+ 
+Context Fields 
+        GISJOIN:     GIS Join Match Code
+        YEAR:        Data File Year
+        STUSAB:      State/US-Abbreviation (USPS)
+        REGIONA:     Region Code
+        DIVISIONA:   Division Code
+        STATE:       State Name
+        STATEA:      State Code
+        COUNTY:      County Name
+        COUNTYA:     County Code
+        COUSUBA:     County Subdivision Code
+        COUSUBCC:    FIPS County Subdivision Class Code
+        PLACEA:      Place Code
+        PLACECC:     FIPS Place Class Code
+        TRACTA:      Census Tract Code
+        BLKGRPA:     Block Group Code
+        BLOCKA:      Block Code
+        CONCITA:     Consolidated City Code
+        AIANHHA:     American Indian Area/Alaska Native Area/Hawaiian Home Land Code
+        RES_ONLYA:   American Indian Area/Alaska Native Area (Reservation or Statistical Entity Only) Code
+        TRUSTA:      American Indian Area (Off-Reservation Trust Land Only)/Hawaiian Home Land Code
+        AIANHHCC:    FIPS American Indian Area/Alaska Native Area/Hawaiian Home Land Class Code
+        AITSCEA:     Tribal Subdivision/Remainder Code
+        AITS:        American Indian Tribal Subdivision (FIPS)
+        TTRACTA:     Tribal Census Tract Code
+        TBLKGRPA:    Tribal Block Group Code
+        ANRCA:       Alaska Native Regional Corporation Code
+        CBSAA:       Metropolitan Statistical Area/Micropolitan Statistical Area Code
+        METDIVA:     Metropolitan Division Code
+        CSAA:        Combined Statistical Area Code
+        NECTAA:      New England City and Town Area Code
+        NECTADIVA:   New England City and Town Area Division Code
+        CNECTAA:     Combined New England City and Town Area Code
+        CBSAPCI:     Metropolitan Statistical Area/Micropolitan Statistical Area Principal City Indicator
+        NECTAPCI:    New England City and Town Area Principal City Indicator
+        UAA:         Urban Area Code
+        UATYPE:      Urban Area Type
+        URA:         Urban/Rural Code
+        CDA:         Congressional District (111th Congress) Code
+        SLDUA:       State Legislative District (Upper Chamber) Code
+        SLDLA:       State Legislative District (Lower Chamber) Code
+        VTD:         Voting District
+        VTDI:        Voting District Indicator
+        ZCTA5A:      5-Digit ZIP Code Tabulation Area Code
+        SUBMCDA:     Subminor Civil Division Code
+        SDELMA:      School District (Elementary)/Remainder Code
+        SDSECA:      School District (Secondary)/Remainder Code
+        SDUNIA:      School District (Unified)/Remainder Code
+        AREALAND:    Area (Land)
+        AREAWATR:    Area (Water)
+        NAME:        Area Name-Legal/Statistical Area Description (LSAD) Term-Part Indicator
+        FUNCSTAT:    Functional Status Code
+        INTPTLAT:    Internal Point (Latitude)
+        INTPTLON:    Internal Point (Longitude)
+        LSADC:       Legal/Statistical Area Description Code
+        MEMI:        Metropolitan Micropolitan Indicator
+        NMEMI:       NECTA Metropolitan Micropolitan Indicator
+        PUMA:        Public Use Microdata Area
+        SABINSA:     School Attendance Area Code
+ 
+Breakdown:
+    Geographic Component: Total area (00)
+ 
+    Table 1:     Total Population
+    Universe:    Total population
+    Source code: P1
+    NHGIS code:  H7V
+        H7V001:      Total
+ 
+    Table 2:     Hispanic or Latino Origin
+    Universe:    Total population
+    Source code: P4
+    NHGIS code:  H7Y
+        H7Y001:      Total
+        H7Y002:      Not Hispanic or Latino
+        H7Y003:      Hispanic or Latino
+ 
+    Table 3:     Race
+    Universe:    Total population
+    Source code: P8
+    NHGIS code:  H72
+        H72001:      Total
+        H72002:      Population of one race
+        H72003:      Population of one race: White alone
+        H72004:      Population of one race: Black or African American alone
+        H72005:      Population of one race: American Indian and Alaska Native alone
+        H72006:      Population of one race: Asian alone
+        H72007:      Population of one race: Native Hawaiian and Other Pacific Islander alone
+        H72008:      Population of one race: Some Other Race alone
+        H72009:      Two or More Races
+        H72010:      Two or More Races: Population of two races
+        H72011:      Two or More Races: Population of two races: White; Black or African American
+        H72012:      Two or More Races: Population of two races: White; American Indian and Alaska Native
+        H72013:      Two or More Races: Population of two races: White; Asian
+        H72014:      Two or More Races: Population of two races: White; Native Hawaiian and Other Pacific Islander
+        H72015:      Two or More Races: Population of two races: White; Some Other Race
+        H72016:      Two or More Races: Population of two races: Black or African American; American Indian and Alaska Native
+        H72017:      Two or More Races: Population of two races: Black or African American; Asian
+        H72018:      Two or More Races: Population of two races: Black or African American; Native Hawaiian and Other Pacific Islander
+        H72019:      Two or More Races: Population of two races: Black or African American; Some Other Race
+        H72020:      Two or More Races: Population of two races: American Indian and Alaska Native; Asian
+        H72021:      Two or More Races: Population of two races: American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander
+        H72022:      Two or More Races: Population of two races: American Indian and Alaska Native; Some Other Race
+        H72023:      Two or More Races: Population of two races: Asian; Native Hawaiian and Other Pacific Islander
+        H72024:      Two or More Races: Population of two races: Asian; Some Other Race
+        H72025:      Two or More Races: Population of two races: Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72026:      Two or More Races: Population of three races
+        H72027:      Two or More Races: Population of three races: White; Black or African American; American Indian and Alaska Native
+        H72028:      Two or More Races: Population of three races: White; Black or African American; Asian
+        H72029:      Two or More Races: Population of three races: White; Black or African American; Native Hawaiian and Other Pacific Islander
+        H72030:      Two or More Races: Population of three races: White; Black or African American; Some Other Race
+        H72031:      Two or More Races: Population of three races: White; American Indian and Alaska Native; Asian
+        H72032:      Two or More Races: Population of three races: White; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander
+        H72033:      Two or More Races: Population of three races: White; American Indian and Alaska Native; Some Other Race
+        H72034:      Two or More Races: Population of three races: White; Asian; Native Hawaiian and Other Pacific Islander
+        H72035:      Two or More Races: Population of three races: White; Asian; Some Other Race
+        H72036:      Two or More Races: Population of three races: White; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72037:      Two or More Races: Population of three races: Black or African American; American Indian and Alaska Native; Asian
+        H72038:      Two or More Races: Population of three races: Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander
+        H72039:      Two or More Races: Population of three races: Black or African American; American Indian and Alaska Native; Some Other Race
+        H72040:      Two or More Races: Population of three races: Black or African American; Asian; Native Hawaiian and Other Pacific Islander
+        H72041:      Two or More Races: Population of three races: Black or African American; Asian; Some Other Race
+        H72042:      Two or More Races: Population of three races: Black or African American; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72043:      Two or More Races: Population of three races: American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander
+        H72044:      Two or More Races: Population of three races: American Indian and Alaska Native; Asian; Some Other Race
+        H72045:      Two or More Races: Population of three races: American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72046:      Two or More Races: Population of three races: Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72047:      Two or More Races: Population of four races
+        H72048:      Two or More Races: Population of four races: White; Black or African American; American Indian and Alaska Native; Asian
+        H72049:      Two or More Races: Population of four races: White; Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander
+        H72050:      Two or More Races: Population of four races: White; Black or African American; American Indian and Alaska Native; Some Other Race
+        H72051:      Two or More Races: Population of four races: White; Black or African American; Asian; Native Hawaiian and Other Pacific Islander
+        H72052:      Two or More Races: Population of four races: White; Black or African American; Asian; Some Other Race
+        H72053:      Two or More Races: Population of four races: White; Black or African American; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72054:      Two or More Races: Population of four races: White; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander
+        H72055:      Two or More Races: Population of four races: White; American Indian and Alaska Native; Asian; Some Other Race
+        H72056:      Two or More Races: Population of four races: White; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72057:      Two or More Races: Population of four races: White; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72058:      Two or More Races: Population of four races: Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander
+        H72059:      Two or More Races: Population of four races: Black or African American; American Indian and Alaska Native; Asian; Some Other Race
+        H72060:      Two or More Races: Population of four races: Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72061:      Two or More Races: Population of four races: Black or African American; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72062:      Two or More Races: Population of four races: American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72063:      Two or More Races: Population of five races
+        H72064:      Two or More Races: Population of five races: White; Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander
+        H72065:      Two or More Races: Population of five races: White; Black or African American; American Indian and Alaska Native; Asian; Some Other Race
+        H72066:      Two or More Races: Population of five races: White; Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72067:      Two or More Races: Population of five races: White; Black or African American; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72068:      Two or More Races: Population of five races: White; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72069:      Two or More Races: Population of five races: Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+        H72070:      Two or More Races: Population of six races
+        H72071:      Two or More Races: Population of six races: White; Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race
+ 
+--------------------------------------------------------------------------------
+Citation and Use of NHGIS Data
+--------------------------------------------------------------------------------
+ 
+All persons are granted a limited license to use this documentation and the
+accompanying data, subject to the following conditions:
+
+* REDISTRIBUTION: You will not redistribute the data without permission.
+
+  You may publish a subset of the data to meet journal requirements for accessing 
+  data related to a particular publication. Contact us for permission for any other 
+  redistribution; we will consider requests for free and commercial redistribution.
+
+* CITATION: You will cite NHGIS appropriately.
+
+    * Publications and research reports employing NHGIS data (either tabular or GIS) 
+      should include the following citation:
+
+        Jonathan Schroeder, David Van Riper, Steven Manson, Katherine Knowles, Tracy Kugler, Finn Roberts, and Steven Ruggles. 
+        IPUMS National Historical Geographic Information System: Version 20.0 
+        [dataset]. Minneapolis, MN: IPUMS. 2025. 
+        http://doi.org/10.18128/D050.V20.0
+
+    * For policy briefs, online resources, or articles in the popular press, we 
+      recommend that you cite the use of NHGIS data as follows:
+
+        IPUMS NHGIS, University of Minnesota, www.nhgis.org.
+
+These terms of use are a legally binding agreement. You can use the data only in 
+accordance with these terms, and any other use is a violation of the agreement. 
+Violations may result in revocation of the agreement and prohibition from using other 
+IPUMS data. If IPUMS or our partners are harmed from your violation, you are 
+responsible for all damages, including reasonable attorney's fees and expenses.
+        
+In addition, we request that users send us a copy of any publications, research
+reports, or educational material making use of the data or documentation.
+
+Send electronic material to: nhgis@umn.edu
+
+Printed matter should be sent to:
+
+    IPUMS NHGIS
+    Institute for Social Research and Data Innovation
+    University of Minnesota
+    50 Willey Hall
+    225 19th Ave S
+    Minneapolis, MN 55455

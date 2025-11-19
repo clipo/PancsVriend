@@ -1,0 +1,30 @@
+
+These two subfolders contain census tract level data for RACE and INCOME.
+
+RACE: nhgis0002_csv/
+
+INCOME: nhgis0003_csv/
+
+Each subfolder has a codebook and a csv file. The csv files have a LOT of variables and the variables are NOT named in any kind of intuitive way at all. So you have to go into the codebook and look at what data you want to grab. 
+
+Example, open nhgis0002_csv/nhgis0002_ds172_2010_tract_codebook.txt
+
+First, are the Context Fields
+	 which have the id information about the data, for example
+	 	Which state is this census tract in? 
+							STUSAB:      State/US-Abbreviation (USPS)
+		What county in this census tract in?
+							COUNTY:      County Name
+        					COUNTYA:     County Code
+							
+Then there are the data fields, for example:
+		H72001:      Total Population
+        H72003:      Population of one race: White alone
+        H72004:      Population of one race: Black or African American alone
+        H72005:      Population of one race: American Indian and Alaska Native alone
+        H72006:      Population of one race: Asian alone
+        H72007:      Population of one race: Native Hawaiian and Other Pacific Islander alone
+        H72008:      Population of one race: Some Other Race alone
+		
+That should be enough of a guide to extract the data we want, which can then be used to construct county-level dissimilarity indexes
+		
