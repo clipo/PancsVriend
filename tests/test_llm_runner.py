@@ -544,12 +544,14 @@ def test_context_grid_boundary_conditions(monkeypatch):
 
 
 def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
-    """Resume should use stored config values for scenario, steps, model, URL, and n_processes."""
+    """Resume should reuse config values for scenario, steps, runs, processes, model, URL, and threshold."""
     monkeypatch.chdir(tmp_path)
 
     experiment_name = "llm_resume_config"
     exp_dir = tmp_path / "experiments" / experiment_name
     exp_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(cfg, "NO_MOVE_THRESHOLD", 3)
 
     config_data = {
         "n_runs": 2,
@@ -561,7 +563,7 @@ def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
         "llm_model": "gemma3:27b",
         "llm_url": "https://llm.example/api",
         "llm_api_key_last4": "9999",
-        "no_move_threshold": 5,
+        "no_move_threshold": 12,
         "timestamp": "20250101_000000",
         "context_info": CONTEXT_SCENARIOS["ethnic_asian_hispanic"],
         "parallel_execution": True,
@@ -663,4 +665,6 @@ def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
     assert resumed_args[9] == statuses[0]["no_move_streak"]
 
     assert len(final_results) == config_data["n_runs"]
+    assert sorted(result["run_id"] for result in final_results) == list(range(config_data["n_runs"]))
     assert all(result["llm_call_count"] == 0 for result in final_results)
+    assert cfg.NO_MOVE_THRESHOLD == config_data["no_move_threshold"]
