@@ -114,7 +114,7 @@ ehthumbs.db
 
 # Project specific files
 *.pdf
-*.csv
+#*.csv
 assign_runs.txt
 .Rproj.user
 
