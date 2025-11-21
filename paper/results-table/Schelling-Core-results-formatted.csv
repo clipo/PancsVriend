@@ -1,0 +1,7 @@
+Variable,,,,,,,,,,,,,
+-clusters,income,=,green/yellow,<***,llm_baseline,<***,race:wht/blk,<***,ethnicity,<***,mechanical,=,political
+distance,green/yellow,=,income,=,llm_baseline,<***,mechanical,=,ethnicity,=,race:wht/blk,<***,political
+ghetto_rate,green/yellow,=,income,<*,llm_baseline,<***,ethnicity,=,race:wht/blk,<**,mechanical,<***,political
+mix_deviation,green/yellow,<**,income,=,llm_baseline,<***,mechanical,=,race:wht/blk,=,ethnicity,<***,political
+share,green/yellow,=,income,<*,llm_baseline,<***,ethnicity,=,race:wht/blk,<***,mechanical,<***,political
+-switch_rate,green/yellow,=,income,=,llm_baseline,<***,race:wht/blk,=,ethnicity,=,mechanical,<***,political
