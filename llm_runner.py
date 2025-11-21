@@ -675,6 +675,15 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                         config_defaults_used.append('n_processes')
                         config_values_from_file['n_processes'] = n_proc_from_config
 
+                threshold_from_config = existing_config.get('no_move_threshold')
+                if threshold_from_config is not None:
+                    try:
+                        parsed_threshold = int(threshold_from_config)
+                    except (TypeError, ValueError):
+                        parsed_threshold = None
+                    if parsed_threshold and parsed_threshold > 0:
+                        cfg.NO_MOVE_THRESHOLD = parsed_threshold
+
                 # Persist new n_runs value if CLI provided different target count
                 orig_runs = existing_config.get('n_runs')
                 if orig_runs is not None and n_runs is not None and orig_runs != n_runs:
