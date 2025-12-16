@@ -1,0 +1,10 @@
+First, I need to create a function which defines the census tract of a given cell in the grid. call that d 
+
+
+first this function should verify that the grid size is 10 by 10. if it is not, throw an error.
+
+ Second, we need a  function which defines the spatial unit, which we call here census tracts. 
+ 
+ divide each axis into three parts: the first is 3 cells, the second is 4 cellss, and the third is three cells. then each spatial unit is defined by the intersection of these parts, for nine spatial units total. Please explain this to me, do not encode yet.
+ 
+ it is defined as follows: on the x axis and the y axis, 
