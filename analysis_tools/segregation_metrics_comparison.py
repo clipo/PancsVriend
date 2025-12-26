@@ -43,14 +43,18 @@ metric_labels = {
     'distance': 'Average Distance',
     'mix_deviation': 'Mix Deviation',
     'share': 'Segregation Share',
-    'ghetto_rate': 'Ghetto Formation Rate'
+    'ghetto_rate': 'Ghetto Formation Rate',
+    'dissimilarity_index': 'Dissimilarity Index'
 }
 
-# Create figure with subplots for each metric
-fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-axes = axes.flatten()
-
 metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
+if 'dissimilarity_index' in combined_df.columns:
+    metrics.append('dissimilarity_index')
+
+n_cols = 3
+n_rows = int(np.ceil(len(metrics) / n_cols))
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows))
+axes = axes.flatten()
 
 for idx, metric in enumerate(metrics):
     ax = axes[idx]
@@ -114,6 +118,10 @@ for idx, metric in enumerate(metrics):
     sns.despine(ax=ax)
 
     # Significance markers removed for cleaner, publication-focused visuals
+
+# Hide unused subplot cells if any
+for extra_ax in axes[len(metrics):]:
+    extra_ax.axis('off')
 
 plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', y=0.98)
 

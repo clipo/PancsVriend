@@ -27,6 +27,14 @@ def process_scenarios(recompute: bool = True):
     Returns:
         pd.DataFrame: Combined final metrics dataframe with 'scenario' column.
     """
+    dissim_path = get_reports_dir() / 'dissimilarity_index' / 'dissimilarity_final_by_run.csv.gz'
+    dissim_final = None
+    if dissim_path.exists():
+        try:
+            dissim_final = pd.read_csv(dissim_path)
+        except Exception as exc:
+            print(f"[WARN] Failed to load dissimilarity finals from {dissim_path}: {exc}")
+
     results = {}
     for scenario_name, folder in scenarios.items():
         exp_dir = Path('experiments') / folder
@@ -62,11 +70,37 @@ def process_scenarios(recompute: bool = True):
                 if 'run_id' not in df.columns or 'step' not in df.columns:
                     raise ValueError("metrics_history.csv missing required columns 'run_id' or 'step'")
                 final_metrics = get_final_metrics(df)
+
+                if dissim_final is not None:
+                    try:
+                        # Align on run_id for the current scenario
+                        subset = dissim_final[dissim_final['scenario'] == scenario_name].copy()
+                        if not subset.empty:
+                            subset['run_id'] = subset['run_id'].astype(int)
+                            final_metrics = final_metrics.merge(
+                                subset[['run_id', 'dissimilarity_index']],
+                                on='run_id',
+                                how='left',
+                            )
+                        else:
+                            print(f"[INFO] No dissimilarity finals for scenario {scenario_name} in {dissim_path}")
+                    except Exception as exc:
+                        print(f"[WARN] Failed to merge dissimilarity finals for {scenario_name}: {exc}")
                 results[scenario_name] = final_metrics
                 print(f"\n{scenario_name.upper()}:")
                 print(f"Number of runs: {len(final_metrics)}")
                 print("Final metrics summary:")
-                print(final_metrics[['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']].describe())
+                cols_to_show = [
+                    'clusters',
+                    'switch_rate',
+                    'distance',
+                    'mix_deviation',
+                    'share',
+                    'ghetto_rate',
+                ]
+                if 'dissimilarity_index' in final_metrics.columns:
+                    cols_to_show.append('dissimilarity_index')
+                print(final_metrics[cols_to_show].describe())
             except Exception as e:
                 print(f"[ERROR] Could not load metrics for {scenario_name}: {e}")
         else:
@@ -89,6 +123,9 @@ def process_scenarios(recompute: bool = True):
     print("=" * 60)
 
     metrics_list = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
+    has_dissimilarity = any('dissimilarity_index' in df.columns for df in results.values())
+    if has_dissimilarity:
+        metrics_list.append('dissimilarity_index')
     for metric in metrics_list:
         print(f"\n{metric.upper()}:")
         groups = [results[s][metric].values for s in scenarios.keys() if s in results]

@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,59 +45,91 @@ plt.rcParams.update({
 # Scenarios, labels, and colors are imported from shared module
 
 # Create figure for time series
-fig, axes = plt.subplots(2, 3, figsize=(15, 12))
-axes = axes.flatten()
-
-metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
 metric_labels = {
     'clusters': 'Number of Clusters',
     'switch_rate': 'Switch Rate',
     'distance': 'Average Distance',
     'mix_deviation': 'Mix Deviation',
     'share': 'Segregation Share',
-    'ghetto_rate': 'Ghetto Formation Rate'
+    'ghetto_rate': 'Ghetto Formation Rate',
+    'dissimilarity_index': 'Dissimilarity Index',
 }
+
+# Load cached dissimilarity outputs if available
+dissim_path = get_reports_dir() / 'dissimilarity_index' / 'dissimilarity_by_step_all.csv.gz'
+dissim_ts = pd.read_csv(dissim_path) if dissim_path.exists() else None
+
+metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
+if dissim_ts is not None:
+    metrics.append('dissimilarity_index')
+
+# Cache metrics_history per scenario to avoid repeated reads
+metrics_history_cache = {}
+if dissim_ts is not None:
+    dissim_by_scenario = {s: dissim_ts[dissim_ts['scenario'] == s].copy() for s in dissim_ts['scenario'].unique()}
+else:
+    dissim_by_scenario = {}
+
+n_cols = 3
+n_rows = math.ceil(len(metrics) / n_cols)
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
+axes = axes.flatten()
 
 # For each metric, plot convergence patterns
 for idx, metric in enumerate(metrics):
     ax = axes[idx]
 
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
-        if filepath.exists():
-            df = pd.read_csv(filepath)
+        if metric == 'dissimilarity_index':
+            df = dissim_by_scenario.get(scenario_name)
+        else:
+            filepath = Path(f'experiments/{folder}/metrics_history.csv')
+            df = None
+            if filepath.exists():
+                if scenario_name in metrics_history_cache:
+                    df = metrics_history_cache[scenario_name]
+                else:
+                    df = pd.read_csv(filepath)
+                    metrics_history_cache[scenario_name] = df
 
-            # Calculate mean and confidence interval at each step
-            grouped = df.groupby('step')[metric]
-            mean_values = grouped.mean()
-            std_values = grouped.std()
-            count_values = grouped.count()
+        if df is None or df.empty:
+            continue
 
-            # Calculate 95% confidence interval
-            ci = 1.96 * std_values / np.sqrt(count_values)
+        # Calculate mean and confidence interval at each step
+        grouped = df.groupby('step')[metric]
+        mean_values = grouped.mean()
+        std_values = grouped.std()
+        count_values = grouped.count().replace(0, np.nan)
 
-            # Limit steps for visual clarity
-            max_step = min(1000, mean_values.index.max())
-            steps = mean_values.index[mean_values.index <= max_step]
+        # Calculate 95% confidence interval
+        ci = 1.96 * std_values / np.sqrt(count_values)
 
-            color = scenario_colors[scenario_name]
+        # Limit steps for visual clarity
+        max_step = min(1000, mean_values.index.max())
+        steps = mean_values.index[mean_values.index <= max_step]
 
-            # Plot mean line
-            ax.plot(steps, mean_values[steps],
-                    label=scenario_labels[scenario_name],
-                    linewidth=2.2, alpha=0.95, color=color)
+        color = scenario_colors[scenario_name]
 
-            # Add confidence interval
-            ax.fill_between(steps,
-                            mean_values[steps] - ci[steps],
-                            mean_values[steps] + ci[steps],
-                            alpha=0.15, color=color)
+        # Plot mean line
+        ax.plot(steps, mean_values[steps],
+                label=scenario_labels[scenario_name],
+                linewidth=2.2, alpha=0.95, color=color)
+
+        # Add confidence interval
+        ax.fill_between(steps,
+                        mean_values[steps] - ci[steps],
+                        mean_values[steps] + ci[steps],
+                        alpha=0.15, color=color)
 
     ax.set_xlabel('Simulation Step', )
     ax.set_ylabel(metric_labels[metric], )
     ax.set_title(f'{metric_labels[metric]} Over Time', pad=12)
     # ax.grid(False, axis='y', alpha=0.25)
     ax.grid(False)
+
+# Hide any unused subplot slots
+for extra_ax in axes[len(metrics):]:
+    extra_ax.axis('off')
 
 
 handles, labels = [], []
@@ -110,9 +143,10 @@ seen = set()
 unique = [(h_i, lbl) for h_i, lbl in zip(handles, labels) if not (lbl in seen or seen.add(lbl))]
 uhandles, ulabels = zip(*unique) if unique else ([], [])
 
-fig.legend(uhandles, ulabels, loc='lower center', ncol=min(4, len(ulabels)),
-           frameon=False, bbox_to_anchor=(0.5, -0.04),
-           labelspacing=0.8, borderaxespad=1.0, columnspacing=1.6, handlelength=2.0)
+if uhandles:
+    fig.legend(uhandles, ulabels, loc='lower center', ncol=min(4, len(ulabels)),
+               frameon=False, bbox_to_anchor=(0.5, -0.04),
+               labelspacing=0.8, borderaxespad=1.0, columnspacing=1.6, handlelength=2.0)
 
 plt.suptitle('Convergence Patterns of Segregation Metrics Across Scenarios', y=0.98)
 sns.despine(fig=fig)
@@ -128,43 +162,47 @@ print("=" * 60)
 convergence_data = {}
 
 for scenario_name, folder in scenarios.items():
-    filepath = Path(f'experiments/{folder}/metrics_history.csv')
-    if filepath.exists():
-        df = pd.read_csv(filepath)
-        convergence_data[scenario_name] = {}
-        
-        print(f"\n{scenario_labels[scenario_name]}:")
-        
-        for metric in metrics:
-            # Get final values for each run
-            final_values = df.groupby('run_id')[metric].last()
-            
-            # For each run, find when it reaches 90% of its final value
-            convergence_steps = []
-            
-            for run_id in df['run_id'].unique():
-                run_data = df[df['run_id'] == run_id]
-                final_val = run_data[metric].iloc[-1]
-                initial_val = run_data[metric].iloc[0]
-                
-                # Calculate 90% of the change
-                if final_val != initial_val:
-                    target_val = initial_val + 0.9 * (final_val - initial_val)
-                    
-                    # Find first step where this is reached
-                    if final_val > initial_val:
-                        conv_data = run_data[run_data[metric] >= target_val]
-                    else:
-                        conv_data = run_data[run_data[metric] <= target_val]
-                    
-                    if not conv_data.empty:
-                        convergence_steps.append(conv_data['step'].iloc[0])
-            
-            if convergence_steps:
-                mean_conv = np.mean(convergence_steps)
-                std_conv = np.std(convergence_steps)
-                convergence_data[scenario_name][metric] = mean_conv
-                print(f"  {metric}: {mean_conv:.1f} ± {std_conv:.1f} steps")
+    if scenario_name in metrics_history_cache:
+        df_base = metrics_history_cache[scenario_name]
+    else:
+        path = Path(f'experiments/{folder}/metrics_history.csv')
+        df_base = pd.read_csv(path) if path.exists() else None
+        if df_base is not None:
+            metrics_history_cache[scenario_name] = df_base
+
+    df_dissim = dissim_by_scenario.get(scenario_name)
+    if df_base is None and df_dissim is None:
+        continue
+
+    convergence_data[scenario_name] = {}
+    print(f"\n{scenario_labels[scenario_name]}:")
+
+    for metric in metrics:
+        df = df_dissim if metric == 'dissimilarity_index' else df_base
+        if df is None or df.empty:
+            continue
+        final_values = df.groupby('run_id')[metric].last()
+        convergence_steps = []
+
+        for run_id in df['run_id'].unique():
+            run_data = df[df['run_id'] == run_id].sort_values('step')
+            final_val = run_data[metric].iloc[-1]
+            initial_val = run_data[metric].iloc[0]
+
+            if final_val == initial_val:
+                continue
+
+            target_val = initial_val + 0.9 * (final_val - initial_val)
+            conv_data = run_data[run_data[metric] >= target_val] if final_val > initial_val else run_data[run_data[metric] <= target_val]
+
+            if not conv_data.empty:
+                convergence_steps.append(conv_data['step'].iloc[0])
+
+        if convergence_steps:
+            mean_conv = np.mean(convergence_steps)
+            std_conv = np.std(convergence_steps)
+            convergence_data[scenario_name][metric] = mean_conv
+            print(f"  {metric}: {mean_conv:.1f} ± {std_conv:.1f} steps")
 
 # Create convergence speed comparison chart
 fig2, ax2 = plt.subplots(figsize=(12, 8))

@@ -23,6 +23,8 @@ From the project root:
 python analysis_tools/experiment_list_for_analysis.py
 ```
 
+Need the reports somewhere else? Add `--output-folder <path>` to point the orchestrator at a different base directory (e.g., `--output-folder reports_gemma3_27b`).
+
 This will run (in order):
 
 1. `combined_final_metrics` (aggregates final metrics across scenarios)
