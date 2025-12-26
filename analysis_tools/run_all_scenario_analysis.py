@@ -64,8 +64,16 @@ def run_all_analyses(
         original_argv = sys.argv[:]
         module_path = getattr(mod, '__file__', None)
         prog_name = str(Path(module_path)) if module_path else mod.__name__
+
+        only_list = list(SCENARIOS.values())
+        argv = [prog_name, '--experiments-dir', 'experiments', '--out-dir', str(reports_dir / 'movement_analysis')]
+        if only_list:
+            argv.extend(['--only', ','.join(only_list)])
+        if not recompute:
+            argv.append('--no-recompute')
+
         try:
-            sys.argv = [prog_name]
+            sys.argv = argv
             result = mod.main()
         finally:
             sys.argv = original_argv
