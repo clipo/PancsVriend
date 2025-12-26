@@ -102,29 +102,29 @@ Your response:"""
     },
 
 
-    'economic_high_working': {
-        'type_a': 'high-income household',
-        'type_b': 'working-class household',
-        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
+#     'economic_high_working': {
+#         'type_a': 'high-income household',
+#         'type_b': 'working-class household',
+#         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
-Looking at your immediate 3x3 neighborhood:
-{context}
+# Looking at your immediate 3x3 neighborhood:
+# {context}
 
-Where:
-- X = Your current position (center)
-- S = neighbors who are also {agent_type}s in a similar economic situation  
-- O = neighbors who are {opposite_type}s with different economic circumstances
-- E = empty houses available for you to move to
-- # = outside your immediate area
+# Where:
+# - X = Your current position (center)
+# - S = neighbors who are also {agent_type}s in a similar economic situation  
+# - O = neighbors who are {opposite_type}s with different economic circumstances
+# - E = empty houses available for you to move to
+# - # = outside your immediate area
 
-As a real person with your own financial situation, lifestyle preferences, and family priorities, think about where you would genuinely want to live. Consider factors like property values, school quality expectations, social comfort levels, shared community values, and the kind of neighborhood environment you want for your family.
+# As a real person with your own financial situation, lifestyle preferences, and family priorities, think about where you would genuinely want to live. Consider factors like property values, school quality expectations, social comfort levels, shared community values, and the kind of neighborhood environment you want for your family.
 
-Based on this neighborhood, do you want to move to a different position or stay where you are?
+# Based on this neighborhood, do you want to move to a different position or stay where you are?
 
-IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+# IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
-    },
+# Your response:"""
+#     },
 
 
     'political_liberal_conservative': {

@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
+from typing import cast
 from scipy.signal import savgol_filter
 from matplotlib.gridspec import GridSpec
 from experiment_list_for_analysis import (
@@ -152,15 +153,30 @@ def create_clear_dynamics_visualization():
     x = np.arange(len(ratio_df))
     width = 0.35
     
-    bars1 = ax3.bar(x - width/2, ratio_df['Early'], width, label='Early Stage (0-20)', 
-                     color=[c for c in ratio_df['Color']], alpha=0.7)
-    bars2 = ax3.bar(x + width/2, ratio_df['Late'], width, label='Late Stage (80-150)', 
-                     color=[c for c in ratio_df['Color']], alpha=0.4)
+    ax3.bar(
+        x - width / 2,
+        ratio_df['Early'],
+        width,
+        label='Early Stage (0-20)',
+        color=[c for c in ratio_df['Color']],
+        alpha=0.7,
+    )
+    ax3.bar(
+        x + width / 2,
+        ratio_df['Late'],
+        width,
+        label='Late Stage (80-150)',
+        color=[c for c in ratio_df['Color']],
+        alpha=0.4,
+    )
     
     # Add ratio annotations
-    for i, row in ratio_df.iterrows():
-        y_pos = max(row['Early'], row['Late']) + 0.002
-        ax3.text(i, y_pos, f"{row['Ratio']:.1f}×", ha='center', fontsize=10, fontweight='bold')
+    for idx, row in enumerate(ratio_df.itertuples(index=False)):
+        early_val = float(cast(float, row.Early))
+        late_val = float(cast(float, row.Late))
+        ratio_val = float(cast(float, row.Ratio))
+        y_pos = max(early_val, late_val) + 0.002
+        ax3.text(float(idx), y_pos, f"{ratio_val:.1f}×", ha='center', fontsize=10, fontweight='bold')
     
     ax3.set_ylabel('Volatility (Standard Deviation of Rate of Change)', fontsize=12)
     ax3.set_title('C. Volatility Comparison: Which Contexts Stabilize vs Stay Dynamic?', 

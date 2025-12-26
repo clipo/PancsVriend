@@ -11,7 +11,7 @@ Example:
 
 import sys
 import os
-from analysis_tools.output_paths import get_reports_dir
+from pathlib import Path
 from base_simulation import Simulation
 
 def main():
@@ -48,29 +48,7 @@ def main():
                 avg_convergence_step = sum(cd['convergence_step'] for cd in converged_runs) / len(converged_runs)
                 print(f"- Average convergence step: {avg_convergence_step:.1f}")
         
-        print("\n" + "=" * 60)
-        print("ALTERNATIVE APPROACH (TWO-STEP)")
-        print("=" * 60)
-        
-        # Option 2: Load and analyze separately (for more control)
-        print("\n2. Using load_results_from_output() + analyze_results() - Two-step approach:")
-        
-        # Step 1: Load the data
-        results_loaded, n_runs = Simulation.load_results_from_output(output_dir)
-        print(f"Loaded {n_runs} simulation runs")
-        
-        # Step 2: Analyze the data (this will overwrite the previous analysis files)
-        # Re-analysis outputs in reports directory
-        base_name = os.path.basename(os.path.normpath(output_dir))
-        analysis_output_dir = get_reports_dir() / f"{base_name}_reanalyzed"
-        analysis_output_dir.mkdir(parents=True, exist_ok=True)
-
-        output_dir_result2, results2, convergence_data2 = Simulation.analyze_results(
-            results_loaded, str(analysis_output_dir), n_runs
-        )
-        
-        print("Re-analysis complete!")
-        print(f"- Results saved to: {output_dir_result2}")
+        analysis_output_dir = Path(output_dir_result)
         
         print("\n" + "=" * 60)
         print("FILES GENERATED")
@@ -79,8 +57,8 @@ def main():
         # List the analysis files that were created
         analysis_files = [
             "metrics_history.csv",
-            "convergence_summary.csv", 
-            "step_statistics.csv"
+            "convergence_summary.csv",
+            "step_statistics.csv",
         ]
         
         for filename in analysis_files:

@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-from scipy import stats
 from scipy.signal import savgol_filter
 from matplotlib.gridspec import GridSpec
 from experiment_list_for_analysis import (
@@ -95,8 +94,14 @@ def analyze_dynamics():
     # Add values
     for i in range(len(scenario_order)):
         for j in range(len(metrics)):
-            text = ax1.text(j, i, f'{roc_array[i, j]:.3f}',
-                           ha="center", va="center", color="black" if roc_array[i, j] < 0.05 else "white")
+            ax1.text(
+                j,
+                i,
+                f'{roc_array[i, j]:.3f}',
+                ha="center",
+                va="center",
+                color="black" if roc_array[i, j] < 0.05 else "white",
+            )
     
     cbar = plt.colorbar(im, ax=ax1)
     cbar.set_label('Average Absolute Rate of Change', rotation=270, labelpad=20)
@@ -178,10 +183,14 @@ def analyze_dynamics():
                 ax2 = ax.twinx()
                 
                 # Plot trajectory
-                line1 = ax.plot(mean_trajectory.index, mean_trajectory.values, 
-                               label=scenario_labels[scenario], 
-                               color=scenario_colors[scenario], 
-                               linewidth=2, alpha=0.8)
+                ax.plot(
+                    mean_trajectory.index,
+                    mean_trajectory.values,
+                    label=scenario_labels[scenario],
+                    color=scenario_colors[scenario],
+                    linewidth=2,
+                    alpha=0.8,
+                )
                 
                 # Plot rate of change as area
                 ax2.fill_between(mean_trajectory.index[:len(roc)], 0, roc, 
