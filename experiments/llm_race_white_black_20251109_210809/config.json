@@ -1,0 +1,21 @@
+{
+  "n_runs": 10,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "scenario": "race_white_black",
+  "llm_model": "gemma3:27b",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key_last4": "0465",
+  "no_move_threshold": 5,
+  "timestamp": "20251109_210817",
+  "context_info": {
+    "type_a": "white middle class family",
+    "type_b": "Black family",
+    "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nYour immediate 3x3 neighborhood looks like this:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s like you\n- O = neighbors who are {opposite_type}s\n- E = empty houses available to move to  \n- # = outside the immediate area\n\nAs a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live. Consider factors like community comfort, children's friendships, cultural connections, safety perceptions, and social dynamics that matter to you.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+  },
+  "parallel_execution": true,
+  "n_processes": 3,
+  "cpu_count": 124
+}
