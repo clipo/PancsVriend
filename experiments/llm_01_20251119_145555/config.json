@@ -1,0 +1,21 @@
+{
+  "n_runs": 10,
+  "max_steps": 1000,
+  "grid_size": 10,
+  "num_type_a": 40,
+  "num_type_b": 40,
+  "scenario": "01",
+  "llm_model": "phi4:latest",
+  "llm_url": "https://chat.binghamton.edu/api/chat/completions",
+  "llm_api_key_last4": "0465",
+  "no_move_threshold": 5,
+  "timestamp": "20251119_145556",
+  "context_info": {
+    "type_a": "group 0",
+    "type_b": "group 1",
+    "prompt_template": "You are a {agent_type} living in a neighborhood with two groups: 0 and 1.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s\n- O = neighbors who are {opposite_type}s\n- E = empty houses you could move to\n- # = area outside the immediate neighborhood\n\nAs a member of group 0 or group 1, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+  },
+  "parallel_execution": true,
+  "n_processes": 10,
+  "cpu_count": 124
+}
