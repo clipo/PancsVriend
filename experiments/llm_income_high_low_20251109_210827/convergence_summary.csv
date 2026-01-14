@@ -1,0 +1,11 @@
+run_id,converged,convergence_step,final_step
+0,True,4.0,8
+1,True,4.0,8
+2,True,4.0,8
+3,True,0.0,4
+4,True,0.0,4
+5,True,0.0,4
+6,False,,999
+7,False,,999
+8,False,,999
+9,False,,999
