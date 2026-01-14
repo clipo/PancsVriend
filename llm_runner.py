@@ -416,12 +416,14 @@ def _analyze_run_status(output_dir, run_id, max_steps):
     Returns dict with keys: status in {'converged','reached_max','aborted','missing'},
     last_step (int or None), next_step (int or None), seed_grid (2D list or None).
     """
-    move_csv = os.path.join(output_dir, "move_logs", f"agent_moves_run_{run_id}.csv")
+    move_log_path = os.path.join(output_dir, "move_logs", f"agent_moves_run_{run_id}.json.gz")
     states_npz = os.path.join(output_dir, "states", f"states_run_{run_id}.npz")
 
-    if os.path.exists(move_csv):
+    if os.path.exists(move_log_path):
         try:
-            df = pd.read_csv(move_csv)
+            with gzip.open(move_log_path, 'rt', encoding='utf-8') as fh:
+                entries = json.load(fh)
+            df = pd.DataFrame(entries)
         except Exception:
             df = pd.DataFrame()
         last_step = int(df['step'].max()) if (not df.empty and 'step' in df.columns) else -1
