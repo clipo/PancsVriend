@@ -12,7 +12,7 @@ from analysis_tools.output_paths import get_reports_dir
 # Publication-ready style
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
 plt.rcParams.update({
-    "figure.dpi": 120,
+    "figure.dpi": 300,
     "savefig.dpi": 300,
     "ps.fonttype": 42,
     "axes.spines.top": False,
@@ -47,13 +47,22 @@ metric_labels = {
     'dissimilarity_index': 'Dissimilarity Index'
 }
 
-metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
-if 'dissimilarity_index' in combined_df.columns:
-    metrics.append('dissimilarity_index')
+metrics = [
+    'clusters', 
+    'switch_rate', 
+    'distance', 
+    'mix_deviation', 
+    'share', 
+    'ghetto_rate', 
+    # 'dissimilarity_index'
+    ]
 
-n_cols = 3
+n_cols = min(3, len(metrics))
 n_rows = int(np.ceil(len(metrics) / n_cols))
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows))
+# Ensure `axes` is always iterable even when there's a single subplot
+if not isinstance(axes, np.ndarray):
+    axes = np.array([axes])
 axes = axes.flatten()
 
 for idx, metric in enumerate(metrics):
@@ -105,12 +114,13 @@ for idx, metric in enumerate(metrics):
 
     # Axes formatting
     ax.set_xticks(positions)
-    if idx < 3:
-        # Top row: hide x tick labels to avoid repetition
+    row_index = idx // n_cols
+    if row_index < n_rows - 1:
+        # Hide intermediate row labels to reduce clutter when multiple rows exist
         ax.set_xticklabels([])
         ax.tick_params(axis='x', which='both', length=0, labelbottom=False)
     else:
-        # Bottom row: show scenario labels once per column
+        # Last row (or single row) shows scenario labels
         ax.set_xticklabels(plot_labels, rotation=30, ha='right')
     ax.set_ylabel(metric_labels[metric])
     ax.set_title(f'{metric_labels[metric]} by Scenario', pad=8)
@@ -130,6 +140,57 @@ plt.suptitle('Segregation Metrics Comparison Across Social Context Scenarios', y
 
 plt.tight_layout(rect=(0.0, 0.04, 1.0, 0.94), h_pad=1.5)
 plt.savefig(OUT_DIR / 'segregation_metrics_comparison.png', dpi=300, bbox_inches='tight')
+
+# Dedicated dissimilarity index figure for publication insets
+fig_di, ax_di = plt.subplots(figsize=(6, 4.5))
+di_plot_data = []
+di_labels = []
+di_keys = []
+for scenario in SCENARIO_ORDER:
+    vals = combined_df[combined_df['scenario'] == scenario]['dissimilarity_index'].values
+    if len(vals) == 0:
+        continue
+    di_plot_data.append(vals)
+    di_labels.append(SCENARIO_LABELS[scenario])
+    di_keys.append(scenario)
+
+di_positions = np.arange(len(di_labels))
+di_parts = ax_di.violinplot(di_plot_data, positions=di_positions,
+                            showmeans=False, showmedians=False, showextrema=False)
+for i, pc in enumerate(di_parts['bodies']):
+    col = SCENARIO_COLORS.get(di_keys[i], '#999999')
+    pc.set_facecolor(col)
+    pc.set_edgecolor(col)
+    pc.set_alpha(0.35)
+    pc.set_linewidth(1.0)
+
+di_bp = ax_di.boxplot(di_plot_data, positions=di_positions,
+                      widths=0.18, patch_artist=True, showfliers=False)
+for i, patch in enumerate(di_bp['boxes']):
+    col = SCENARIO_COLORS.get(di_keys[i], '#999999')
+    patch.set_facecolor(col)
+    patch.set_edgecolor(col)
+    patch.set_alpha(0.65)
+    patch.set_linewidth(1.0)
+for med in di_bp['medians']:
+    med.set_color('black')
+    med.set_linewidth(1.2)
+for wl in di_bp['whiskers']:
+    wl.set_color('#777777')
+    wl.set_linewidth(1.0)
+for cap in di_bp['caps']:
+    cap.set_color('#777777')
+    cap.set_linewidth(1.0)
+
+ax_di.set_xticks(di_positions)
+ax_di.set_xticklabels(di_labels, rotation=30, ha='right')
+ax_di.set_ylabel(metric_labels['dissimilarity_index'])
+ax_di.set_title('Dissimilarity Index by Scenario', pad=8)
+ax_di.grid(True, axis='y', alpha=0.25)
+sns.despine(ax=ax_di)
+
+plt.tight_layout()
+plt.savefig(OUT_DIR / 'dissimilarity_index_comparison.png', dpi=300, bbox_inches='tight')
 
 """Heatmap summarizing normalized segregation metrics across scenarios present in data."""
 fig2, ax2 = plt.subplots(figsize=(10, 6))

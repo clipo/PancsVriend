@@ -92,13 +92,21 @@ def iter_move_logs_json(experiment_dir: Path) -> List[int]:
     if not move_dir.exists():
         return []
     run_ids = []
-    for f in move_dir.glob("agent_moves_run_*.json.gz"):
-        try:
-            rid = int(f.stem.split("_")[-1])  # stem: agent_moves_run_<id>.json
-        except ValueError:
-            continue
-        run_ids.append(rid)
-    return sorted(run_ids)
+    for pattern in ("agent_moves_run_*.json.gz", "agent_moves_run_*.json"):
+        for f in move_dir.glob(pattern):
+            name = f.name
+            if name.endswith(".json.gz"):
+                prefix = name[:-8]  # strip .json.gz
+            elif name.endswith(".json"):
+                prefix = name[:-5]  # strip .json
+            else:
+                continue
+            try:
+                rid = int(prefix.split("_")[-1])
+            except ValueError:
+                continue
+            run_ids.append(rid)
+    return sorted(set(run_ids))
 
 
 def iter_move_logs_csv(experiment_dir: Path) -> List[int]:
@@ -334,7 +342,7 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
     df_bins['share_bin'] = pd.cut(df_bins['share_same'], bins=bins_list, include_lowest=True)
 
     prob_vs_ratio = (
-        df_bins.groupby(['type_label', 'share_bin'])['moved']
+        df_bins.groupby(['type_label', 'share_bin'], observed=False)['moved']
                .mean()
                .reset_index()
     )
