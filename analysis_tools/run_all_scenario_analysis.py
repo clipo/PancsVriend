@@ -31,6 +31,7 @@ from __future__ import annotations
 import importlib
 import argparse
 import sys
+import warnings
 from pathlib import Path
 from typing import Union
 
@@ -137,35 +138,61 @@ def _execute_steps(steps, verbose: bool = True):
     import time
     import traceback
 
-    results = []  # (name, status, seconds, error)
+    results = []  # list of dict(name,status,seconds,error,warnings)
     start_all = time.time()
     for name, func, kwargs in steps:
         t0 = time.time()
         status = 'ok'
         err_msg = ''
+        step_warnings = []
         if verbose:
             print(f"\n[RUN] {name} ...")
-        try:
-            func(**kwargs)
-        except Exception as e:
-            status = 'fail'
-            err_msg = f"{e.__class__.__name__}: {e}"
-            if verbose:
-                traceback.print_exc(limit=2)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('default')
+            try:
+                func(**kwargs)
+            except Exception as e:
+                status = 'fail'
+                err_msg = f"{e.__class__.__name__}: {e}"
+                if verbose:
+                    traceback.print_exc(limit=2)
+        for warn in caught:
+            msg = f"{warn.category.__name__}: {warn.message}"
+            step_warnings.append(msg)
         dt = time.time() - t0
-        results.append((name, status, dt, err_msg))
+        results.append({
+            'name': name,
+            'status': status,
+            'seconds': dt,
+            'error': err_msg,
+            'warnings': step_warnings,
+        })
         if verbose:
             print(f"[DONE] {name} status={status} time={dt:.1f}s")
 
     total = time.time() - start_all
     if verbose:
         print("\nSUMMARY:")
-        width = max(len(r[0]) for r in results) + 2
-        for name, status, dt, err in results:
-            line = f"  {name.ljust(width)} {status.upper():5s} {dt:7.1f}s"
-            if err:
-                line += f"  - {err}"[:120]
+        width = max(len(r['name']) for r in results) + 2
+        for entry in results:
+            line = f"  {entry['name'].ljust(width)} {entry['status'].upper():5s} {entry['seconds']:7.1f}s"
+            if entry['error']:
+                line += f"  - {entry['error']}"[:120]
             print(line)
+        warning_count = sum(len(r['warnings']) for r in results)
+        if warning_count:
+            print("\nWARNINGS BY STEP:")
+            for entry in results:
+                if not entry['warnings']:
+                    continue
+                print(f"  {entry['name']} ({len(entry['warnings'])} warning(s))")
+                for warn_msg in entry['warnings']:
+                    print(f"    - {warn_msg}")
+        failures = [r for r in results if r['status'] != 'ok']
+        if failures:
+            print("\nERROR SUMMARY:")
+            for entry in failures:
+                print(f"  {entry['name']}: {entry['error']}")
         print(f"\nTotal time: {total:.1f}s for {len(results)} steps")
     return results
 
