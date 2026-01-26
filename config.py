@@ -15,6 +15,7 @@ OLLAMA_MODEL = "mixtral:8x22b-instruct"    # LLM model identifier for Ollama
 OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"  # API endpoint for LLM service
 OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"  # authentication key for LLM API
 ENABLE_AGENT_MEMORY = True                   # Enable agent memory and persistent context (makes agents more human-like)
+STORE_LLM_RESPONSES = True                   # If True, persist raw LLM responses + parsed decision in move logs
 
 # ===== GUI Simulation Settings (used by SchellingSim.py) =====
 USE_LLM = False                          # toggle LLM-based decisions (True) vs mechanical (False)
