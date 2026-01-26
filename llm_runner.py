@@ -127,6 +127,13 @@ class LLMAgent(Agent):
         self.llm_call_count = 0
         self.llm_call_time = 0.0
         self.step = step
+        self.store_llm_responses = (
+            getattr(cfg, 'STORE_LLM_RESPONSES', False) or
+            os.environ.get('STORE_LLM_RESPONSES', '').lower() in ('true', '1', 'yes')
+        )
+        self.last_llm_response_raw = None
+        self.last_llm_parsed_decision = None
+        self.last_llm_parse_status = None
     
     def get_context_grid(self, r, c, grid):
         """
@@ -186,6 +193,11 @@ class LLMAgent(Agent):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
+        if self.store_llm_responses:
+            self.last_llm_response_raw = None
+            self.last_llm_parsed_decision = None
+            self.last_llm_parse_status = None
+        parse_failures = 0
         
         if debug:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -242,6 +254,8 @@ class LLMAgent(Agent):
                 response.raise_for_status()
                 data = response.json()
                 text = data["choices"][0]["message"]["content"]
+                if self.store_llm_responses:
+                    self.last_llm_response_raw = text
                 
                 if debug:
                     print(f"[DEBUG] LLM Response text: '{text}'")
@@ -249,8 +263,31 @@ class LLMAgent(Agent):
                 
                 # Parse MOVE/STAY response
                 text_upper = text.strip().upper()
-                
-                if "MOVE" in text_upper:
+                has_move = "MOVE" in text_upper
+                has_stay = "STAY" in text_upper
+
+                if has_move and has_stay:
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = None
+                        self.last_llm_parse_status = None
+                    parse_failures += 1
+                    if parse_failures <= 5:
+                        if debug:
+                            print(f"[DEBUG] Ambiguous MOVE/STAY in response: '{text}'")
+                            print(f"[DEBUG] Retrying due to parse failure ({parse_failures}/5)")
+                        continue
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = "STAY"
+                        self.last_llm_parse_status = "FAILURE"
+                    if debug:
+                        print(f"[DEBUG] Ambiguous MOVE/STAY in response: '{text}'")
+                        print("[DEBUG] Decision: STAY (parse failure after retries)")
+                    return None
+
+                if has_move:
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = "MOVE"
+                        self.last_llm_parse_status = "OK"
                     if debug:
                         print("[DEBUG] Decision: MOVE - finding random empty space")
                     
@@ -272,15 +309,30 @@ class LLMAgent(Agent):
                             print("[DEBUG] No empty spaces available, staying put")
                         return None
                 
-                elif "STAY" in text_upper:
+                elif has_stay:
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = "STAY"
+                        self.last_llm_parse_status = "OK"
                     if debug:
                         print("[DEBUG] Decision: STAY")
                     return None
                 
                 else:
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = None
+                        self.last_llm_parse_status = None
+                    parse_failures += 1
+                    if parse_failures <= 5:
+                        if debug:
+                            print(f"[DEBUG] Could not parse MOVE/STAY from: '{text}'")
+                            print(f"[DEBUG] Retrying due to parse failure ({parse_failures}/5)")
+                        continue
+                    if self.store_llm_responses:
+                        self.last_llm_parsed_decision = "STAY"
+                        self.last_llm_parse_status = "FAILURE"
                     if debug:
                         print(f"[DEBUG] Could not parse MOVE/STAY from: '{text}'")
-                        print("[DEBUG] Decision: STAY (parse failure)")
+                        print("[DEBUG] Decision: STAY (parse failure after retries)")
                     return None
             except requests.exceptions.Timeout:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

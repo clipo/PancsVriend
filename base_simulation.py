@@ -261,6 +261,15 @@ class Simulation:
             'timestamp': pd.Timestamp.now().isoformat(),
             'grid': self._grid_to_int().tolist()  # Save the current grid state after the move
         }
+
+        store_llm_responses = (
+            getattr(cfg, 'STORE_LLM_RESPONSES', False) or
+            os.environ.get('STORE_LLM_RESPONSES', '').lower() in ('true', '1', 'yes')
+        )
+        if store_llm_responses:
+            move_entry['llm_raw_response'] = getattr(agent, 'last_llm_response_raw', None)
+            move_entry['llm_parsed_decision'] = getattr(agent, 'last_llm_parsed_decision', None)
+            move_entry['llm_parse_status'] = getattr(agent, 'last_llm_parse_status', None)
         
         # Add move entry to log
         self.agent_move_log.append(move_entry)
