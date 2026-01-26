@@ -190,7 +190,7 @@ ax_di.grid(True, axis='y', alpha=0.25)
 sns.despine(ax=ax_di)
 
 plt.tight_layout()
-plt.savefig(OUT_DIR / 'dissimilarity_index_comparison.png', dpi=300, bbox_inches='tight')
+plt.savefig(OUT_DIR / 'segregation_metrics_comparison_dissimilarity_index.png', dpi=300, bbox_inches='tight')
 
 """Heatmap summarizing normalized segregation metrics across scenarios present in data."""
 fig2, ax2 = plt.subplots(figsize=(10, 6))
