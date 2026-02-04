@@ -84,7 +84,7 @@ MOVEMENT_TITLES = {
     "move": "Agents Moving Per Step (%)",
     "stay": "Agents Staying Per Step (%)",
 }
-MAX_STEPS = 1000
+MAX_STEPS = 50
 OUTPUT_SUBDIR = "movement_decision_counts"
 SUMMARY_FILENAME = "movement_decision_counts_summary.csv.gz"
 PLOT_FILENAME = "movement_decision_counts.png"

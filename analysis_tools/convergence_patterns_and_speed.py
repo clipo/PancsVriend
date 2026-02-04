@@ -157,6 +157,7 @@ plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
 OUT_DIR = get_reports_dir()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUT_DIR / 'convergence_patterns.png', dpi=300, bbox_inches='tight')
+plt.close(fig)
 
 if include_dissimilarity:
     # Dedicated dissimilarity index convergence figure for detailed inserts
@@ -196,6 +197,7 @@ if include_dissimilarity:
 
     plt.tight_layout()
     plt.savefig(OUT_DIR / 'convergence_patterns_dissimilarity_index.png', dpi=300, bbox_inches='tight')
+    plt.close(fig_di)
 
 # Calculate convergence speed (steps to reach 90% of final value)
 print("\nCONVERGENCE ANALYSIS:")
@@ -291,6 +293,7 @@ if handles2:
 
 plt.tight_layout(rect=(0.0, 0.12, 1.0, 1.0))
 plt.savefig(OUT_DIR / 'convergence_speed_comparison.png', dpi=300, bbox_inches='tight')
+plt.close(fig2)
 
 # Generate per-step 90% convergence progress plots (CDF-style)
 progress_fig_generated = False
@@ -362,6 +365,7 @@ if any(metric_has_data):
     plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
     plt.savefig(progress_fig_path, dpi=300, bbox_inches='tight')
     progress_fig_generated = True
+    plt.close(cdf_fig)
 else:
     plt.close(cdf_fig)
 
@@ -409,6 +413,7 @@ if include_dissimilarity:
         plt.tight_layout()
         plt.savefig(dissim_progress_path, dpi=300, bbox_inches='tight')
         dissim_progress_generated = True
+        plt.close(fig_cdf_di)
     else:
         plt.close(fig_cdf_di)
 
@@ -434,6 +439,7 @@ if include_dissimilarity:
         plt.tight_layout()
         plt.savefig(OUT_DIR / 'convergence_speed_dissimilarity_index.png',
                     dpi=300, bbox_inches='tight')
+        plt.close(fig3)
     dissim_speed_generated = True
 
 print("\n\nFigures saved to:")

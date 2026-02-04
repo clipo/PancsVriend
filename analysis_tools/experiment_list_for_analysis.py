@@ -16,7 +16,27 @@ Notes:
 """
 
 from __future__ import annotations
+SCENARIOS_TO_PLOT = [
+    'llm_baseline',
+    'mech_baseline',
+    'political_liberal_conservative',
+    'ethnic_asian_hispanic',
+    'race_white_black',
+    'income_high_low',
+    'green_yellow',
+    # 'gender_man_woman',
+]
 
+LLM_MODELS_TO_PLOT = [
+    'mixtral:8x22b-instruct',
+    'gemma3:4b',
+    'gemma3:27b',
+    'hermes3:latest',
+    'llama3.3:latest',
+    'phi4:latest',
+    'qwen2.5-coder:32B',
+    # 'granite3.1-dense:latest',
+]
 # with mixtral:8x22b-instruct used for the paper
 SCENARIOS = { #with mixtral:8x22b-instruct
     # Baselines
@@ -32,8 +52,70 @@ SCENARIOS = { #with mixtral:8x22b-instruct
     # 'economic_high_working': 'llm_economic_high_working_20250728_220134',
     'political_liberal_conservative': 'llm_political_liberal_conservative_20250724_154733',
     'race_white_black': 'llm_race_white_black_20250718_195455',
-    # 'gender_man_woman': 'llm_gender_man_woman_20251007_091936',
+    'gender_man_woman': 'llm_gender_man_woman_20251007_091936',
 }
+
+# SCENARIOS = { # with gemma3:27b
+#     # Baselines
+#     # '01':"llm_01_20251109_210848",
+#     # 'AB':"llm_AB_20251109_210855",
+#     'llm_baseline': 'llm_baseline_20251112_140443',
+#     'green_yellow': 'llm_green_yellow_20251111_114200',
+#     'mech_baseline': 'baseline_20250729_174459',
+
+#     # Social contexts
+#     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20251109_210835',
+#     'income_high_low': 'llm_income_high_low_20251109_210827',
+#     'political_liberal_conservative': 'llm_political_liberal_conservative_20251109_222851',
+#     'race_white_black': 'llm_race_white_black_20251109_210809',
+#     'gender_man_woman': 'llm_gender_man_woman_20251112_181415',
+# }
+# SCENARIOS = { # with phi4:latest
+#     # Baselines
+#     # '01':"llm_01_20251119_145555",
+#     # 'AB':"llm_AB_20251120_151948",
+#     'llm_baseline': 'llm_baseline_20251119_133231',
+#     'green_yellow': 'llm_green_yellow_20251119_133341',
+#     'mech_baseline': 'baseline_20250729_174459',
+
+#     # Social contexts
+#     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20251119_143403',
+#     'income_high_low': 'llm_income_high_low_20251119_144048',
+#     'political_liberal_conservative': 'llm_political_liberal_conservative_20251119_133411',
+#     'race_white_black': 'llm_race_white_black_20251119_142602',
+#     'gender_man_woman': 'llm_gender_man_woman_20251119_133150',
+# }
+# SCENARIOS = { # with llama3.3:latest
+#     # Baselines
+#     # '01':"llm_01_20251109_192501",
+#     # 'AB':"llm_AB_20251109_192446",
+#     'llm_baseline': 'llm_baseline_20251106_154930',
+#     'green_yellow': 'llm_green_yellow_20251106_154452',
+#     'mech_baseline': 'baseline_20250729_174459',
+
+#     # Social contexts
+#     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20251109_192158',
+#     'income_high_low': 'llm_income_high_low_20251109_192317',
+#     'political_liberal_conservative': 'llm_political_liberal_conservative_20251106_171321',
+#     'race_white_black': 'llm_race_white_black_20251109_192402',
+#     'gender_man_woman': 'llm_gender_man_woman_20251119_121535',
+# }
+
+# SCENARIOS = { # with qwen2.5-coder:32b
+#     # Baselines
+#     # '01':"llm_01_20251227_170814",
+#     # 'AB':"llm_AB_20251229_071820",
+#     'llm_baseline': 'llm_baseline_20251215_123739',
+#     'green_yellow': 'llm_green_yellow_20251229_073009',
+#     'mech_baseline': 'baseline_20250729_174459',
+
+#     # Social contexts
+#     'ethnic_asian_hispanic': 'llm_ethnic_asian_hispanic_20251215_130556',
+#     'income_high_low': 'llm_income_high_low_20251226_120421',
+#     'political_liberal_conservative': 'llm_political_liberal_conservative_20251227_165549',
+#     'race_white_black': 'llm_race_white_black_20251215_124954',
+#     'gender_man_woman': 'llm_gender_man_woman_20251229_074055',
+# }
 
 # Human-friendly labels for plots
 SCENARIO_LABELS = {
@@ -52,16 +134,16 @@ SCENARIO_LABELS = {
     'gender_man_woman': 'Gender (Man/Woman)',
 }
 SCENARIO_ORDER = [
-    'mech_baseline',
     '01',
     'AB',
-    'llm_baseline',
     'green_yellow',
-    'political_liberal_conservative',
-    'race_white_black',
-    'ethnic_asian_hispanic',
-    # 'economic_high_working',
     'income_high_low',
+    'llm_baseline',
+    'ethnic_asian_hispanic',
+    'mech_baseline',
+    'race_white_black',
+    'political_liberal_conservative',
+    # 'economic_high_working',
     'gender_man_woman',
 ]
 # Consistent colors for scenarios (hex codes)
