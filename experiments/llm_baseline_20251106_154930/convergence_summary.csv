@@ -80,8 +80,8 @@ run_id,converged,convergence_step,final_step
 78,True,0.0,4
 79,True,0.0,4
 80,True,0.0,4
-81,False,,1
-82,False,,1
-83,False,,1
-84,False,,1
-85,False,,1
+81,False,,4
+82,False,,3
+83,False,,3
+84,False,,3
+85,False,,3
