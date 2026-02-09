@@ -234,8 +234,8 @@ class Simulation:
             # Convert to DataFrame for easy CSV export
             df = pd.DataFrame(self.agent_move_log)
             # Save as CSV for easy analysis
-            csv_path = os.path.join(move_logs_dir, f"agent_moves_run_{self.run_id}.csv")
-            df.to_csv(csv_path, index=False)
+            # csv_path = os.path.join(move_logs_dir, f"agent_moves_run_{self.run_id}.csv") 
+            # df.to_csv(csv_path, index=False) # NOTE: uncomment to save readable csv files
             
             # Also save as compressed JSON for complete data
             json_path = os.path.join(move_logs_dir, f"agent_moves_run_{self.run_id}.json.gz")
