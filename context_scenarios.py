@@ -152,49 +152,49 @@ Your response:"""
     },
 
 
-    # New generic 01 context
-    '01': {
-        'type_a': 'group 0',
-        'type_b': 'group 1',
-        'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: 0 and 1.
+#     # New generic 01 context
+#     '01': {
+#         'type_a': 'group 0',
+#         'type_b': 'group 1',
+#         'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: 0 and 1.
 
-{context}
+# {context}
 
-Where:
-- X = Your current position (center)
-- S = neighbors who are {agent_type}s
-- O = neighbors who are {opposite_type}s
-- E = empty houses you could move to
-- # = area outside the immediate neighborhood
+# Where:
+# - X = Your current position (center)
+# - S = neighbors who are {agent_type}s
+# - O = neighbors who are {opposite_type}s
+# - E = empty houses you could move to
+# - # = area outside the immediate neighborhood
 
-As a member of group 0 or group 1, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
+# As a member of group 0 or group 1, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
 
-IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+# IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:""",
-    },
+# Your response:""",
+#     },
 
-    # New generic AB context
-    'AB': {
-        'type_a': 'resident group A',
-        'type_b': 'resident group B',
-        'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: A and B.
+#     # New generic AB context
+#     'AB': {
+#         'type_a': 'resident group A',
+#         'type_b': 'resident group B',
+#         'prompt_template': """You are a {agent_type} living in a neighborhood with two groups: A and B.
 
-{context}
+# {context}
 
-Where:
-- X = Your current position (center)
-- S = neighbors who are {agent_type}s
-- O = neighbors who are {opposite_type}s
-- E = empty houses you could move to
-- # = area outside the immediate neighborhood
+# Where:
+# - X = Your current position (center)
+# - S = neighbors who are {agent_type}s
+# - O = neighbors who are {opposite_type}s
+# - E = empty houses you could move to
+# - # = area outside the immediate neighborhood
 
-As a member of group A or B, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
+# As a member of group A or B, consider your personal preferences and comfort level in this neighborhood composition. Based on this neighborhood, do you want to MOVE or STAY?
 
-IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+# IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
-    },
+# Your response:"""
+#     },
 
     'green_yellow': {
         'type_a': 'green team resident',
@@ -219,27 +219,27 @@ IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanat
 Your response:"""
     },
 
-    'gender_man_woman': {
-        'type_a': 'Man',
-        'type_b': 'Woman',
-        'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
+#     'gender_man_woman': {
+#         'type_a': 'Man',
+#         'type_b': 'Woman',
+#         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
-Your immediate 3x3 neighborhood looks like this:
-{context}
+# Your immediate 3x3 neighborhood looks like this:
+# {context}
 
-Where:
-- X = Your current position (center)
-- S = neighbors who are {agent_type}s like you
-- O = neighbors who are {opposite_type}s
-- E = empty houses available to move to  
-- # = outside the immediate area
+# Where:
+# - X = Your current position (center)
+# - S = neighbors who are {agent_type}s like you
+# - O = neighbors who are {opposite_type}s
+# - E = empty houses available to move to  
+# - # = outside the immediate area
 
-As a real person with your own experiences, preferences, and social connections, think about where you would genuinely prefer to live. Consider factors like community comfort, social dynamics, safety perceptions, and the kind of neighborhood environment where you feel most at ease.
+# As a real person with your own experiences, preferences, and social connections, think about where you would genuinely prefer to live. Consider factors like community comfort, social dynamics, safety perceptions, and the kind of neighborhood environment where you feel most at ease.
 
-Based on this neighborhood, do you want to move to a different position or stay where you are?
+# Based on this neighborhood, do you want to move to a different position or stay where you are?
 
-IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
+# IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
-    },
+# Your response:"""
+#     },
 }
