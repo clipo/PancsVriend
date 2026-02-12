@@ -13,7 +13,7 @@ Flags:
                         env PANCSVRIEND_REPORTS_DIR if set.
     --llm-model          Filter experiments to the specified LLM model. When set
                         and --output-folder is omitted, outputs go to
-                        reports_{modelname}.
+                        reports_{modelname} (sanitized for filesystem safety).
     --quiet             Suppress per-step progress; summary still printed.
 
 Pipeline order (when not movement-only):
@@ -35,6 +35,7 @@ from __future__ import annotations
 import importlib
 import argparse
 import json
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -291,7 +292,11 @@ def _normalize_model_name(name: str) -> str:
 
 
 def _sanitize_model_for_path_component(name: str) -> str:
-    return name.replace(":", "-").replace("/", "-")
+    # Windows-disallowed chars for a path segment: < > : " / \ | ? * and controls.
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', name.strip())
+    sanitized = sanitized.rstrip(' .')
+    sanitized = re.sub(r'-{2,}', '-', sanitized)
+    return sanitized or "unknown-model"
 
 
 def _scenario_key_from_config(folder_name: str, scenario: str) -> str:
