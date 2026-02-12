@@ -1,0 +1,28 @@
+LLM model: phi4:latest
+
+All experiments for model:
+- 01: llm_01_20251119_145555
+- AB: llm_AB_20251120_151948
+- llm_baseline: llm_baseline_20251119_133231
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251119_143403
+- gender_man_woman: llm_gender_man_woman_20251119_133150
+- green_yellow: llm_green_yellow_20251119_133341
+- income_high_low: llm_income_high_low_20251119_144048
+- political_liberal_conservative: llm_political_liberal_conservative_20251119_133411
+- race_white_black: llm_race_white_black_20251119_142602
+- mech_baseline: baseline_20250729_174459
+
+Used experiments (first per scenario):
+- 01: llm_01_20251119_145555
+- AB: llm_AB_20251120_151948
+- llm_baseline: llm_baseline_20251119_133231
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251119_143403
+- gender_man_woman: llm_gender_man_woman_20251119_133150
+- green_yellow: llm_green_yellow_20251119_133341
+- income_high_low: llm_income_high_low_20251119_144048
+- political_liberal_conservative: llm_political_liberal_conservative_20251119_133411
+- race_white_black: llm_race_white_black_20251119_142602
+- mech_baseline: baseline_20250729_174459
+
+Unused experiments (NOT USED):
+- (none)
