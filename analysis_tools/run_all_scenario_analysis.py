@@ -281,12 +281,17 @@ def _resolve_output_folder(output_folder: Optional[str], llm_model: Optional[str
     if output_folder:
         return output_folder
     if llm_model:
-        return f"reports_{llm_model}"
+        safe_model = _sanitize_model_for_path_component(llm_model)
+        return f"reports_{safe_model}"
     return "reports"
 
 
 def _normalize_model_name(name: str) -> str:
     return name.strip().lower()
+
+
+def _sanitize_model_for_path_component(name: str) -> str:
+    return name.replace(":", "-").replace("/", "-")
 
 
 def _scenario_key_from_config(folder_name: str, scenario: str) -> str:
@@ -484,7 +489,7 @@ def _write_experiment_list_report(
     unused: List[dict],
 ) -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
-    safe_model = llm_model.replace("/", "-")
+    safe_model = _sanitize_model_for_path_component(llm_model)
     output_path = reports_dir / f"experiment_list_{safe_model}.txt"
 
     used_rows = []
