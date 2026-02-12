@@ -1,0 +1,28 @@
+LLM model: llama3.3:latest
+
+All experiments for model:
+- 01: llm_01_20251109_192501
+- AB: llm_AB_20251109_192446
+- llm_baseline: llm_baseline_20251106_154930
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251109_192158
+- gender_man_woman: llm_gender_man_woman_20251119_121535
+- green_yellow: llm_green_yellow_20251106_154452
+- income_high_low: llm_income_high_low_20251109_192317
+- political_liberal_conservative: llm_political_liberal_conservative_20251106_171321
+- race_white_black: llm_race_white_black_20251109_192402
+- mech_baseline: baseline_20250729_174459
+
+Used experiments (first per scenario):
+- 01: llm_01_20251109_192501
+- AB: llm_AB_20251109_192446
+- llm_baseline: llm_baseline_20251106_154930
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251109_192158
+- gender_man_woman: llm_gender_man_woman_20251119_121535
+- green_yellow: llm_green_yellow_20251106_154452
+- income_high_low: llm_income_high_low_20251109_192317
+- political_liberal_conservative: llm_political_liberal_conservative_20251106_171321
+- race_white_black: llm_race_white_black_20251109_192402
+- mech_baseline: baseline_20250729_174459
+
+Unused experiments (NOT USED):
+- (none)
