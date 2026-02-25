@@ -134,15 +134,15 @@ SCENARIO_LABELS = {
     'gender_man_woman': 'Gender (Man/Woman)',
 }
 SCENARIO_ORDER = [
-    '01',
-    'AB',
     'green_yellow',
     'income_high_low',
-    'llm_baseline',
+    'llm_baseline',# color red/blue
     'ethnic_asian_hispanic',
     'mech_baseline',
     'race_white_black',
     'political_liberal_conservative',
+    '01',
+    'AB',
     # 'economic_high_working',
     'gender_man_woman',
 ]
