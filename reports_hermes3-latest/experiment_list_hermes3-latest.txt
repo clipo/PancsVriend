@@ -1,0 +1,22 @@
+LLM model: hermes3:latest
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260126_183603
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260128_152900
+- green_yellow: llm_green_yellow_20260131_132618
+- income_high_low: llm_income_high_low_20260129_144906
+- political_liberal_conservative: llm_political_liberal_conservative_20260130_140140
+- race_white_black: llm_race_white_black_20260127_160410
+- mech_baseline: baseline_20250729_174459
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260126_183603
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260128_152900
+- green_yellow: llm_green_yellow_20260131_132618
+- income_high_low: llm_income_high_low_20260129_144906
+- political_liberal_conservative: llm_political_liberal_conservative_20260130_140140
+- race_white_black: llm_race_white_black_20260127_160410
+- mech_baseline: baseline_20250729_174459
+
+Unused experiments (NOT USED):
+- (none)

@@ -1,0 +1,28 @@
+LLM model: qwen2.5-coder:32B
+
+All experiments for model:
+- 01: llm_01_20251227_170814
+- AB: llm_AB_20251229_071820
+- llm_baseline: llm_baseline_20251215_123739
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251215_130556
+- gender_man_woman: llm_gender_man_woman_20251229_074055
+- green_yellow: llm_green_yellow_20251229_073009
+- income_high_low: llm_income_high_low_20251226_120421
+- political_liberal_conservative: llm_political_liberal_conservative_20251227_165549
+- race_white_black: llm_race_white_black_20251215_124954
+- mech_baseline: baseline_20250729_174459
+
+Used experiments (first per scenario):
+- 01: llm_01_20251227_170814
+- AB: llm_AB_20251229_071820
+- llm_baseline: llm_baseline_20251215_123739
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20251215_130556
+- gender_man_woman: llm_gender_man_woman_20251229_074055
+- green_yellow: llm_green_yellow_20251229_073009
+- income_high_low: llm_income_high_low_20251226_120421
+- political_liberal_conservative: llm_political_liberal_conservative_20251227_165549
+- race_white_black: llm_race_white_black_20251215_124954
+- mech_baseline: baseline_20250729_174459
+
+Unused experiments (NOT USED):
+- (none)

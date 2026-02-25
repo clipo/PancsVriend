@@ -1,0 +1,43 @@
+llm_model,llm_model_display,scenario,scenario_label,rank,mean_score,std_score,n_runs,significant_vs_next,p_value_vs_next
+gemma3:27b,gemma3:27b,political_liberal_conservative,Political (Liberal/Conservative),1,0.652666,0.009943,10,*,0.000182
+gemma3:27b,gemma3:27b,income_high_low,Economic (High/Low Income),2,0.365931,0.098933,10,*,0.014903
+gemma3:27b,gemma3:27b,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,0.283737,0.020489,75,*,0.018759
+gemma3:27b,gemma3:27b,race_white_black,Racial (White/Black),4,0.276981,0.015555,100,,0.226011
+gemma3:27b,gemma3:27b,llm_baseline,Color (Red/Blue),5,0.273847,0.01394,100,,0.053764
+gemma3:27b,gemma3:27b,green_yellow,Color (Green/Yellow),6,0.264998,0.012688,10,,
+gemma3:4b,gemma3:4b,llm_baseline,Color (Red/Blue),1,0.530488,0.131039,10,,0.96985
+gemma3:4b,gemma3:4b,political_liberal_conservative,Political (Liberal/Conservative),2,0.528177,0.100711,10,,0.212294
+gemma3:4b,gemma3:4b,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,0.493969,0.124008,10,,0.677585
+gemma3:4b,gemma3:4b,race_white_black,Racial (White/Black),4,0.463797,0.105278,10,,0.850107
+gemma3:4b,gemma3:4b,green_yellow,Color (Green/Yellow),5,0.447733,0.107177,10,,0.791337
+gemma3:4b,gemma3:4b,income_high_low,Economic (High/Low Income),6,0.44329,0.14072,10,,
+hermes3:latest,hermes3:latest,race_white_black,Racial (White/Black),1,0.499033,0.119901,10,,0.96985
+hermes3:latest,hermes3:latest,income_high_low,Economic (High/Low Income),2,0.474504,0.071461,10,,0.273036
+hermes3:latest,hermes3:latest,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,0.446137,0.107186,10,,0.677585
+hermes3:latest,hermes3:latest,llm_baseline,Color (Red/Blue),4,0.43773,0.121486,10,,0.791337
+hermes3:latest,hermes3:latest,political_liberal_conservative,Political (Liberal/Conservative),5,0.436034,0.129158,10,,0.791337
+hermes3:latest,hermes3:latest,green_yellow,Color (Green/Yellow),6,0.412466,0.116137,10,,
+llama3.3:latest,llama3.3:latest,political_liberal_conservative,Political (Liberal/Conservative),1,0.425013,0.07882,90,*,0.006949
+llama3.3:latest,llama3.3:latest,race_white_black,Racial (White/Black),2,0.399212,0.074785,90,,0.898694
+llama3.3:latest,llama3.3:latest,green_yellow,Color (Green/Yellow),3,0.392383,0.049977,90,,0.878351
+llama3.3:latest,llama3.3:latest,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),4,0.391714,0.05911,90,,0.560431
+llama3.3:latest,llama3.3:latest,income_high_low,Economic (High/Low Income),5,0.390227,0.061017,90,,0.882529
+llama3.3:latest,llama3.3:latest,llm_baseline,Color (Red/Blue),6,0.387987,0.077971,19,,
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,political_liberal_conservative,Political (Liberal/Conservative),1,0.598761,0.037367,100,*,0.0
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,race_white_black,Racial (White/Black),2,0.490256,0.050075,100,*,0.0
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,0.418994,0.083795,100,*,1e-05
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,llm_baseline,Color (Red/Blue),4,0.364489,0.045959,100,*,0.000211
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,income_high_low,Economic (High/Low Income),5,0.343379,0.039491,100,*,0.0
+mixtral:8x22b-instruct,mixtral:8x22b-instruct,green_yellow,Color (Green/Yellow),6,0.310834,0.025012,100,,
+phi4:latest,phi4:latest,income_high_low,Economic (High/Low Income),1,0.507547,0.076006,10,,0.088973
+phi4:latest,phi4:latest,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),2,0.453202,0.107448,10,,0.909722
+phi4:latest,phi4:latest,green_yellow,Color (Green/Yellow),3,0.434618,0.080799,10,,0.57075
+phi4:latest,phi4:latest,llm_baseline,Color (Red/Blue),4,0.426672,0.11232,10,,0.791337
+phi4:latest,phi4:latest,political_liberal_conservative,Political (Liberal/Conservative),5,0.422423,0.102672,10,,0.623176
+phi4:latest,phi4:latest,race_white_black,Racial (White/Black),6,0.421276,0.100988,10,,
+qwen2.5-coder:32b,qwen2.5-coder:32B,income_high_low,Economic (High/Low Income),1,0.476553,0.08702,100,*,0.0
+qwen2.5-coder:32b,qwen2.5-coder:32B,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),2,0.355796,0.045724,100,,0.177025
+qwen2.5-coder:32b,qwen2.5-coder:32B,race_white_black,Racial (White/Black),3,0.348267,0.039964,100,,0.473291
+qwen2.5-coder:32b,qwen2.5-coder:32B,green_yellow,Color (Green/Yellow),4,0.343056,0.042534,100,,0.811702
+qwen2.5-coder:32b,qwen2.5-coder:32B,political_liberal_conservative,Political (Liberal/Conservative),5,0.341581,0.034001,100,,0.401299
+qwen2.5-coder:32b,qwen2.5-coder:32B,llm_baseline,Color (Red/Blue),6,0.338011,0.036872,100,,

@@ -1,0 +1,14 @@
+LLM model: granite3.1-dense:latest
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260202_171530
+- race_white_black: llm_race_white_black_20260203_054257
+- mech_baseline: baseline_20250729_174459
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260202_171530
+- race_white_black: llm_race_white_black_20260203_054257
+- mech_baseline: baseline_20250729_174459
+
+Unused experiments (NOT USED):
+- (none)
