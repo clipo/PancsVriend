@@ -473,17 +473,9 @@ def _apply_scenarios_to_plot() -> None:
         if key not in allowed:
             experiment_list.SCENARIO_COLORS.pop(key, None)
 
-    ordered = [
-        scenario for scenario in scenarios_to_plot
-        if scenario in experiment_list.SCENARIOS
-    ]
-    if ordered:
-        experiment_list.SCENARIO_ORDER[:] = ordered
-    else:
-        experiment_list.SCENARIO_ORDER[:] = [
-            scenario for scenario in experiment_list.SCENARIO_ORDER
-            if scenario in allowed
-        ]
+    # Intentionally do NOT mutate SCENARIO_ORDER here.
+    # Plot ordering must always come from the canonical SCENARIO_ORDER list,
+    # while SCENARIOS_TO_PLOT only controls which scenarios are included.
 
 
 def _write_experiment_list_report(
