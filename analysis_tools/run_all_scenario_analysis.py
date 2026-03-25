@@ -218,10 +218,46 @@ def _parse_args_and_run():
     p.add_argument('--include-movement', action='store_true', default=False, help='Include movement analysis (off by default).')
     p.add_argument('--output-folder', type=str, default=None, help='Base directory to write analysis artifacts (default: reports).')
     p.add_argument('--llm-model', type=str, default=None, help='Filter experiments to a specific LLM model name.')
+    p.add_argument('--manifest-file', type=str, default=None, help='Use an explicit simulation run manifest JSON to select experiments for analysis.')
     p.add_argument('--quiet', action='store_true', help='Suppress verbose step output.')
     args = p.parse_args()
 
+    if args.manifest_file and args.llm_model and args.llm_model.strip().lower() == "all":
+        p.error("--manifest-file cannot be combined with --llm-model all")
+
     experiments_dir = Path('experiments')
+
+    if args.manifest_file:
+        selected, matching, unused, manifest_meta = _select_experiments_from_manifest(
+            Path(args.manifest_file),
+            experiments_dir,
+        )
+        if not selected:
+            raise RuntimeError(
+                f"Manifest '{args.manifest_file}' did not contain any valid successful experiments to analyze."
+            )
+        output_folder = _resolve_output_folder(
+            args.output_folder,
+            args.llm_model or manifest_meta.get("llm_model"),
+        )
+        _update_scenarios_for_run(selected)
+        _write_experiment_list_report(
+            Path(output_folder),
+            args.llm_model or str(manifest_meta.get("llm_model") or "manifest"),
+            matching,
+            selected,
+            unused,
+        )
+        _apply_scenarios_to_plot()
+        run_all_analyses(
+            recompute=not args.no_recompute,
+            movement_only=args.movement_only,
+            include_movement=args.include_movement,
+            verbose=not args.quiet,
+            output_folder=output_folder,
+        )
+        return
+
     if args.llm_model and args.llm_model.strip().lower() == "all":
         models = _collect_llm_models(experiments_dir)
         models = _filter_models_for_all(models)
@@ -360,6 +396,56 @@ def _select_experiments_for_model(
         })
 
     return selected, matching, unused
+
+
+def _select_experiments_from_manifest(
+    manifest_path: Path,
+    experiments_dir: Path,
+) -> Tuple[Dict[str, str], List[dict], List[dict], Dict[str, str]]:
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read manifest file '{manifest_path}': {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Manifest file '{manifest_path}' is not valid JSON: {exc}") from exc
+
+    selected_raw = payload.get("selected_experiments")
+    if not isinstance(selected_raw, dict):
+        raise RuntimeError(
+            f"Manifest file '{manifest_path}' is missing a valid 'selected_experiments' mapping."
+        )
+
+    selected: Dict[str, str] = {}
+    matching: List[dict] = []
+    unused: List[dict] = []
+
+    for scenario_key, folder_name in selected_raw.items():
+        if not isinstance(scenario_key, str) or not isinstance(folder_name, str):
+            continue
+        folder = folder_name.strip()
+        scenario = scenario_key.strip()
+        if not folder or not scenario:
+            continue
+        if not (experiments_dir / folder).exists():
+            raise RuntimeError(
+                f"Manifest references experiment folder '{folder}' for scenario '{scenario}', "
+                f"but it does not exist under '{experiments_dir}'."
+            )
+        selected[scenario] = folder
+        matching.append({
+            "folder": folder,
+            "scenario": scenario,
+            "raw_scenario": scenario,
+            "timestamp": payload.get("created_at"),
+            "llm_model": payload.get("llm_model") or "manifest",
+        })
+
+    manifest_meta = {
+        "llm_model": str(payload.get("llm_model") or ""),
+        "created_at": str(payload.get("created_at") or ""),
+        "manifest_path": str(manifest_path),
+    }
+    return selected, matching, unused, manifest_meta
 
 
 def _find_mech_baseline_experiment(experiments_dir: Path) -> Optional[str]:

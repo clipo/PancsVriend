@@ -10,7 +10,11 @@ Key options:
 * --scenarios <names...>  Limit execution to specific scenarios (defaults to all).
 * --runs N                Target number of runs per scenario (falls back to config when resuming).
 * --processes P           Parallel worker count (omit for auto min(cpu_count, runs)).
+* --save-every-steps N    Persist states/move logs every N steps (default 1, all detail retained).
 * --no-parallel           Force sequential execution.
+* --new                   Always start new experiments (skip resume detection).
+* --use-log-probs         Use precomputed MOVE/STAY shares from summary CSVs.
+* --log-probs-root PATH   Optional root/model directory for log-prob summary files.
 * --llm-model/url/api-key Override the LLM endpoint configuration.
 
 The script checks for existing experiments whose config matches the requested
@@ -21,6 +25,7 @@ Results for each scenario are summarized at the end of the run.
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
@@ -131,6 +136,83 @@ def _format_summary_row(scenario: str, output_dir: Optional[str], run_count: int
 	return f"{scenario:<30} -> {target_dir} ({run_count} runs)"
 
 
+def _default_manifest_path() -> Path:
+	timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+	return Path("experiments") / "manifests" / f"{timestamp}_run_manifest.json"
+
+
+def _build_manifest_records(summary: List[Tuple[str, Optional[str], int]]) -> List[dict]:
+	records: List[dict] = []
+	for scenario, output_dir, run_count in summary:
+		status = "success" if output_dir else "failed"
+		experiment_name = Path(output_dir).name if output_dir else None
+		effective_config = _load_effective_experiment_config(output_dir)
+		records.append({
+			"scenario": scenario,
+			"status": status,
+			"output_dir": output_dir,
+			"experiment_name": experiment_name,
+			"run_count": run_count,
+			"effective_config": effective_config,
+		})
+	return records
+
+
+def _load_effective_experiment_config(output_dir: Optional[str]) -> Optional[dict]:
+	if not output_dir:
+		return None
+	config_path = Path(output_dir) / "config.json"
+	if not config_path.exists():
+		return None
+	try:
+		return json.loads(config_path.read_text(encoding="utf-8"))
+	except (OSError, json.JSONDecodeError):
+		return None
+
+
+def _parser_defaults(parser: argparse.ArgumentParser) -> dict:
+	defaults = {}
+	for action in parser._actions:
+		if not action.dest or action.dest == "help":
+			continue
+		defaults[action.dest] = action.default
+	return defaults
+
+
+def _build_effective_args(
+	parser: argparse.ArgumentParser,
+	args: argparse.Namespace,
+	scenarios: List[str],
+	llm_model: str,
+	llm_url: str,
+	llm_api_key: Optional[str],
+	parallel: bool,
+) -> dict:
+	defaults = _parser_defaults(parser)
+	effective = dict(defaults)
+	effective.update(vars(args))
+	effective.update({
+		"scenarios": scenarios,
+		"llm_model": llm_model,
+		"llm_url": llm_url,
+		"llm_api_key_last4": llm_api_key[-4:] if llm_api_key else None,
+		"parallel": parallel,
+	})
+	return effective
+
+
+def _selected_experiments(records: List[dict]) -> dict:
+	selected = {}
+	for record in records:
+		if record.get("status") != "success":
+			continue
+		scenario = record.get("scenario")
+		experiment_name = record.get("experiment_name")
+		if scenario and experiment_name:
+			selected[str(scenario)] = str(experiment_name)
+	return selected
+
+
 def main() -> None:
 	parser = argparse.ArgumentParser(
 		description="Run or resume LLM experiments across all context scenarios",
@@ -141,11 +223,34 @@ def main() -> None:
 	parser.add_argument("--llm-url", type=str, default=None, help="Override LLM endpoint URL")
 	parser.add_argument("--llm-api-key", type=str, default=None, help="Override LLM API key")
 	parser.add_argument("--processes", type=int, default=None, help="Parallel process count")
+	parser.add_argument("--save-every-steps", type=int, default=None, help="Persist states/move logs every N steps (default: 1)")
 	parser.add_argument("--no-parallel", action="store_true", help="Force sequential execution")
+	parser.add_argument(
+		"--use-log-probs",
+		action="store_true",
+		help="Use precomputed scenario log-probability summary CSVs instead of live LLM API calls",
+	)
+	parser.add_argument(
+		"--log-probs-root",
+		type=str,
+		default=None,
+		help="Optional root/model directory containing log-prob summary CSV files",
+	)
+	parser.add_argument(
+		"--new",
+		action="store_true",
+		help="Start new experiments only; skip checking for resumable/completed experiments",
+	)
 	parser.add_argument(
 		"--scenarios",
 		nargs="*",
 		help="Subset of scenarios to run; defaults to all",
+	)
+	parser.add_argument(
+		"--manifest-file",
+		type=str,
+		default=None,
+		help="Optional output path for run manifest JSON (default: experiments/manifests/<timestamp>_run_manifest.json)",
 	)
 
 	args = parser.parse_args()
@@ -169,14 +274,18 @@ def main() -> None:
 		print("=" * 80)
 		print(f"Scenario: {scenario}")
 
-		resume_candidate, fully_completed = _find_resume_candidate(scenario, llm_model, args.runs)
-		if resume_candidate:
-			if fully_completed:
-				print(f"Found completed experiment '{resume_candidate}' – reusing results")
-			else:
-				print(f"Found incomplete experiment '{resume_candidate}' – resuming")
+		if args.new:
+			resume_candidate = None
+			print("--new set: skipping resume detection and starting a new experiment")
 		else:
-			print("No matching experiment found – starting a new one")
+			resume_candidate, fully_completed = _find_resume_candidate(scenario, llm_model, args.runs)
+			if resume_candidate:
+				if fully_completed:
+					print(f"Found completed experiment '{resume_candidate}' – reusing results")
+				else:
+					print(f"Found incomplete experiment '{resume_candidate}' – resuming")
+			else:
+				print("No matching experiment found – starting a new one")
 
 		output_dir, results = run_llm_experiment(
 			scenario=scenario,
@@ -188,6 +297,9 @@ def main() -> None:
 			parallel=parallel,
 			n_processes=args.processes,
 			resume_experiment=resume_candidate,
+			use_log_probs=args.use_log_probs,
+			log_probs_root=args.log_probs_root,
+			save_every_steps=args.save_every_steps,
 		)
 
 		run_count = len(results) if results is not None else 0
@@ -197,6 +309,31 @@ def main() -> None:
 	print("Completed workflow summary:")
 	for scenario, out_dir, count in summary:
 		print(_format_summary_row(scenario, out_dir, count))
+
+	manifest_records = _build_manifest_records(summary)
+	manifest_path = Path(args.manifest_file) if args.manifest_file else _default_manifest_path()
+	manifest_path.parent.mkdir(parents=True, exist_ok=True)
+
+	manifest_payload = {
+		"manifest_version": 1,
+		"created_at": datetime.now().isoformat(timespec="seconds"),
+		"llm_model": llm_model,
+		"scenarios_requested": scenarios,
+		"effective_args": _build_effective_args(
+			parser=parser,
+			args=args,
+			scenarios=scenarios,
+			llm_model=llm_model,
+			llm_url=llm_url,
+			llm_api_key=llm_api_key,
+			parallel=parallel,
+		),
+		"experiments": manifest_records,
+		"selected_experiments": _selected_experiments(manifest_records),
+	}
+
+	manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
+	print(f"Run manifest written: {manifest_path}")
 
 
 if __name__ == "__main__":

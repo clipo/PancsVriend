@@ -17,6 +17,100 @@ import ast
 import glob
 import re
 import gzip
+from pathlib import Path
+
+
+def _sanitize_model_for_path_component(name: str) -> str:
+    """Return filesystem-safe model slug used by llm_token_probabilities outputs."""
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', str(name).strip())
+    sanitized = sanitized.rstrip(' .')
+    sanitized = re.sub(r'-{2,}', '-', sanitized)
+    return sanitized or "unknown-model"
+
+
+def _resolve_log_prob_summary_csv(
+    llm_model: str,
+    scenario: str,
+    log_probs_root: str | None = None,
+) -> str:
+    """Resolve scenario summary CSV path for a model using sanitized model naming."""
+    model_slug = _sanitize_model_for_path_component(llm_model)
+    scenario_slug = _sanitize_model_for_path_component(scenario)
+
+    if log_probs_root:
+        provided_root = Path(log_probs_root)
+        if provided_root.name == model_slug:
+            model_dir = provided_root
+        else:
+            model_dir = provided_root / model_slug
+    else:
+        model_dir = Path(__file__).resolve().parent / "llm_log_probs" / model_slug
+
+    summary_path = model_dir / f"{model_slug}_{scenario_slug}_stay_move_probability_split_summary.csv"
+    return str(summary_path)
+
+
+def load_log_prob_policy(
+    llm_model: str,
+    scenario: str,
+    log_probs_root: str | None = None,
+) -> tuple[dict[tuple[str, str], dict[str, float]], str]:
+    """Load per-(agent_role, arrangement_code) stay/move shares from summary CSV."""
+    summary_path = _resolve_log_prob_summary_csv(llm_model, scenario, log_probs_root)
+    if not os.path.exists(summary_path):
+        raise FileNotFoundError(
+            f"Log-probability summary CSV not found for model='{llm_model}', scenario='{scenario}': {summary_path}"
+        )
+
+    df = pd.read_csv(summary_path)
+    required_cols = {
+        "agent_role",
+        "arrangement_code",
+        "mean_stay_share",
+        "mean_move_share",
+    }
+    missing = sorted(required_cols - set(df.columns))
+    if missing:
+        raise ValueError(
+            f"Summary CSV missing required columns {missing}: {summary_path}"
+        )
+
+    policy: dict[tuple[str, str], dict[str, float]] = {}
+    for row_idx, row in df.iterrows():
+        role = str(row["agent_role"]).strip()
+        arrangement_code = str(row["arrangement_code"]).strip()
+
+        raw_stay = row["mean_stay_share"]
+        raw_move = row["mean_move_share"]
+        if pd.isna(raw_stay) or pd.isna(raw_move):
+            raise ValueError(
+                f"Missing mean share value in summary CSV at row={row_idx}, "
+                f"agent_role='{role}', arrangement_code='{arrangement_code}'"
+            )
+
+        stay_share = float(raw_stay)
+        move_share = float(raw_move)
+
+        total = stay_share + move_share
+        if not np.isfinite(total) or total <= 0:
+            raise ValueError(
+                f"Invalid mean share values in summary CSV at row={row_idx}, "
+                f"agent_role='{role}', arrangement_code='{arrangement_code}', "
+                f"mean_stay_share={stay_share}, mean_move_share={move_share}"
+            )
+
+        stay_share /= total
+        move_share /= total
+
+        policy[(role, arrangement_code)] = {
+            "stay_probability": stay_share,
+            "move_probability": move_share,
+        }
+
+    if len(policy) == 0:
+        raise ValueError(f"No valid policy rows found in summary CSV: {summary_path}")
+
+    return policy, summary_path
 
 def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10, max_retries=5):
     """
@@ -113,7 +207,9 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
     return False
 
 class LLMAgent(Agent):
-    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, run_id=None, step=None):
+    def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
+                 run_id=None, step=None, use_log_prob_policy=False, log_prob_policy=None,
+                 log_prob_summary_path=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -127,6 +223,9 @@ class LLMAgent(Agent):
         self.llm_call_count = 0
         self.llm_call_time = 0.0
         self.step = step
+        self.use_log_prob_policy = bool(use_log_prob_policy)
+        self.log_prob_policy = log_prob_policy or {}
+        self.log_prob_summary_path = log_prob_summary_path
         self.store_llm_responses = (
             getattr(cfg, 'STORE_LLM_RESPONSES', False) or
             os.environ.get('STORE_LLM_RESPONSES', '').lower() in ('true', '1', 'yes')
@@ -134,6 +233,82 @@ class LLMAgent(Agent):
         self.last_llm_response_raw = None
         self.last_llm_parsed_decision = None
         self.last_llm_parse_status = None
+
+    def _agent_role_key(self):
+        return "type_a" if self.type_id == 0 else "type_b"
+
+    def _context_arrangement_code(self, r, c, grid):
+        neighbors = []
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                if dr == 0 and dc == 0:
+                    continue
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < cfg.GRID_SIZE and 0 <= nc < cfg.GRID_SIZE:
+                    neighbor = grid[nr][nc]
+                    if neighbor is None:
+                        neighbors.append("E")
+                    elif neighbor.type_id == self.type_id:
+                        neighbors.append("S")
+                    else:
+                        neighbors.append("O")
+                else:
+                    neighbors.append("#")
+        return "".join(neighbors)
+
+    def _get_log_prob_decision(self, r, c, grid):
+        """Sample MOVE/STAY from precomputed summary probabilities for this context."""
+        role_key = self._agent_role_key()
+        arrangement_code = self._context_arrangement_code(r, c, grid)
+
+        policy_entry = self.log_prob_policy.get((role_key, arrangement_code))
+        if policy_entry is None:
+            source = self.log_prob_summary_path or "(unknown summary source)"
+            raise KeyError(
+                f"Missing log-prob policy for role='{role_key}', arrangement='{arrangement_code}' in {source}"
+            )
+
+        if "move_probability" not in policy_entry or "stay_probability" not in policy_entry:
+            source = self.log_prob_summary_path or "(unknown summary source)"
+            raise KeyError(
+                f"Incomplete log-prob policy entry for role='{role_key}', arrangement='{arrangement_code}' in {source}"
+            )
+
+        move_probability = float(policy_entry["move_probability"])
+        stay_probability = float(policy_entry["stay_probability"])
+
+        total = move_probability + stay_probability
+        if not np.isfinite(total) or total <= 0:
+            source = self.log_prob_summary_path or "(unknown summary source)"
+            raise ValueError(
+                f"Invalid log-prob policy values for role='{role_key}', arrangement='{arrangement_code}' in {source}: "
+                f"stay_probability={stay_probability}, move_probability={move_probability}"
+            )
+        move_probability = move_probability / total
+
+        # Keep accounting aligned with LLM runs for downstream summaries.
+        self.llm_call_count += 1
+
+        choose_move = random.random() < move_probability
+        if self.store_llm_responses:
+            self.last_llm_response_raw = (
+                f"LOG_PROB_POLICY(move={move_probability:.6f}, stay={1.0 - move_probability:.6f})"
+            )
+            self.last_llm_parsed_decision = "MOVE" if choose_move else "STAY"
+            self.last_llm_parse_status = "OK"
+
+        if not choose_move:
+            return None
+
+        empty_spaces = []
+        for row in range(cfg.GRID_SIZE):
+            for col in range(cfg.GRID_SIZE):
+                if grid[row][col] is None:
+                    empty_spaces.append((row, col))
+
+        if empty_spaces:
+            return random.choice(empty_spaces)
+        return None
     
     def get_context_grid(self, r, c, grid):
         """
@@ -191,6 +366,9 @@ class LLMAgent(Agent):
     
     def get_llm_decision(self, r, c, grid, max_retries=300):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
+        if self.use_log_prob_policy:
+            return self._get_log_prob_decision(r, c, grid)
+
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
         if self.store_llm_responses:
@@ -360,12 +538,16 @@ def llm_decision_function(agent, r, c, grid):
 
 class LLMSimulation(Simulation):
     def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
-                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None):
+                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None,
+                 use_log_prob_policy=False, log_prob_policy=None, log_prob_summary_path=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        self.use_log_prob_policy = bool(use_log_prob_policy)
+        self.log_prob_policy = log_prob_policy or {}
+        self.log_prob_summary_path = log_prob_summary_path
         
         super().__init__(
             run_id=run_id, 
@@ -384,7 +566,18 @@ class LLMSimulation(Simulation):
     
     def _create_llm_agent(self, type_id):
         """Create LLM agent with simulation parameters"""
-        return LLMAgent(type_id, self.scenario, self.llm_model, self.llm_url, self.llm_api_key, self.run_id, self.step)
+        return LLMAgent(
+            type_id,
+            self.scenario,
+            self.llm_model,
+            self.llm_url,
+            self.llm_api_key,
+            self.run_id,
+            self.step,
+            use_log_prob_policy=self.use_log_prob_policy,
+            log_prob_policy=self.log_prob_policy,
+            log_prob_summary_path=self.log_prob_summary_path,
+        )
 
     def run_step(self, verbose_move_log: bool = False):
         """Override run_step to track LLM metrics and add timestamps"""
@@ -423,12 +616,17 @@ class LLMSimulation(Simulation):
 
         return result
 
-    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False):
+    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=1):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
         print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
         
-        result = super().run_single_simulation(output_dir=output_dir, max_steps=max_steps, show_progress=show_progress)
+        result = super().run_single_simulation(
+            output_dir=output_dir,
+            max_steps=max_steps,
+            show_progress=show_progress,
+            save_every_steps=save_every_steps,
+        )
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -439,27 +637,37 @@ class LLMSimulation(Simulation):
 def run_single_simulation(args):
     """Run a single LLM simulation - compatible with baseline_runner structure.
     Supports optional resume seeds and max_steps.
-    Args tuples supported:
-      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir)
-      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps)
-      (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, initial_int_grid, initial_step)
+        Args tuples supported:
+            (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir)
+            (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps)
+            (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, initial_int_grid, initial_step)
+            (..., initial_no_move_steps, use_log_prob_policy, log_prob_policy, log_prob_summary_path, save_every_steps)
     """
     run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args[:6]
     max_steps = args[6] if len(args) >= 7 and args[6] is not None else 1000
     initial_int_grid = args[7] if len(args) >= 8 else None
     initial_step = args[8] if len(args) >= 9 else None
     initial_no_move_steps = args[9] if len(args) >= 10 else None
+    use_log_prob_policy = bool(args[10]) if len(args) >= 11 else False
+    log_prob_policy = args[11] if len(args) >= 12 else None
+    log_prob_summary_path = args[12] if len(args) >= 13 else None
+    save_every_steps = args[13] if len(args) >= 14 else 1
 
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
                         initial_int_grid=initial_int_grid, initial_step=initial_step,
-                        initial_no_move_steps=initial_no_move_steps)
-    result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps)
+                        initial_no_move_steps=initial_no_move_steps,
+                        use_log_prob_policy=use_log_prob_policy,
+                        log_prob_policy=log_prob_policy,
+                        log_prob_summary_path=log_prob_summary_path)
+    result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps, save_every_steps=save_every_steps)
     
     # Add LLM-specific metrics to the result
     result.update({
         'scenario': scenario,
         'llm_call_count': sim.total_llm_calls,
         'avg_llm_call_time': sim.total_llm_time / max(sim.total_llm_calls, 1),
+        'decision_source': 'log_prob_summary' if use_log_prob_policy else 'llm_api',
+        'log_prob_summary_path': log_prob_summary_path,
     })
     return result
 
@@ -631,7 +839,9 @@ def check_existing_experiment(experiment_name):
     completed_runs = len(existing_run_ids)
     return True, completed_runs, output_dir, existing_run_ids
 
-def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None, parallel=True, n_processes=None, resume_experiment=None):
+def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None,
+                       parallel=True, n_processes=None, resume_experiment=None,
+                       use_log_probs=None, log_probs_root=None, save_every_steps=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
@@ -656,6 +866,15 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         If None, uses min(cpu_count(), n_runs). If 1, forces sequential execution.
     resume_experiment : str, optional
         Name of an existing experiment to resume (skip runs that are already completed)
+    use_log_probs : bool or None
+        If True, use precomputed MOVE/STAY probabilities from llm_log_probs summary CSVs
+        instead of live LLM API calls. If None when resuming, value is loaded from config.
+    log_probs_root : str or None
+        Optional root directory containing per-model log-probability summaries.
+        Expected layout: <root>/<sanitized_model>/<sanitized_model>_<scenario>_stay_move_probability_split_summary.csv
+    save_every_steps : int or None
+        Persist states and move logs every N simulation steps (default: 1 / every step).
+        Keeps all details; only changes disk write frequency.
         
     Returns:
     --------
@@ -716,6 +935,18 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                 if llm_api_key is None and existing_config.get('llm_api_key_last4'):
                     # API key cannot be reconstructed from last4; fall back to cfg if not provided
                     pass
+                if use_log_probs is None:
+                    use_log_probs_from_config = existing_config.get('use_log_probs')
+                    if isinstance(use_log_probs_from_config, bool):
+                        use_log_probs = use_log_probs_from_config
+                        config_defaults_used.append('use_log_probs')
+                        config_values_from_file['use_log_probs'] = use_log_probs_from_config
+                if log_probs_root is None:
+                    log_probs_root_from_config = existing_config.get('log_probs_root')
+                    if isinstance(log_probs_root_from_config, str) and log_probs_root_from_config.strip():
+                        log_probs_root = log_probs_root_from_config
+                        config_defaults_used.append('log_probs_root')
+                        config_values_from_file['log_probs_root'] = log_probs_root_from_config
                 if n_runs is None:
                     n_runs_from_config = existing_config.get('n_runs')
                     if n_runs_from_config is not None:
@@ -728,6 +959,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                         n_processes = n_proc_from_config
                         config_defaults_used.append('n_processes')
                         config_values_from_file['n_processes'] = n_proc_from_config
+                if save_every_steps is None:
+                    save_every_steps_from_config = existing_config.get('save_every_steps')
+                    if isinstance(save_every_steps_from_config, int) and save_every_steps_from_config > 0:
+                        save_every_steps = save_every_steps_from_config
+                        config_defaults_used.append('save_every_steps')
+                        config_values_from_file['save_every_steps'] = save_every_steps_from_config
 
                 threshold_from_config = existing_config.get('no_move_threshold')
                 if threshold_from_config is not None:
@@ -759,8 +996,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         llm_model = llm_model or cfg.OLLAMA_MODEL
         llm_url = llm_url or cfg.OLLAMA_URL
         llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if use_log_probs is None:
+            use_log_probs = False
         if not isinstance(n_processes, int) or n_processes < 1:
             n_processes = None
+        if not isinstance(save_every_steps, int) or save_every_steps < 1:
+            save_every_steps = 1
 
         value_map = {
             'scenario': scenario,
@@ -769,6 +1010,9 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'llm_url': llm_url,
             'n_runs': n_runs,
             'n_processes': n_processes,
+            'use_log_probs': use_log_probs,
+            'log_probs_root': log_probs_root,
+            'save_every_steps': save_every_steps,
         }
         config_defaults_used = [key for key in config_defaults_used if value_map.get(key) == config_values_from_file.get(key)]
 
@@ -783,9 +1027,19 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             print(f"   LLM model: {llm_model} (from config)")
         if 'llm_url' in config_defaults_used:
             print(f"   LLM URL: {llm_url} (from config)")
+        print(f"   Decision source: {'log_prob_summary' if use_log_probs else 'llm_api'}")
+        if use_log_probs:
+            if 'log_probs_root' in config_defaults_used:
+                print(f"   Log-probs root: {log_probs_root} (from config)")
+            elif log_probs_root:
+                print(f"   Log-probs root: {log_probs_root}")
         if n_processes is not None:
             suffix = " (from config)" if 'n_processes' in config_defaults_used else ""
             print(f"   Parallel processes: {n_processes}{suffix}")
+        if 'save_every_steps' in config_defaults_used:
+            print(f"   Save every N steps: {save_every_steps} (from config)")
+        else:
+            print(f"   Save every N steps: {save_every_steps}")
         
         # Plan and classify all target run IDs
         planned_run_ids = list(range(n_runs))
@@ -808,12 +1062,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             return out_dir, results
 
         # Prepare args: aborted runs (resume) first, then missing runs (new)
-        args_list = []
+        pending_run_specs = []
         for rid, s in aborted_items:
             seed_grid = s.get('seed_grid')
             next_step = s.get('next_step')
             no_move_streak = s.get('no_move_streak')
-            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, seed_grid, next_step, no_move_streak))
+            pending_run_specs.append((rid, seed_grid, next_step, no_move_streak))
         if aborted_items:
             print(f"   Will resume aborted run IDs first: {[rid for rid,_ in aborted_items]}")
             for rid, s in aborted_items:
@@ -822,9 +1076,9 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         if missing_run_ids:
             print(f"   Will execute missing run IDs: {missing_run_ids}")
         for rid in missing_run_ids:
-            args_list.append((rid, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps))
+            pending_run_specs.append((rid, None, None, None))
 
-        runs_to_execute = len(args_list)
+        runs_to_execute = len(pending_run_specs)
         remaining_runs = runs_to_execute
     else:
         completed_runs = 0
@@ -835,20 +1089,59 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         llm_model = llm_model or cfg.OLLAMA_MODEL
         llm_url = llm_url or cfg.OLLAMA_URL
         llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if use_log_probs is None:
+            use_log_probs = False
+        if not isinstance(save_every_steps, int) or save_every_steps < 1:
+            save_every_steps = 1
         # Create output directory for new experiment
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"llm_{scenario}_{timestamp}"
         output_dir = f"experiments/{experiment_name}"
         os.makedirs(output_dir, exist_ok=True)
         remaining_runs = n_runs
-        # Generate args list for new experiment
-        args_list = [(i, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps) for i in range(n_runs)]
+        pending_run_specs = [(i, None, None, None) for i in range(n_runs)]
     
-    # Check LLM connection first with potentially custom parameters
-    if not check_llm_connection(llm_model, llm_url, llm_api_key):
-        print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
-        print("Please ensure the LLM server is running and accessible.")
-        return None, []
+    log_prob_policy = None
+    log_prob_summary_path = None
+
+    if use_log_probs:
+        if not log_probs_root:
+            model_slug = _sanitize_model_for_path_component(llm_model)
+            log_probs_root = str(Path(__file__).resolve().parent / "llm_log_probs" / model_slug)
+        log_prob_policy, log_prob_summary_path = load_log_prob_policy(
+            llm_model=llm_model,
+            scenario=scenario,
+            log_probs_root=log_probs_root,
+        )
+        print(f"✅ Loaded log-probability policy from: {log_prob_summary_path}")
+        print(f"   Policy entries: {len(log_prob_policy)}")
+    else:
+        # Check LLM connection first with potentially custom parameters
+        if not check_llm_connection(llm_model, llm_url, llm_api_key):
+            print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
+            print("Please ensure the LLM server is running and accessible.")
+            return None, []
+
+    # Build finalized worker args with optional policy payload
+    args_list = [
+        (
+            rid,
+            scenario,
+            llm_model,
+            llm_url,
+            llm_api_key,
+            output_dir,
+            max_steps,
+            seed_grid,
+            next_step,
+            no_move_streak,
+            use_log_probs,
+            log_prob_policy,
+            log_prob_summary_path,
+            save_every_steps,
+        )
+        for rid, seed_grid, next_step, no_move_streak in pending_run_specs
+    ]
     
     # Create or update config (for new experiments only)
     if not resume_experiment:
@@ -867,7 +1160,11 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'context_info': CONTEXT_SCENARIOS[scenario],
             'parallel_execution': parallel,
             'n_processes': n_processes if parallel else 1,
-            'cpu_count': cpu_count()
+            'cpu_count': cpu_count(),
+            'use_log_probs': use_log_probs,
+            'log_probs_root': log_probs_root,
+            'log_prob_summary_file': log_prob_summary_path,
+            'save_every_steps': save_every_steps,
         }
         
         with open(f"{output_dir}/config.json", 'w') as f:
@@ -995,6 +1292,24 @@ if __name__ == "__main__":
                        help=f'Number of CPU processes to use (default: min(cpu_count={cpu_count()}, n_runs)). Use 1 for sequential execution.')
     parser.add_argument('--resume', type=str, help='Resume existing experiment by name (e.g., "llm_baseline_20250706_143022")')
     parser.add_argument('--list-experiments', action='store_true', help='List all available experiments that can be resumed')
+    parser.add_argument(
+        '--use-log-probs',
+        action='store_true',
+        default=None,
+        help='Use precomputed scenario log-probability summary CSVs instead of live LLM API calls',
+    )
+    parser.add_argument(
+        '--log-probs-root',
+        type=str,
+        default=None,
+        help='Optional root directory containing llm_log_probs/<sanitized_model>/... summary files',
+    )
+    parser.add_argument(
+        '--save-every-steps',
+        type=int,
+        default=None,
+        help='Persist states/move logs every N steps (default: 1). Keeps all detail; only write frequency changes.',
+    )
     args = parser.parse_args()
 
     # Handle listing experiments
@@ -1025,5 +1340,8 @@ if __name__ == "__main__":
         llm_api_key=args.llm_api_key,
         parallel=not args.no_parallel,
         n_processes=args.processes,
-        resume_experiment=args.resume
+        resume_experiment=args.resume,
+        use_log_probs=args.use_log_probs,
+        log_probs_root=args.log_probs_root,
+        save_every_steps=args.save_every_steps,
     )
