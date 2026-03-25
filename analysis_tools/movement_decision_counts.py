@@ -30,6 +30,9 @@ Outputs
 from __future__ import annotations
 
 import argparse
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -88,6 +91,15 @@ MAX_STEPS = 50
 OUTPUT_SUBDIR = "movement_decision_counts"
 SUMMARY_FILENAME = "movement_decision_counts_summary.csv.gz"
 PLOT_FILENAME = "movement_decision_counts.png"
+
+
+def _process_pool_context() -> mp.context.BaseContext:
+    for method in ("spawn", "forkserver"):
+        try:
+            return mp.get_context(method)
+        except ValueError:
+            continue
+    return mp.get_context()
 
 
 def _ordered_scenarios() -> List[str]:
@@ -163,10 +175,28 @@ def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
         print(f"movement_decision_counts: no move logs found under '{folder_name}'")
         return None
     print(f"movement_decision_counts: found {len(run_ids)} run logs under '{folder_name}'")
+    default_workers = max(1, (os.cpu_count() or 1))
+    max_workers = min(len(run_ids), default_workers)
+    print(f"movement_decision_counts: processing runs in parallel with {max_workers} worker(s)")
 
     frames: List[pd.DataFrame] = []
-    for run_id in run_ids:
-        df_run = _load_run_decisions(experiment_dir, run_id)
+    run_results = []
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=_process_pool_context()) as executor:
+        future_to_run = {
+            executor.submit(_load_run_decisions, experiment_dir, run_id): run_id
+            for run_id in run_ids
+        }
+        for future in as_completed(future_to_run):
+            run_id = future_to_run[future]
+            try:
+                run_results.append((run_id, future.result(), None))
+            except Exception as exc:
+                run_results.append((run_id, None, exc))
+
+    for run_id, df_run, exc in sorted(run_results, key=lambda item: item[0]):
+        if exc is not None:
+            print(f"movement_decision_counts:   run {run_id} failed to load move log ({exc}); skipped")
+            continue
         if df_run is not None and not df_run.empty:
             frames.append(df_run)
             print(f"movement_decision_counts:   run {run_id} contributed {len(df_run)} decision rows")

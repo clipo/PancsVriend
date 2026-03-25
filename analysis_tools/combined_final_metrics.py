@@ -31,7 +31,7 @@ def process_scenarios(recompute: bool = True):
     dissim_final = None
     if dissim_path.exists():
         try:
-            dissim_final = pd.read_csv(dissim_path)
+            dissim_final = pd.read_csv(dissim_path, engine='pyarrow')
         except Exception as exc:
             print(f"[WARN] Failed to load dissimilarity finals from {dissim_path}: {exc}")
 
@@ -66,7 +66,7 @@ def process_scenarios(recompute: bool = True):
         # Load metrics if present after (re)compute attempt
         if metrics_path.exists():
             try:
-                df = pd.read_csv(metrics_path)
+                df = pd.read_csv(metrics_path, engine='pyarrow')
                 if 'run_id' not in df.columns or 'step' not in df.columns:
                     raise ValueError("metrics_history.csv missing required columns 'run_id' or 'step'")
                 final_metrics = get_final_metrics(df)

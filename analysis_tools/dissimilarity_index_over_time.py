@@ -16,8 +16,13 @@ runs (move_logs/*.json.gz or .csv + states/*.npz).
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor
+import gzip
+import json
+import multiprocessing as mp
+import os
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -48,6 +53,141 @@ TRACT_MAP = np.array([
 TRACT_MAP_FLAT = TRACT_MAP.reshape(-1)
 
 
+def _process_pool_context() -> Any:
+    for method in ("spawn", "forkserver"):
+        try:
+            return mp.get_context(method)
+        except ValueError:
+            continue
+    return mp.get_context()
+
+
+def _step_to_last_state_index_from_json_entries(entries: list, limit: int) -> List[Tuple[int, int]]:
+    """Return sorted (step, last_state_idx) pairs from JSON move log entries.
+
+    Uses a lightweight Python scan instead of building a DataFrame + groupby.
+    """
+    last_by_step: dict[int, int] = {}
+    for idx, entry in enumerate(entries[:limit]):
+        if not isinstance(entry, dict):
+            continue
+        step_val = entry.get('step')
+        if step_val is None:
+            continue
+        try:
+            step_int = int(step_val)
+        except (TypeError, ValueError):
+            continue
+        last_by_step[step_int] = idx
+    return sorted(last_by_step.items())
+
+
+def _step_to_last_state_index_from_json_file(json_path: Path, limit: int) -> Optional[List[Tuple[int, int]]]:
+    """Stream parse a JSON array file and return sorted (step, last_state_idx) pairs.
+
+    This avoids materializing the full JSON list in memory and is typically faster
+    than `json.load(...)` + pandas groupby for large move logs.
+    """
+    if limit <= 0 or not json_path.exists():
+        return []
+
+    opener = gzip.open if json_path.suffix == '.gz' else open
+    decoder = json.JSONDecoder()
+    last_by_step: Dict[int, int] = {}
+
+    buffer = ''
+    pos = 0
+    entry_idx = 0
+    chunk_size = 1 << 20
+
+    try:
+        with opener(json_path, 'rt', encoding='utf-8') as f:
+            # Seek array start '['
+            while True:
+                if pos >= len(buffer):
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        return None
+                    buffer += chunk
+                while pos < len(buffer) and buffer[pos].isspace():
+                    pos += 1
+                if pos < len(buffer):
+                    if buffer[pos] != '[':
+                        return None
+                    pos += 1
+                    break
+
+            while entry_idx < limit:
+                # Skip whitespace and commas
+                while True:
+                    while pos < len(buffer) and buffer[pos].isspace():
+                        pos += 1
+                    if pos < len(buffer) and buffer[pos] == ',':
+                        pos += 1
+                        continue
+                    break
+
+                while pos >= len(buffer):
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        return sorted(last_by_step.items())
+                    buffer += chunk
+
+                while pos < len(buffer) and buffer[pos].isspace():
+                    pos += 1
+                if pos < len(buffer) and buffer[pos] == ']':
+                    break
+
+                try:
+                    obj, end_pos = decoder.raw_decode(buffer, pos)
+                except json.JSONDecodeError:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        return None
+                    if pos > 0:
+                        buffer = buffer[pos:]
+                        pos = 0
+                    buffer += chunk
+                    continue
+
+                if isinstance(obj, dict):
+                    step_val = obj.get('step')
+                    if step_val is not None:
+                        try:
+                            last_by_step[int(step_val)] = entry_idx
+                        except (TypeError, ValueError):
+                            pass
+
+                entry_idx += 1
+                pos = end_pos
+
+                # Trim consumed buffer to control memory growth
+                if pos > chunk_size:
+                    buffer = buffer[pos:]
+                    pos = 0
+
+        return sorted(last_by_step.items())
+    except Exception:
+        return None
+
+
+def _step_to_last_state_index_from_csv_df(moves_df: pd.DataFrame, limit: int) -> List[Tuple[int, int]]:
+    """Return sorted (step, last_state_idx) pairs from CSV move log rows.
+
+    Keeps pandas use minimal and avoids expensive groupby on large runs.
+    """
+    if 'step' not in moves_df.columns or limit <= 0:
+        return []
+
+    step_series = pd.to_numeric(moves_df.iloc[:limit]['step'], errors='coerce')
+    last_by_step: dict[int, int] = {}
+    for idx, step_val in enumerate(step_series.to_numpy()):
+        if pd.isna(step_val):
+            continue
+        last_by_step[int(step_val)] = idx
+    return sorted(last_by_step.items())
+
+
 def compute_dissimilarity_from_int_grid(grid: np.ndarray) -> float:
     """Fast dissimilarity index computation for int grids (-1 empty, 0/1 types)."""
     if grid.shape != TRACT_MAP.shape:
@@ -67,16 +207,6 @@ def compute_dissimilarity_from_int_grid(grid: np.ndarray) -> float:
     return 0.5 * np.abs(counts0 / total0 - counts1 / total1).sum()
 
 
-def load_moves(experiment_dir: Path, run_id: int) -> Optional[pd.DataFrame]:
-    log_json = load_move_log_json(experiment_dir, run_id)
-    if log_json is not None:
-        return pd.DataFrame(log_json)
-    df_csv = load_move_log_csv(experiment_dir, run_id)
-    if df_csv is not None and not df_csv.empty:
-        return df_csv
-    return None
-
-
 def compute_run_timeseries(
     experiment_dir: Path,
     run_id: int,
@@ -88,25 +218,46 @@ def compute_run_timeseries(
         print(f"  [WARN] Missing states for run {run_id} in {experiment_dir.name}; skipping run.")
         return None
 
-    moves_df = load_moves(experiment_dir, run_id)
-    if moves_df is None or moves_df.empty or 'step' not in moves_df.columns:
-        print(f"  [WARN] Missing move log for run {run_id} in {experiment_dir.name}; skipping run.")
+    states_len = len(states)
+    last_indices: List[Tuple[int, int]] = []
+
+    json_path_gz = experiment_dir / 'move_logs' / f'agent_moves_run_{run_id}.json.gz'
+    json_path = experiment_dir / 'move_logs' / f'agent_moves_run_{run_id}.json'
+
+    if json_path_gz.exists() or json_path.exists():
+        path = json_path_gz if json_path_gz.exists() else json_path
+        n = states_len
+        states = np.array(states[:n])
+        last_indices = _step_to_last_state_index_from_json_file(path, n) or []
+
+        # Fallback to legacy loader if streaming parse fails unexpectedly
+        if not last_indices:
+            log_json = load_move_log_json(experiment_dir, run_id)
+            if log_json is not None:
+                n = min(states_len, len(log_json))
+                if n == 0:
+                    return None
+                states = np.array(states[:n])
+                last_indices = _step_to_last_state_index_from_json_entries(log_json, n)
+
+    if not last_indices:
+        moves_df = load_move_log_csv(experiment_dir, run_id)
+        if moves_df is None or moves_df.empty:
+            print(f"  [WARN] Missing move log for run {run_id} in {experiment_dir.name}; skipping run.")
+            return None
+        moves_df = moves_df.reset_index(drop=True)
+        n = min(states_len, len(moves_df))
+        if n == 0:
+            return None
+        states = np.array(states[:n])
+        last_indices = _step_to_last_state_index_from_csv_df(moves_df, n)
+
+    if not last_indices:
+        print(f"  [WARN] Missing valid step entries for run {run_id} in {experiment_dir.name}; skipping run.")
         return None
-
-    moves_df = moves_df.reset_index(drop=True)
-    n = min(len(states), len(moves_df))
-    if n == 0:
-        return None
-
-    moves_df = moves_df.iloc[:n].copy()
-    states = np.array(states[:n])
-
-    # Map each step to the index of its last move entry
-    moves_df['state_idx'] = moves_df.index
-    last_indices = moves_df.groupby('step')['state_idx'].max().sort_index()
 
     rows: List[dict] = []
-    for step_val, state_idx in last_indices.items():
+    for step_val, state_idx in last_indices:
         try:
             grid_int = np.array(states[int(state_idx)], dtype=int)
             dis_val = compute_dissimilarity_from_int_grid(grid_int)
@@ -124,6 +275,16 @@ def compute_run_timeseries(
     if not rows:
         return None
     return pd.DataFrame(rows)
+
+
+def _compute_run_timeseries_worker(task: Tuple[str, int, str, bool]) -> Optional[pd.DataFrame]:
+    experiment_dir_str, run_id, scenario_key, recompute = task
+    return compute_run_timeseries(
+        experiment_dir=Path(experiment_dir_str),
+        run_id=run_id,
+        scenario_key=scenario_key,
+        recompute=recompute,
+    )
 
 
 def process_experiment(
@@ -158,20 +319,52 @@ def process_experiment(
         print(f"  [WARN] No move logs found in {exp_dir}; skipping.")
         return None, None
 
-    frames = []
-    for rid in run_ids:
-        df = compute_run_timeseries(exp_dir, rid, scenario_key, recompute=recompute)
-        if df is not None and not df.empty:
-            frames.append(df)
+    workers_env = os.environ.get('DISSIMILARITY_WORKERS', '')
+    if workers_env.strip():
+        try:
+            requested_workers = int(workers_env)
+        except (TypeError, ValueError):
+            requested_workers = 1
+        max_workers = max(1, min(requested_workers, len(run_ids)))
+    else:
+        max_workers = min(len(run_ids), max(1, os.cpu_count() or 1))
+
+    tasks: List[Tuple[str, int, str, bool]] = [
+        (str(exp_dir), rid, scenario_key, recompute) for rid in run_ids
+    ]
+
+    frames: List[pd.DataFrame] = []
+    if max_workers > 1 and len(tasks) > 1:
+        print(f"  [INFO] Processing {len(tasks)} runs with {max_workers} workers")
+        try:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=_process_pool_context()) as executor:
+                for df in executor.map(_compute_run_timeseries_worker, tasks):
+                    if df is not None and not df.empty:
+                        frames.append(df)
+        except Exception as exc:
+            print(f"  [WARN] Parallel processing failed ({exc}); falling back to sequential")
+            frames = []
+            for rid in run_ids:
+                df = compute_run_timeseries(exp_dir, rid, scenario_key, recompute=recompute)
+                if df is not None and not df.empty:
+                    frames.append(df)
+    else:
+        for rid in run_ids:
+            df = compute_run_timeseries(exp_dir, rid, scenario_key, recompute=recompute)
+            if df is not None and not df.empty:
+                frames.append(df)
+
     if not frames:
         print(f"  [WARN] No usable runs for {exp_dir}; no output written.")
         return None, None
 
     per_run = pd.concat(frames, ignore_index=True)
+    per_run = per_run.sort_values(['scenario', 'experiment', 'run_id', 'step'], kind='mergesort').reset_index(drop=True)
 
     # Final values per run
     final_rows = per_run.loc[per_run.groupby('run_id')['step'].idxmax()].copy()
     final_rows = final_rows.rename(columns={'step': 'final_step'})
+    final_rows = final_rows.sort_values(['scenario', 'experiment', 'run_id', 'final_step'], kind='mergesort').reset_index(drop=True)
 
     per_run.to_csv(out_dir / f"{exp_dir.name}_dissimilarity_by_step.csv.gz", index=False, compression='gzip')
     final_rows.to_csv(out_dir / f"{exp_dir.name}_dissimilarity_final.csv.gz", index=False, compression='gzip')
@@ -205,10 +398,12 @@ def run_all(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ts_all = pd.concat(all_ts, ignore_index=True)
+    ts_all = ts_all.sort_values(['scenario', 'experiment', 'run_id', 'step'], kind='mergesort').reset_index(drop=True)
     ts_all.to_csv(out_dir / 'dissimilarity_by_step_all.csv.gz', index=False, compression='gzip')
 
     if all_final:
         final_all = pd.concat(all_final, ignore_index=True)
+        final_all = final_all.sort_values(['scenario', 'experiment', 'run_id', 'final_step'], kind='mergesort').reset_index(drop=True)
         final_all.to_csv(out_dir / 'dissimilarity_final_by_run.csv.gz', index=False, compression='gzip')
     else:
         final_all = None

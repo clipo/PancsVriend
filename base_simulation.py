@@ -5,8 +5,113 @@ from Metrics import calculate_all_metrics
 import os
 import gzip
 import json
+import ast
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 from tqdm import tqdm
+
+
+class _MetricsMockAgent:
+    def __init__(self, type_id):
+        self.type_id = type_id
+
+
+def _load_single_run_result(task):
+    run_id, json_path, grid_size, threshold = task
+
+    with gzip.open(json_path, 'rt', encoding='utf-8') as f:
+        move_records = json.load(f)
+
+    max_step = 0
+    step_moves = {}
+    last_grid_by_step = {}
+
+    for record in move_records:
+        step = record.get('step')
+        if step is None:
+            continue
+
+        try:
+            step = int(step)
+        except (TypeError, ValueError):
+            continue
+
+        if step > max_step:
+            max_step = step
+
+        moved = bool(record.get('moved', False))
+        step_moves[step] = step_moves.get(step, 0) + (1 if moved else 0)
+
+        if 'grid' in record:
+            last_grid_by_step[step] = record.get('grid')
+
+    if step_moves:
+        sorted_steps = sorted(step_moves.keys())
+        window_steps = sorted_steps[-threshold:]
+        if len(window_steps) == threshold and all(step_moves[step] == 0 for step in window_steps):
+            converged = True
+            convergence_step = window_steps[0]
+        else:
+            converged = False
+            convergence_step = None
+    else:
+        converged = False
+        convergence_step = None
+
+    metrics_history = []
+    if last_grid_by_step:
+        for step, grid_value in sorted(last_grid_by_step.items()):
+            try:
+                if isinstance(grid_value, str):
+                    grid_data = ast.literal_eval(grid_value)
+                else:
+                    grid_data = grid_value
+
+                grid_array = np.array(grid_data)
+                mock_grid = np.full((grid_size, grid_size), None)
+                for r in range(grid_array.shape[0]):
+                    for c in range(grid_array.shape[1]):
+                        if grid_array[r, c] >= 0:
+                            mock_grid[r, c] = _MetricsMockAgent(grid_array[r, c])
+
+                step_metrics = calculate_all_metrics(mock_grid)
+                step_metrics['step'] = step
+                step_metrics['run_id'] = run_id
+                metrics_history.append(step_metrics)
+
+            except Exception as e:
+                print(f"Warning: Could not reconstruct metrics for step {step}, run {run_id}: {e}")
+                metrics_history.append({
+                    'step': step,
+                    'run_id': run_id,
+                    'clusters': 0,
+                    'switch_rate': 0,
+                    'distance': 0,
+                    'mix_deviation': 0,
+                    'share': 0.5,
+                    'ghetto_rate': 0
+                })
+
+    if not metrics_history:
+        metrics_history = [{
+            'step': 0,
+            'run_id': run_id,
+            'clusters': 0,
+            'switch_rate': 0,
+            'distance': 0,
+            'mix_deviation': 0,
+            'share': 0.5,
+            'ghetto_rate': 0
+        }]
+
+    return {
+        'run_id': run_id,
+        'converged': converged,
+        'convergence_step': convergence_step,
+        'final_step': max_step,
+        'metrics_history': metrics_history
+    }
 
 class Simulation:
     def __init__(self, run_id, agent_factory, decision_func, scenario='baseline', random_seed=None,
@@ -168,8 +273,28 @@ class Simulation:
                     int_grid[r, c] = agent.type_id
         return int_grid
 
-    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False):
+    @staticmethod
+    def _normalize_save_every_steps(save_every_steps):
+        if save_every_steps is None:
+            return 1
+        try:
+            value = int(save_every_steps)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, value)
+
+    @staticmethod
+    def _process_pool_context():
+        for method in ("spawn", "forkserver"):
+            try:
+                return mp.get_context(method)
+            except ValueError:
+                continue
+        return mp.get_context()
+
+    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=1):
         """Run a single simulation and optionally save agent moves."""
+        save_every_steps = self._normalize_save_every_steps(save_every_steps)
         progress_bar = None
         if show_progress:
             progress_bar = tqdm(total=max_steps, desc=f"Run {self.run_id} ({self.scenario})", 
@@ -177,8 +302,9 @@ class Simulation:
         
         while not self.converged and self.step < max_steps:
             self.run_step()
-            self.save_states(output_dir)
-            self.save_agent_move_log(output_dir)  # Save the detailed move log
+            if save_every_steps == 1 or (self.step % save_every_steps == 0):
+                self.save_states(output_dir)
+                self.save_agent_move_log(output_dir)  # Save the detailed move log
             
             if progress_bar:
                 progress_bar.update(1)
@@ -232,7 +358,7 @@ class Simulation:
             os.makedirs(move_logs_dir, exist_ok=True)
             
             # Convert to DataFrame for easy CSV export
-            df = pd.DataFrame(self.agent_move_log)
+            # df = pd.DataFrame(self.agent_move_log)
             # Save as CSV for easy analysis
             # csv_path = os.path.join(move_logs_dir, f"agent_moves_run_{self.run_id}.csv") 
             # df.to_csv(csv_path, index=False) # NOTE: uncomment to save readable csv files
@@ -382,11 +508,20 @@ class Simulation:
             # Load pre-computed metrics and convergence data
             metrics_df = pd.read_csv(metrics_file)
             convergence_df = pd.read_csv(convergence_file)
+            metrics_by_run = {
+                run_id: group.to_dict('records')
+                for run_id, group in metrics_df.groupby('run_id', sort=False)
+            }
+            convergence_first_row_by_run = {}
+            for _, row in convergence_df.iterrows():
+                run_id = row['run_id']
+                if run_id not in convergence_first_row_by_run:
+                    convergence_first_row_by_run[run_id] = row
             
             # Group metrics by run_id to reconstruct results structure
             for run_id in convergence_df['run_id'].unique():
-                convergence_row = convergence_df[convergence_df['run_id'] == run_id].iloc[0]
-                run_metrics = metrics_df[metrics_df['run_id'] == run_id].to_dict('records')
+                convergence_row = convergence_first_row_by_run[run_id]
+                run_metrics = metrics_by_run.get(run_id, [])
                 
                 result = {
                     'run_id': run_id,
@@ -418,113 +553,30 @@ class Simulation:
             run_ids = sorted({int(f.split("_")[-1].split(".")[0]) for f in move_files})
             
             print(f"Found {len(run_ids)} simulation runs: {run_ids}")
-            
-            for run_id in run_ids:
-                print(f"Loading run {run_id}...")
-                
-                # Load agent move log to reconstruct metrics history
-                json_path = os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.json.gz")
+            threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
+            tasks = [
+                (run_id, os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.json.gz"), cfg.GRID_SIZE, threshold)
+                for run_id in run_ids
+            ]
 
-                with gzip.open(json_path, 'rt', encoding='utf-8') as f:
-                    move_records = json.load(f)
-                move_df = pd.DataFrame(move_records)
-                
-                # Extract convergence information from move log
-                max_step = move_df['step'].max() if not move_df.empty else 0
-                
-                # Check if simulation converged (look for patterns in the data)
-                # Use the configured NO_MOVE_THRESHOLD for the trailing window.
-                threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
-                step_moves = move_df.groupby('step')['moved'].sum() if not move_df.empty else pd.Series(dtype=int)
-                # Consider exactly the last `threshold` steps (or all if fewer)
-                if not step_moves.empty:
-                    window = step_moves.tail(threshold)
-                    # Converged if all moves are zero across the trailing window AND we had at least one step
-                    if len(window) == threshold and (window == 0).all():
-                        converged = True
-                        # Convergence step is the first step in the zero window
-                        convergence_step = window.index[0]
-                    else:
-                        converged = False
-                        convergence_step = None
-                else:
-                    converged = False
-                    convergence_step = None
-                
-                # Try to reconstruct metrics history from the move log
-                # Group by step and calculate basic metrics if available
-                metrics_history = []
-                
-                # If we have detailed grid states saved in move log, we can reconstruct metrics
-                if 'grid' in move_df.columns and not move_df.empty:
-                    step_groups = move_df.groupby('step')
-                    
-                    for step, group in step_groups:
-                        # Take the last grid state for this step (after all moves completed)
-                        last_entry = group.iloc[-1]
-                        
-                        # Try to parse the grid if it's stored as string
-                        try:
-                            if isinstance(last_entry['grid'], str):
-                                grid_data = eval(last_entry['grid'])  # Parse string representation
-                            else:
-                                grid_data = last_entry['grid']
-                            
-                            # Convert to numpy array and calculate metrics
-                            grid_array = np.array(grid_data)
-                            
-                            # Create a mock grid for metrics calculation
-                            mock_grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
-                            for r in range(grid_array.shape[0]):
-                                for c in range(grid_array.shape[1]):
-                                    if grid_array[r, c] >= 0:
-                                        # Create a simple agent-like object with type_id
-                                        class MockAgent:
-                                            def __init__(self, type_id):
-                                                self.type_id = type_id
-                                        mock_grid[r, c] = MockAgent(grid_array[r, c])
-                            
-                            # Calculate metrics for this step
-                            step_metrics = calculate_all_metrics(mock_grid)
-                            step_metrics['step'] = step
-                            step_metrics['run_id'] = run_id
-                            metrics_history.append(step_metrics)
-                            
-                        except Exception as e:
-                            print(f"Warning: Could not reconstruct metrics for step {step}, run {run_id}: {e}")
-                            # Create minimal metrics entry
-                            metrics_history.append({
-                                'step': step,
-                                'run_id': run_id,
-                                'clusters': 0,
-                                'switch_rate': 0,
-                                'distance': 0,
-                                'mix_deviation': 0,
-                                'share': 0.5,
-                                'ghetto_rate': 0
-                            })
-                
-                # If no metrics could be reconstructed, create minimal result
-                if not metrics_history:
-                    metrics_history = [{
-                        'step': 0,
-                        'run_id': run_id,
-                        'clusters': 0,
-                        'switch_rate': 0,
-                        'distance': 0,
-                        'mix_deviation': 0,
-                        'share': 0.5,
-                        'ghetto_rate': 0
-                    }]
-                
-                result = {
-                    'run_id': run_id,
-                    'converged': converged,
-                    'convergence_step': convergence_step,
-                    'final_step': max_step,
-                    'metrics_history': metrics_history
-                }
-                results.append(result)
+            max_workers = min(len(tasks), max(1, os.cpu_count() or 1)) if tasks else 1
+
+            if max_workers > 1 and len(tasks) > 1:
+                print(f"Processing runs in parallel with {max_workers} workers")
+                try:
+                    with ProcessPoolExecutor(max_workers=max_workers, mp_context=Simulation._process_pool_context()) as executor:
+                        results = list(executor.map(_load_single_run_result, tasks))
+                except Exception as e:
+                    print(f"Warning: Parallel processing failed ({e}), falling back to sequential")
+                    for task in tasks:
+                        run_id = task[0]
+                        print(f"Loading run {run_id}...")
+                        results.append(_load_single_run_result(task))
+            else:
+                for task in tasks:
+                    run_id = task[0]
+                    print(f"Loading run {run_id}...")
+                    results.append(_load_single_run_result(task))
             
             n_runs = len(results)
             print(f"Loaded {n_runs} simulation runs from raw data")

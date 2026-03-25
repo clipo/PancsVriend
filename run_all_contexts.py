@@ -201,6 +201,29 @@ def _build_effective_args(
 	return effective
 
 
+def _find_mechanical_baseline_experiment(experiments_root: Optional[Path] = None) -> Optional[str]:
+	root = experiments_root or Path("experiments")
+	for exp_dir in _sorted_experiment_dirs(root):
+		folder_name = exp_dir.name
+		if folder_name.startswith("baseline_") or folder_name == "baseline":
+			return folder_name
+
+		config_path = exp_dir / "config.json"
+		if not config_path.exists():
+			continue
+		try:
+			config_data = json.loads(config_path.read_text(encoding="utf-8"))
+		except (OSError, json.JSONDecodeError):
+			continue
+
+		scenario = str(config_data.get("scenario") or "").strip().lower()
+		if scenario == "mech_baseline":
+			return exp_dir.name
+		if scenario == "baseline" and not exp_dir.name.startswith("llm_baseline"):
+			return exp_dir.name
+	return None
+
+
 def _selected_experiments(records: List[dict]) -> dict:
 	selected = {}
 	for record in records:
@@ -210,6 +233,11 @@ def _selected_experiments(records: List[dict]) -> dict:
 		experiment_name = record.get("experiment_name")
 		if scenario and experiment_name:
 			selected[str(scenario)] = str(experiment_name)
+
+	if "mech_baseline" not in selected:
+		mech_baseline = _find_mechanical_baseline_experiment()
+		if mech_baseline:
+			selected["mech_baseline"] = mech_baseline
 	return selected
 
 
