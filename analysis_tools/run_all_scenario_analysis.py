@@ -431,10 +431,11 @@ def _select_experiments_from_manifest(
                 f"Manifest references experiment folder '{folder}' for scenario '{scenario}', "
                 f"but it does not exist under '{experiments_dir}'."
             )
-        selected[scenario] = folder
+        mapped_scenario = _scenario_key_from_config(folder, scenario)
+        selected[mapped_scenario] = folder
         matching.append({
             "folder": folder,
-            "scenario": scenario,
+            "scenario": mapped_scenario,
             "raw_scenario": scenario,
             "timestamp": payload.get("created_at"),
             "llm_model": payload.get("llm_model") or "manifest",
