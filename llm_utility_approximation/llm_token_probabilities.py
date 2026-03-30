@@ -1,47 +1,108 @@
 """Token probability extraction for LLM responses.
 
-This script supports two modes:
+This script supports two execution modes:
 
-1) Single-prompt mode
-   Sends one prompt (optionally repeated) to a configured chat-completions
-   endpoint and extracts token-level probabilities from returned logprobs.
+1) Single-prompt mode (default; no --scenario)
+	 Sends one prompt (optionally repeated) to a chat-completions endpoint and
+	 extracts token-level probabilities from returned logprobs.
 
-2) Scenario mode (--scenario)
-   Enumerates all valid local 3x3 Schelling neighborhoods for a 10x10 grid,
-   where walls (#) are only those possible from real boundary positions,
-   and queries the model for each context.
+2) Scenario mode (--scenario <name>|all)
+	 Enumerates all valid local 3x3 Schelling neighborhoods for a 10x10 grid,
+	 where walls (#) only appear in positions possible from real boundary cells,
+	 and queries the model for each context.
 
-	Use --scenario all to iterate every scenario in context_scenarios.py.
+	 Use --scenario all to iterate every scenario in context_scenarios.py.
 
 Outputs are saved with model-prefixed filenames:
-  - <model>_token_probabilities.csv
-  - <model>_stay_move_probability_split.csv
-  - <model>_stay_move_probability_split_summary.csv
+	- <model>_token_probabilities.csv
+	- <model>_stay_move_probability_split.csv
+	- <model>_stay_move_probability_split_summary.csv
 
 If the endpoint/model does not return token logprobs, the script fails with a
 clear error message.
 
-Example usage:
+Comprehensive CLI command reference
+-----------------------------------
 
-	# Single-prompt mode
+Core generation controls:
+	--prompt TEXT
+			Prompt text. If omitted, uses DEFAULT_PROMPT from this file.
+	--num-samples INT
+			Number of repeated generations for the same prompt (default: 1).
+	--temperature FLOAT
+			Sampling temperature (default: 0.3).
+	--max-tokens INT
+			Maximum generated tokens per sample (default: 24).
+	--top-logprobs INT
+			Number of top token alternatives to request per generated token
+			(default: 20).
+	--timeout INT
+			Request timeout in seconds (default: 30).
+
+Model / endpoint controls:
+	--llm-model TEXT
+			Model name override. If omitted, this file's configured model is used.
+	--llm-url TEXT
+			Endpoint URL override (typically an OpenAI-compatible/Ollama chat endpoint).
+
+Scenario controls:
+	--scenario TEXT
+			Scenario key from context_scenarios.py, or "all" for every scenario.
+			If omitted, runs single-prompt mode.
+	--agent-role {type_a,type_b,both}
+			Which role(s) to evaluate in scenario mode (default: both).
+	--repeats-per-context INT
+			Repeated generations per neighborhood context in scenario mode.
+			If omitted, falls back to --num-samples.
+	--resume
+			Resume scenario runs by skipping scenarios already listed in progress
+			manifests.
+	--processes INT
+			Number of parallel worker processes for API requests (default: 1).
+
+Output controls:
+	--output-dir PATH
+			Output root directory override.
+			Writes to <output-dir>/<llm_model_slug> when provided.
+			Otherwise writes to <workspace>/llm_log_probs/<llm_model_slug>.
+
+Example commands
+----------------
+
+Single prompt, 3 samples:
 	python llm_utility_approximation/llm_token_probabilities.py \
-		--prompt "Respond with exactly: MOVE" --num-samples 3 --llm-model "phi4:latest"
+			--prompt "Respond with exactly: MOVE" \
+			--num-samples 3 \
+			--llm-model "phi4:latest"
 
-	# Scenario mode (all valid neighborhood contexts)
+Single prompt with custom endpoint and tighter sampling:
 	python llm_utility_approximation/llm_token_probabilities.py \
-		--scenario baseline --agent-role both --repeats-per-context 1
+			--llm-url "http://127.0.0.1:11434/v1/chat/completions" \
+			--temperature 0.1 \
+			--max-tokens 8 \
+			--top-logprobs 30
 
-	# All scenarios (forces both agent roles)
+Scenario run for one scenario and both roles:
 	python llm_utility_approximation/llm_token_probabilities.py \
-		--scenario all --llm-model "mixtral:8x22b-instruct"
+			--scenario baseline \
+			--agent-role both \
+			--repeats-per-context 2
 
-Online/local endpoint routing is controlled by Use_ONLINE_API in this file.
+All scenarios with resume + parallel workers + custom output:
+	python llm_utility_approximation/llm_token_probabilities.py \
+			--scenario all \
+			--resume \
+			--processes 8 \
+			--output-dir "./llm_log_probs"
+
+Notes:
+	- Online/local routing is controlled by Use_ONLINE_API in this file.
+	- For available scenario keys, inspect CONTEXT_SCENARIOS in context_scenarios.py.
 """
 
 from __future__ import annotations
 
 import argparse
-import collections
 import json
 import math
 import os
@@ -50,9 +111,11 @@ import sys
 import time
 from dataclasses import dataclass
 from itertools import product
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.parse import quote
 
 import pandas as pd
 import requests
@@ -68,8 +131,6 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
 	sys.path.insert(0, str(REPO_ROOT))
-
-SCRIPT_DIR = Path(__file__).resolve().parent
 
 DEFAULT_PROMPT = """You are a red team resident living in a neighborhood, considering whether to move to a different house.
 
@@ -102,6 +163,8 @@ LOCAL_OLLAMA_URLS = [
 ONLINE_API_URL = "https://chat.binghamton.edu/ollama/api/chat"
 ONLINE_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"
 Use_ONLINE_API = True
+TIMEOUT_RETRY_ATTEMPTS = 5
+MEANINGFUL_ANSWER_MAX_REASKS = 5
 
 SCHELLING_GRID_SIZE = 10
 NON_WALL_CONTEXT_ELEMENTS = ["S", "O", "E"]
@@ -148,7 +211,7 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument(
 		"--temperature",
 		type=float,
-		default=0.0,
+		default=0.3,
 		help="Sampling temperature",
 	)
 	parser.add_argument(
@@ -203,13 +266,19 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument(
 		"--output-dir",
 		type=str,
-		default=str(SCRIPT_DIR),
-		help="Directory where CSVs and plot are written (default: script folder)",
+		default=None,
+		help="Optional output root directory override. Outputs are written to <output-dir>/<llm_model_slug>; if omitted, writes to <workspace>/llm_log_probs/<llm_model_slug>",
 	)
 	parser.add_argument(
 		"--resume",
 		action="store_true",
 		help="Resume scenario runs by skipping scenarios already listed in the per-scenario progress manifest",
+	)
+	parser.add_argument(
+		"--processes",
+		type=int,
+		default=None,
+		help="Number of parallel processes for API requests (default: 1; sequential)",
 	)
 	return parser.parse_args()
 
@@ -442,11 +511,15 @@ def _parse_legacy_logprobs(choice: dict[str, Any], sample_index: int) -> list[To
 	return records
 
 
+def _first_token_only_records(records: list[TokenRecord]) -> list[TokenRecord]:
+	return [record for record in records if int(record.token_index) == 0]
+
+
 def extract_token_records(response_json: dict[str, Any], sample_index: int) -> tuple[str, list[TokenRecord]]:
 	if isinstance(response_json.get("logprobs"), list):
 		text, native_records = _extract_native_ollama_logprobs(response_json, sample_index)
 		if len(native_records) > 0:
-			return text, native_records
+			return text, _first_token_only_records(native_records)
 
 	choices = response_json.get("choices")
 	if not isinstance(choices, list) or len(choices) == 0 or not isinstance(choices[0], dict):
@@ -457,11 +530,11 @@ def extract_token_records(response_json: dict[str, Any], sample_index: int) -> t
 
 	records = _parse_chat_content_logprobs(choice, sample_index)
 	if len(records) > 0:
-		return text, records
+		return text, _first_token_only_records(records)
 
 	records = _parse_legacy_logprobs(choice, sample_index)
 	if len(records) > 0:
-		return text, records
+		return text, _first_token_only_records(records)
 
 	raise RuntimeError(
 		"Endpoint/model did not return token logprobs. "
@@ -486,37 +559,43 @@ def request_with_logprobs(
 
 	last_error: Exception | None = None
 	for url in urls:
-		start = time.time()
-		try:
-			if url.rstrip("/").endswith("/api/chat"):
-				payload: dict[str, Any] = {
-					"model": model,
-					"messages": [{"role": "user", "content": prompt}],
-					"stream": False,
-					"logprobs": True,
-					"top_logprobs": top_logprobs,
-					"options": {
+		for attempt in range(1, TIMEOUT_RETRY_ATTEMPTS + 1):
+			start = time.time()
+			try:
+				if url.rstrip("/").endswith("/api/chat"):
+					payload: dict[str, Any] = {
+						"model": model,
+						"messages": [{"role": "user", "content": prompt}],
+						"stream": False,
+						"logprobs": True,
+						"top_logprobs": top_logprobs,
+						"options": {
+							"temperature": temperature,
+							"num_predict": max_tokens,
+						},
+					}
+				else:
+					payload = {
+						"model": model,
+						"messages": [{"role": "user", "content": prompt}],
+						"stream": False,
 						"temperature": temperature,
-						"num_predict": max_tokens,
-					},
-				}
-			else:
-				payload = {
-					"model": model,
-					"messages": [{"role": "user", "content": prompt}],
-					"stream": False,
-					"temperature": temperature,
-					"max_tokens": max_tokens,
-					"logprobs": True,
-					"top_logprobs": top_logprobs,
-				}
+						"max_tokens": max_tokens,
+						"logprobs": True,
+						"top_logprobs": top_logprobs,
+					}
 
-			response = session.post(url, headers=headers, json=payload, timeout=timeout)
-			elapsed = time.time() - start
-			response.raise_for_status()
-			return response.json(), elapsed, url
-		except Exception as exc:
-			last_error = exc
+				response = session.post(url, headers=headers, json=payload, timeout=timeout)
+				elapsed = time.time() - start
+				response.raise_for_status()
+				return response.json(), elapsed, url
+			except requests.exceptions.Timeout as exc:
+				last_error = exc
+				if attempt < TIMEOUT_RETRY_ATTEMPTS:
+					continue
+			except Exception as exc:
+				last_error = exc
+				break
 
 	raise RuntimeError(
 		"Failed to query local Ollama endpoint. Ensure Ollama is running and OpenAI-compatible API is enabled on localhost:11434."
@@ -531,6 +610,7 @@ def _write_per_scenario_progress_manifest(
 	output_dir: str,
 	model: str,
 	per_scenario_outputs: dict[str, dict[str, str]],
+	run_parameters: dict[str, Any] | None = None,
 ) -> str:
 	ensure_directory(output_dir)
 	model_slug = _sanitize_model_for_path_component(model)
@@ -539,6 +619,7 @@ def _write_per_scenario_progress_manifest(
 		"model": model,
 		"completed_scenarios": sorted(per_scenario_outputs.keys()),
 		"outputs": per_scenario_outputs,
+		"run_parameters": run_parameters or {},
 	}
 	with open(manifest_path, "w", encoding="utf-8") as handle:
 		json.dump(payload, handle, indent=2)
@@ -548,17 +629,20 @@ def _write_per_scenario_progress_manifest(
 def _read_per_scenario_progress_manifest(
 	output_dir: str,
 	model: str,
-) -> dict[str, dict[str, str]]:
+) -> tuple[dict[str, dict[str, str]], dict[str, Any]]:
 	model_slug = _sanitize_model_for_path_component(model)
 	manifest_path = os.path.join(output_dir, f"{model_slug}_per_scenario_progress.json")
 	if not os.path.exists(manifest_path):
-		return {}
+		return {}, {}
 
 	try:
 		with open(manifest_path, "r", encoding="utf-8") as handle:
 			payload = json.load(handle)
 	except Exception:
-		return {}
+		return {}, {}
+
+	run_parameters = payload.get("run_parameters", {})
+	validated_params: dict[str, Any] = run_parameters if isinstance(run_parameters, dict) else {}
 
 	outputs = payload.get("outputs", {})
 	if isinstance(outputs, dict):
@@ -568,9 +652,9 @@ def _read_per_scenario_progress_manifest(
 				validated[scenario_key] = {
 					k: v for k, v in value.items() if isinstance(k, str) and isinstance(v, str)
 				}
-		return validated
+		return validated, validated_params
 
-	return {}
+	return {}, validated_params
 
 
 def _sanitize_model_for_path_component(name: str) -> str:
@@ -579,6 +663,199 @@ def _sanitize_model_for_path_component(name: str) -> str:
 	sanitized = sanitized.rstrip(' .')
 	sanitized = re.sub(r'-{2,}', '-', sanitized)
 	return sanitized or "unknown-model"
+
+
+def _extract_response_fingerprint(
+	response_json: dict[str, Any],
+	requested_model: str,
+	request_url: str,
+) -> dict[str, Any]:
+	served_model = response_json.get("model")
+	if not isinstance(served_model, str) or not served_model.strip():
+		served_model = requested_model
+
+	system_fingerprint = response_json.get("system_fingerprint")
+	if not isinstance(system_fingerprint, str) or not system_fingerprint.strip():
+		system_fingerprint = None
+
+	created = response_json.get("created")
+	created_at = response_json.get("created_at")
+
+	return {
+		"provider_source": "response",
+		"request_url": request_url,
+		"requested_model": requested_model,
+		"served_model": served_model,
+		"system_fingerprint": system_fingerprint,
+		"created": created,
+		"created_at": created_at,
+	}
+
+
+def _candidate_ollama_show_endpoints(url: str) -> list[str]:
+	parsed = urlparse(url)
+	if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+		return []
+
+	base = f"{parsed.scheme}://{parsed.netloc}"
+	path = parsed.path.rstrip("/")
+	endpoints: list[str] = []
+
+	if path.endswith("/api/chat"):
+		endpoints.append(f"{base}{path[: -len('/api/chat')]}/api/show")
+	if path.endswith("/v1/chat/completions"):
+		endpoints.append(f"{base}{path[: -len('/v1/chat/completions')]}/api/show")
+	if path.endswith("/chat/completions"):
+		endpoints.append(f"{base}{path[: -len('/chat/completions')]}/api/show")
+
+	endpoints.append(f"{base}/api/show")
+
+	seen: set[str] = set()
+	unique: list[str] = []
+	for endpoint in endpoints:
+		if endpoint not in seen:
+			seen.add(endpoint)
+			unique.append(endpoint)
+	return unique
+
+
+def _candidate_openai_model_endpoints(url: str, model: str) -> list[str]:
+	parsed = urlparse(url)
+	if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+		return []
+
+	base = f"{parsed.scheme}://{parsed.netloc}"
+	path = parsed.path.rstrip("/")
+	encoded_model = quote(model, safe="")
+	endpoints: list[str] = []
+
+	if path.endswith("/chat/completions"):
+		prefix = path[: -len('/chat/completions')]
+		endpoints.append(f"{base}{prefix}/models/{encoded_model}")
+	elif path.endswith("/v1"):
+		endpoints.append(f"{base}{path}/models/{encoded_model}")
+
+	if "/v1" in path:
+		v1_index = path.find("/v1")
+		v1_prefix = path[: v1_index + len('/v1')]
+		endpoints.append(f"{base}{v1_prefix}/models/{encoded_model}")
+
+	endpoints.append(f"{base}/v1/models/{encoded_model}")
+
+	seen: set[str] = set()
+	unique: list[str] = []
+	for endpoint in endpoints:
+		if endpoint not in seen:
+			seen.add(endpoint)
+			unique.append(endpoint)
+	return unique
+
+
+def fetch_model_fingerprint_from_provider(
+	urls: list[str],
+	model: str,
+	timeout: int,
+	session: requests.Session,
+	api_key: str | None = None,
+) -> dict[str, Any]:
+	headers: dict[str, str] = {"Content-Type": "application/json"}
+	if api_key:
+		headers["Authorization"] = f"Bearer {api_key}"
+
+	last_error: str | None = None
+	for request_url in urls:
+		for endpoint in _candidate_ollama_show_endpoints(request_url):
+			try:
+				response = session.post(
+					endpoint,
+					headers=headers,
+					json={"model": model},
+					timeout=timeout,
+				)
+				response.raise_for_status()
+				data = response.json()
+				if not isinstance(data, dict):
+					continue
+
+				model_digest = data.get("digest")
+				if not isinstance(model_digest, str) or not model_digest.strip():
+					model_digest = None
+
+				served_model = data.get("model")
+				if not isinstance(served_model, str) or not served_model.strip():
+					served_model = model
+
+				return {
+					"provider_source": "ollama_api_show",
+					"request_url": request_url,
+					"fingerprint_endpoint": endpoint,
+					"requested_model": model,
+					"served_model": served_model,
+					"system_fingerprint": None,
+					"model_digest": model_digest,
+					"model_modified_at": data.get("modified_at"),
+					"model_details": data.get("details", {}),
+				}
+			except Exception as exc:
+				last_error = str(exc)
+
+		for endpoint in _candidate_openai_model_endpoints(request_url, model):
+			try:
+				response = session.get(endpoint, headers=headers, timeout=timeout)
+				response.raise_for_status()
+				data = response.json()
+				if not isinstance(data, dict):
+					continue
+
+				served_model = data.get("id")
+				if not isinstance(served_model, str) or not served_model.strip():
+					served_model = model
+
+				return {
+					"provider_source": "openai_models_endpoint",
+					"request_url": request_url,
+					"fingerprint_endpoint": endpoint,
+					"requested_model": model,
+					"served_model": served_model,
+					"system_fingerprint": None,
+					"model_digest": None,
+					"model_created": data.get("created"),
+					"model_owned_by": data.get("owned_by"),
+				}
+			except Exception as exc:
+				last_error = str(exc)
+
+	return {
+		"provider_source": "unavailable",
+		"request_url": urls[0] if len(urls) > 0 else "",
+		"fingerprint_endpoint": None,
+		"requested_model": model,
+		"served_model": model,
+		"system_fingerprint": None,
+		"model_digest": None,
+		"error": last_error,
+	}
+
+
+def _resolve_model_output_dir(model: str) -> str:
+	model_slug = _sanitize_model_for_path_component(model)
+	return str(REPO_ROOT / "llm_log_probs" / model_slug)
+
+
+def _resolve_output_dir_for_model(model: str, output_dir_arg: str | None) -> str:
+	"""Resolve output directory with model namespacing.
+
+	When --output-dir is provided, treat it as a root directory and save outputs
+	inside a model-specific folder: <output-dir>/<model_slug>.
+	If the provided directory already ends with <model_slug>, keep it unchanged.
+	"""
+	model_slug = _sanitize_model_for_path_component(model)
+	if isinstance(output_dir_arg, str) and output_dir_arg.strip():
+		provided_root = Path(output_dir_arg.strip())
+		if provided_root.name == model_slug:
+			return str(provided_root)
+		return str(provided_root / model_slug)
+	return _resolve_model_output_dir(model)
 
 
 def detect_local_model_name(session: requests.Session, timeout: int) -> str:
@@ -598,6 +875,18 @@ def _normalize_token_fragment(token: str) -> str:
 	clean = token.strip().upper()
 	clean = re.sub(r"[^A-Z]", "", clean)
 	return clean
+
+
+def _token_implies_label_from_first_token(fragment: str, label: str) -> bool:
+	"""Return True when a first-token fragment implies a target label.
+
+	Examples for STAY: S, ST, STA, STAY, STAYING
+	Examples for MOVE: M, MO, MOV, MOVE, MOVED
+	"""
+	if not fragment:
+		return False
+	label = label.upper()
+	return label.startswith(fragment) or fragment.startswith(label)
 
 
 def _safe_log(probability: float) -> float:
@@ -639,6 +928,159 @@ def _compute_label_metrics(token_candidates: list[list[tuple[str, float]]], labe
 	}
 
 
+def _resolve_process_count(requested_processes: int | None, num_tasks: int) -> int:
+	if num_tasks <= 1:
+		return 1
+	if requested_processes is None:
+		return 1
+	if requested_processes < 1:
+		raise ValueError("--processes must be >= 1")
+	return min(requested_processes, cpu_count(), num_tasks)
+
+
+def _query_until_meaningful_labels(
+	task: dict[str, Any],
+	session: requests.Session,
+) -> tuple[str, list[TokenRecord], str, float, dict[str, float], int, bool, dict[str, Any]]:
+	"""Query endpoint and re-ask up to configured limit until STAY/MOVE total probability is > 0."""
+	max_reasks = int(task.get("max_meaningful_reasks", MEANINGFUL_ANSWER_MAX_REASKS))
+	if max_reasks < 0:
+		max_reasks = 0
+
+	attempt_index = 0
+	last_response_text = ""
+	last_sample_records: list[TokenRecord] = []
+	last_used_url = ""
+	last_elapsed = 0.0
+	last_label_metrics: dict[str, float] = {
+		"stay_probability": 0.0,
+		"move_probability": 0.0,
+		"total_labeled_probability": 0.0,
+		"stay_logprob": float("-inf"),
+		"move_logprob": float("-inf"),
+		"stay_share": 0.0,
+		"move_share": 0.0,
+	}
+	last_response_fingerprint: dict[str, Any] = {
+		"provider_source": "response",
+		"request_url": "",
+		"requested_model": task["model"],
+		"served_model": task["model"],
+		"system_fingerprint": None,
+		"created": None,
+		"created_at": None,
+	}
+
+	while True:
+		response_json, elapsed, used_url = request_with_logprobs(
+			urls=task["urls"],
+			model=task["model"],
+			prompt=task["prompt"],
+			temperature=task["temperature"],
+			max_tokens=task["max_tokens"],
+			top_logprobs=task["top_logprobs"],
+			timeout=task["timeout"],
+			session=session,
+			api_key=task.get("api_key"),
+		)
+		last_response_fingerprint = _extract_response_fingerprint(
+			response_json=response_json,
+			requested_model=task["model"],
+			request_url=used_url,
+		)
+
+		response_text, sample_records = extract_token_records(response_json, int(task["sample_index"]))
+		token_candidates = _token_candidates_from_sample_records(sample_records)
+		label_metrics = _compute_label_metrics(token_candidates, labels=("STAY", "MOVE"))
+
+		last_response_text = response_text
+		last_sample_records = sample_records
+		last_used_url = used_url
+		last_elapsed = elapsed
+		last_label_metrics = label_metrics
+
+		if float(label_metrics.get("total_labeled_probability", 0.0)) > 0:
+			return (
+				last_response_text,
+				last_sample_records,
+				last_used_url,
+				last_elapsed,
+				last_label_metrics,
+				attempt_index,
+				False,
+				last_response_fingerprint,
+			)
+
+		if attempt_index >= max_reasks:
+			return (
+				last_response_text,
+				last_sample_records,
+				last_used_url,
+				last_elapsed,
+				last_label_metrics,
+				attempt_index,
+				True,
+				last_response_fingerprint,
+			)
+
+		attempt_index += 1
+
+
+def _execute_single_scenario_request(
+	task: dict[str, Any],
+	session: requests.Session | None = None,
+) -> tuple[list[TokenRecord], dict[str, Any], str, dict[str, Any]]:
+	if session is None:
+		with requests.Session() as local_session:
+			return _execute_single_scenario_request(task, session=local_session)
+
+	response_text, sample_records, used_url, elapsed, label_metrics, meaningful_reasks_used, meaningful_error, response_fingerprint = _query_until_meaningful_labels(
+		task=task,
+		session=session,
+	)
+
+	context_row = {
+		"scenario": task["scenario"],
+		"agent_role": task["agent_role"],
+		"agent_label": task["agent_label"],
+		"opposite_label": task["opposite_label"],
+		"arrangement_index": task["arrangement_index"],
+		"arrangement_code": task["arrangement_code"],
+		"context": task["context"],
+		"repeat_index": task["repeat_index"],
+		"sample_index": int(task["sample_index"]),
+		"num_similar": task["num_similar"],
+		"num_opposite": task["num_opposite"],
+		"num_empty": task["num_empty"],
+		"num_wall": task["num_wall"],
+		"ratio_similar": task["ratio_similar"],
+		"response_text": response_text,
+		"request_url": used_url,
+		"elapsed_seconds": elapsed,
+		"meaningful_reasks_used": int(meaningful_reasks_used),
+		"meaningful_error": bool(meaningful_error),
+		"meaningful_error_type": "zero_stay_move_probability_after_reasks" if meaningful_error else "",
+		"response_served_model": response_fingerprint.get("served_model"),
+		"response_system_fingerprint": response_fingerprint.get("system_fingerprint"),
+		**label_metrics,
+	}
+
+	return sample_records, context_row, used_url, response_fingerprint
+
+
+def _execute_single_scenario_request_worker(task: dict[str, Any]) -> tuple[list[TokenRecord], dict[str, Any], str, dict[str, Any]]:
+	return _execute_single_scenario_request(task, session=None)
+
+
+def _execute_single_prompt_request_worker(task: dict[str, Any]) -> tuple[int, str, list[TokenRecord], str, int, bool, dict[str, Any]]:
+	with requests.Session() as session:
+		response_text, sample_records, used_url, _elapsed, _label_metrics, reasks, meaningful_error, response_fingerprint = _query_until_meaningful_labels(
+			task=task,
+			session=session,
+		)
+		return int(task["sample_index"]), response_text, sample_records, used_url, int(reasks), bool(meaningful_error), response_fingerprint
+
+
 def evaluate_scenario_permutations(
 	scenario_key: str,
 	agent_role: str,
@@ -650,6 +1092,7 @@ def evaluate_scenario_permutations(
 	top_logprobs: int,
 	timeout: int,
 	session: requests.Session,
+	processes: int | None = None,
 	api_key: str | None = None,
 ) -> tuple[list[TokenRecord], pd.DataFrame, str]:
 	if scenario_key not in CONTEXT_SCENARIOS:
@@ -668,20 +1111,19 @@ def evaluate_scenario_permutations(
 	all_records: list[TokenRecord] = []
 	context_rows: list[dict[str, Any]] = []
 	last_url_used = ""
+	last_response_fingerprint: dict[str, Any] = {
+		"provider_source": "response",
+		"request_url": "",
+		"requested_model": model,
+		"served_model": model,
+		"system_fingerprint": None,
+		"created": None,
+		"created_at": None,
+	}
 	global_sample_idx = 0
 	all_neighbor_arrangements = generate_all_valid_schelling_neighbors(SCHELLING_GRID_SIZE)
-	total_requests = len(role_configs) * len(all_neighbor_arrangements) * repeats_per_context
-	processed_requests = 0
-	progress_start_time = time.time()
-	last_progress_log_time = progress_start_time
 
-	print(
-		f"[progress] Starting scenario '{scenario_key}' with {len(role_configs)} role(s), "
-		f"{len(all_neighbor_arrangements)} contexts, {repeats_per_context} repeat(s) each "
-		f"({total_requests} total requests).",
-		flush=True,
-	)
-
+	request_tasks: list[dict[str, Any]] = []
 	for role_name, role_label, opposite_label in role_configs:
 		for arrangement_idx, neighbors in enumerate(all_neighbor_arrangements):
 			context_grid = generate_neighbor_context(neighbors)
@@ -694,27 +1136,17 @@ def evaluate_scenario_permutations(
 			ratio_similar = num_same / 8
 
 			for repeat_index in range(repeats_per_context):
-				response_json, elapsed, used_url = request_with_logprobs(
-					urls=urls,
-					model=model,
-					prompt=prompt,
-					temperature=temperature,
-					max_tokens=max_tokens,
-					top_logprobs=top_logprobs,
-					timeout=timeout,
-					session=session,
-					api_key=api_key,
-				)
-				last_url_used = used_url
-
-				response_text, sample_records = extract_token_records(response_json, global_sample_idx)
-				all_records.extend(sample_records)
-
-				token_candidates = _token_candidates_from_sample_records(sample_records)
-				label_metrics = _compute_label_metrics(token_candidates, labels=("STAY", "MOVE"))
-
-				context_rows.append(
+				request_tasks.append(
 					{
+						"urls": urls,
+						"model": model,
+						"prompt": prompt,
+						"temperature": temperature,
+						"max_tokens": max_tokens,
+						"top_logprobs": top_logprobs,
+						"timeout": timeout,
+						"max_meaningful_reasks": MEANINGFUL_ANSWER_MAX_REASKS,
+						"api_key": api_key,
 						"scenario": scenario_key,
 						"agent_role": role_name,
 						"agent_label": role_label,
@@ -729,13 +1161,34 @@ def evaluate_scenario_permutations(
 						"num_empty": num_empty,
 						"num_wall": num_wall,
 						"ratio_similar": ratio_similar,
-						"response_text": response_text,
-						"request_url": used_url,
-						"elapsed_seconds": elapsed,
-						**label_metrics,
 					}
 				)
 				global_sample_idx += 1
+
+	total_requests = len(request_tasks)
+	processed_requests = 0
+	process_count = _resolve_process_count(processes, total_requests)
+	progress_start_time = time.time()
+	last_progress_log_time = progress_start_time
+
+	print(
+		f"[progress] Starting scenario '{scenario_key}' with {len(role_configs)} role(s), "
+		f"{len(all_neighbor_arrangements)} contexts, {repeats_per_context} repeat(s) each "
+		f"({total_requests} total requests, processes={process_count}).",
+		flush=True,
+	)
+
+	if process_count > 1:
+		with Pool(process_count) as pool:
+			for sample_records, context_row, used_url, response_fingerprint in pool.imap_unordered(
+				_execute_single_scenario_request_worker,
+				request_tasks,
+			):
+				all_records.extend(sample_records)
+				context_rows.append(context_row)
+				last_url_used = used_url
+				if response_fingerprint:
+					last_response_fingerprint = response_fingerprint
 				processed_requests += 1
 
 				now = time.time()
@@ -750,49 +1203,67 @@ def evaluate_scenario_permutations(
 
 					print(
 						f"[progress][scenario={scenario_key}] {processed_requests}/{total_requests} "
-						f"({percent_complete:.2f}%) | elapsed={elapsed_seconds:.1f}s | "
-						f"eta={eta_display} | current_role={role_name}",
+						f"({percent_complete:.2f}%) | elapsed={elapsed_seconds:.1f}s | eta={eta_display}",
 						flush=True,
 					)
 					last_progress_log_time = now
+	else:
+		for task in request_tasks:
+			sample_records, context_row, used_url, response_fingerprint = _execute_single_scenario_request(task, session=session)
+			all_records.extend(sample_records)
+			context_rows.append(context_row)
+			last_url_used = used_url
+			if response_fingerprint:
+				last_response_fingerprint = response_fingerprint
+			processed_requests += 1
+
+			now = time.time()
+			if now - last_progress_log_time >= 50 or processed_requests == total_requests:
+				elapsed_seconds = now - progress_start_time
+				completion_ratio = (processed_requests / total_requests) if total_requests > 0 else 1.0
+				percent_complete = completion_ratio * 100
+				requests_per_second = (processed_requests / elapsed_seconds) if elapsed_seconds > 0 else 0.0
+				remaining_requests = total_requests - processed_requests
+				eta_seconds = (remaining_requests / requests_per_second) if requests_per_second > 0 else float("inf")
+				eta_display = f"{eta_seconds:.1f}s" if math.isfinite(eta_seconds) else "unknown"
+
+				print(
+					f"[progress][scenario={scenario_key}] {processed_requests}/{total_requests} "
+					f"({percent_complete:.2f}%) | elapsed={elapsed_seconds:.1f}s | eta={eta_display}",
+					flush=True,
+				)
+				last_progress_log_time = now
 
 	print("[progress] Scenario evaluation complete.", flush=True)
 
+	context_rows.sort(key=lambda row: int(row.get("sample_index", -1)))
+	all_records.sort(key=lambda rec: (rec.sample_index, rec.token_index, rec.top_rank))
 	context_df = pd.DataFrame(context_rows)
+	if len(context_df) > 0:
+		context_df.attrs["last_response_fingerprint"] = last_response_fingerprint
 	return all_records, context_df, last_url_used
 
 
 def _probability_of_label_from_candidates(token_candidates: list[list[tuple[str, float]]], label: str) -> float:
+	"""Estimate label probability from first-token alternatives only.
+
+	This intentionally ignores token indices >= 1 and treats first-token fragments
+	that match a label prefix (or extend beyond the full label) as label-implying.
+	"""
+	if len(token_candidates) == 0:
+		return 0.0
+
 	label = label.upper()
-	label_len = len(label)
-	state: dict[int, float] = {0: 1.0}
+	first_position_candidates = token_candidates[0]
+	probability = 0.0
+	for token_text, token_prob in first_position_candidates:
+		if token_prob <= 0:
+			continue
+		fragment = _normalize_token_fragment(token_text)
+		if _token_implies_label_from_first_token(fragment, label):
+			probability += float(token_prob)
 
-	for position_candidates in token_candidates:
-		next_state: dict[int, float] = collections.defaultdict(float)
-		for prefix_len, prefix_prob in state.items():
-			if prefix_prob <= 0:
-				continue
-
-			if prefix_len >= label_len:
-				next_state[label_len] += prefix_prob
-				continue
-
-			for token_text, token_prob in position_candidates:
-				if token_prob <= 0:
-					continue
-				fragment = _normalize_token_fragment(token_text)
-				if not fragment:
-					continue
-				remaining = label[prefix_len:]
-				if remaining.startswith(fragment):
-					next_prefix_len = min(label_len, prefix_len + len(fragment))
-					next_state[next_prefix_len] += prefix_prob * token_prob
-
-		state = dict(next_state)
-		if len(state) == 0:
-			break
-
-	return float(state.get(label_len, 0.0))
+	return float(probability)
 
 
 def build_label_probability_split(records: list[TokenRecord], labels: tuple[str, str] = ("STAY", "MOVE")) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -898,6 +1369,8 @@ def summarize_label_probability_split(label_split_df: pd.DataFrame) -> pd.DataFr
 				"mean_move_logprob",
 				"mean_stay_share",
 				"mean_move_share",
+				"num_meaningful_errors",
+				"mean_meaningful_reasks_used",
 			]
 		)
 
@@ -916,6 +1389,16 @@ def summarize_label_probability_split(label_split_df: pd.DataFrame) -> pd.DataFr
 	]
 
 	if not set(group_cols).issubset(set(label_split_df.columns)):
+		num_meaningful_errors = (
+			int(label_split_df["meaningful_error"].sum())
+			if "meaningful_error" in label_split_df.columns
+			else 0
+		)
+		mean_meaningful_reasks_used = (
+			float(label_split_df["meaningful_reasks_used"].mean())
+			if "meaningful_reasks_used" in label_split_df.columns
+			else 0.0
+		)
 		summary_df = pd.DataFrame(
 			[
 				{
@@ -933,10 +1416,15 @@ def summarize_label_probability_split(label_split_df: pd.DataFrame) -> pd.DataFr
 					"mean_move_logprob": float(label_split_df["move_logprob"].replace([float("-inf")], math.nan).mean()),
 					"mean_stay_share": float(label_split_df["stay_share"].mean()),
 					"mean_move_share": float(label_split_df["move_share"].mean()),
+					"num_meaningful_errors": num_meaningful_errors,
+					"mean_meaningful_reasks_used": mean_meaningful_reasks_used,
 				}
 			]
 		)
 		return summary_df
+
+	meaningful_error_column_present = "meaningful_error" in label_split_df.columns
+	meaningful_reasks_column_present = "meaningful_reasks_used" in label_split_df.columns
 
 	summary_df = (
 		label_split_df.groupby(group_cols, as_index=False)
@@ -949,6 +1437,8 @@ def summarize_label_probability_split(label_split_df: pd.DataFrame) -> pd.DataFr
 			mean_move_logprob=("move_logprob", lambda s: s.replace([float("-inf")], math.nan).mean()),
 			mean_stay_share=("stay_share", "mean"),
 			mean_move_share=("move_share", "mean"),
+			num_meaningful_errors=("meaningful_error", "sum") if meaningful_error_column_present else ("sample_index", lambda s: 0),
+			mean_meaningful_reasks_used=("meaningful_reasks_used", "mean") if meaningful_reasks_column_present else ("sample_index", lambda s: 0.0),
 		)
 		.sort_values(group_cols)
 	)
@@ -995,6 +1485,8 @@ def main() -> None:
 		raise ValueError("--num-samples must be >= 1")
 	if args.top_logprobs < 1:
 		raise ValueError("--top-logprobs must be >= 1")
+	if args.processes is not None and args.processes < 1:
+		raise ValueError("--processes must be >= 1")
 
 	prompt = args.prompt if args.prompt is not None else DEFAULT_PROMPT
 	repeats_per_context = args.repeats_per_context if args.repeats_per_context is not None else args.num_samples
@@ -1036,15 +1528,73 @@ def main() -> None:
 			if not _is_local_url(candidate_url):
 				raise ValueError(f"Non-local URL is not allowed: {candidate_url}")
 
+	output_dir = _resolve_output_dir_for_model(model, args.output_dir)
+	ensure_directory(output_dir)
+
 	records: list[TokenRecord] = []
 	url_used = ""
+	meaningful_error_count = 0
+	meaningful_reasks_total = 0
 	label_split_df_override: pd.DataFrame | None = None
 	label_split_summary_override: pd.DataFrame | None = None
 	outputs_payload: dict[str, Any]
 	resume_outputs: dict[str, dict[str, str]] = {}
+	resume_run_parameters: dict[str, Any] = {}
+	current_run_parameters: dict[str, Any] = {
+		"llm_model": model,
+		"candidate_urls": candidate_urls,
+		"scenario_request": args.scenario,
+		"effective_agent_role": effective_agent_role,
+		"repeats_per_context": repeats_per_context,
+		"num_samples": args.num_samples,
+		"temperature": args.temperature,
+		"max_tokens": args.max_tokens,
+		"top_logprobs": args.top_logprobs,
+		"timeout_seconds": args.timeout,
+		"processes": args.processes,
+		"output_dir": output_dir,
+		"use_online_api": bool(Use_ONLINE_API),
+		"grid_size": SCHELLING_GRID_SIZE,
+		"non_wall_context_elements": NON_WALL_CONTEXT_ELEMENTS,
+		"max_meaningful_reasks": MEANINGFUL_ANSWER_MAX_REASKS,
+	}
 
 	if args.resume:
-		resume_outputs = _read_per_scenario_progress_manifest(args.output_dir, model)
+		resume_outputs, resume_run_parameters = _read_per_scenario_progress_manifest(output_dir, model)
+
+		if len(resume_outputs) > 0 and len(resume_run_parameters) > 0:
+			comparable_keys = [
+				"llm_model",
+				"candidate_urls",
+				"effective_agent_role",
+				"repeats_per_context",
+				"num_samples",
+				"temperature",
+				"max_tokens",
+				"top_logprobs",
+				"timeout_seconds",
+				"processes",
+				"use_online_api",
+				"grid_size",
+				"non_wall_context_elements",
+				"max_meaningful_reasks",
+			]
+			mismatches: list[str] = []
+			for key in comparable_keys:
+				if key not in resume_run_parameters:
+					continue
+				if resume_run_parameters.get(key) != current_run_parameters.get(key):
+					mismatches.append(
+						f"{key}: resume={resume_run_parameters.get(key)!r}, current={current_run_parameters.get(key)!r}"
+					)
+
+			if len(mismatches) > 0:
+				details = "\n  - " + "\n  - ".join(mismatches)
+				raise ValueError(
+					"Resume parameter mismatch detected. To ensure exact replication, "
+					"resume must use the same parameters stored in the manifest." + details
+				)
+
 		if len(resume_outputs) > 0:
 			print(
 				f"[progress] Resume enabled: found {len(resume_outputs)} completed scenario(s) in manifest.",
@@ -1094,7 +1644,21 @@ def main() -> None:
 				return
 
 	with requests.Session() as session:
+		provider_model_fingerprint = fetch_model_fingerprint_from_provider(
+			urls=candidate_urls,
+			model=model,
+			timeout=args.timeout,
+			session=session,
+			api_key=api_key,
+		)
+		current_run_parameters["provider_model_fingerprint"] = provider_model_fingerprint
+		response_model_fingerprint: dict[str, Any] | None = None
+
 		if scenario_keys is not None:
+			manifest_run_parameters: dict[str, Any] = {
+				**current_run_parameters,
+				"resume": bool(args.resume),
+			}
 			per_scenario_outputs: dict[str, dict[str, str]] = dict(resume_outputs)
 			for scenario_key in scenario_keys:
 				scenario_records, scenario_label_split_df, used_url = evaluate_scenario_permutations(
@@ -1108,14 +1672,22 @@ def main() -> None:
 					top_logprobs=args.top_logprobs,
 					timeout=args.timeout,
 					session=session,
+					processes=args.processes,
 					api_key=api_key,
 				)
 				url_used = used_url
 				records.extend(scenario_records)
+				scenario_response_fingerprint = scenario_label_split_df.attrs.get("last_response_fingerprint")
+				if response_model_fingerprint is None and isinstance(scenario_response_fingerprint, dict):
+					response_model_fingerprint = scenario_response_fingerprint
+				if "meaningful_error" in scenario_label_split_df.columns:
+					meaningful_error_count += int(scenario_label_split_df["meaningful_error"].sum())
+				if "meaningful_reasks_used" in scenario_label_split_df.columns:
+					meaningful_reasks_total += int(scenario_label_split_df["meaningful_reasks_used"].sum())
 
 				scenario_label_split_summary_df = summarize_label_probability_split(scenario_label_split_df)
 				tokens_csv, label_split_csv, label_split_summary_csv = save_outputs(
-					args.output_dir,
+					output_dir,
 					model,
 					scenario_key,
 					scenario_records,
@@ -1129,10 +1701,14 @@ def main() -> None:
 					"stay_move_split_summary_csv": label_split_summary_csv,
 				}
 
+				if response_model_fingerprint is not None:
+					manifest_run_parameters["response_model_fingerprint"] = response_model_fingerprint
+
 				manifest_path = _write_per_scenario_progress_manifest(
-					args.output_dir,
+					output_dir,
 					model,
 					per_scenario_outputs,
+					run_parameters=manifest_run_parameters,
 				)
 				print(
 					f"[progress][scenario={scenario_key}] Saved outputs and updated manifest: {manifest_path}",
@@ -1145,26 +1721,71 @@ def main() -> None:
 				only_key = scenario_keys[0]
 				outputs_payload.update(per_scenario_outputs[only_key])
 		else:
-			for sample_idx in range(args.num_samples):
-				response_json, elapsed, used_url = request_with_logprobs(
-					urls=candidate_urls,
-					model=model,
-					prompt=prompt,
-					temperature=args.temperature,
-					max_tokens=args.max_tokens,
-					top_logprobs=args.top_logprobs,
-					timeout=args.timeout,
-					session=session,
-					api_key=api_key,
-				)
-				url_used = used_url
-				response_text, sample_records = extract_token_records(response_json, sample_idx)
-				records.extend(sample_records)
-				_ = response_text
+			total_prompt_requests = args.num_samples
+			process_count = _resolve_process_count(args.processes, total_prompt_requests)
+
+			if process_count > 1:
+				prompt_tasks = [
+					{
+						"urls": candidate_urls,
+						"model": model,
+						"prompt": prompt,
+						"temperature": args.temperature,
+						"max_tokens": args.max_tokens,
+						"top_logprobs": args.top_logprobs,
+						"timeout": args.timeout,
+						"max_meaningful_reasks": MEANINGFUL_ANSWER_MAX_REASKS,
+						"api_key": api_key,
+						"sample_index": sample_idx,
+					}
+					for sample_idx in range(args.num_samples)
+				]
+
+				with Pool(process_count) as pool:
+					for _sample_idx, response_text, sample_records, used_url, reasks_used, meaningful_error, response_fingerprint in pool.imap_unordered(
+						_execute_single_prompt_request_worker,
+						prompt_tasks,
+					):
+						url_used = used_url
+						records.extend(sample_records)
+						if response_model_fingerprint is None and isinstance(response_fingerprint, dict):
+							response_model_fingerprint = response_fingerprint
+						meaningful_reasks_total += int(reasks_used)
+						if meaningful_error:
+							meaningful_error_count += 1
+						_ = response_text
+
+				records.sort(key=lambda rec: (rec.sample_index, rec.token_index, rec.top_rank))
+			else:
+				for sample_idx in range(args.num_samples):
+					task = {
+						"urls": candidate_urls,
+						"model": model,
+						"prompt": prompt,
+						"temperature": args.temperature,
+						"max_tokens": args.max_tokens,
+						"top_logprobs": args.top_logprobs,
+						"timeout": args.timeout,
+						"max_meaningful_reasks": MEANINGFUL_ANSWER_MAX_REASKS,
+						"api_key": api_key,
+						"sample_index": sample_idx,
+					}
+					response_text, sample_records, used_url, _elapsed, _label_metrics, reasks_used, meaningful_error, response_fingerprint = _query_until_meaningful_labels(
+						task=task,
+						session=session,
+					)
+					url_used = used_url
+					records.extend(sample_records)
+					if response_model_fingerprint is None and isinstance(response_fingerprint, dict):
+						response_model_fingerprint = response_fingerprint
+					meaningful_reasks_total += int(reasks_used)
+					if meaningful_error:
+						meaningful_error_count += 1
+					_ = response_text
 
 			# Single-prompt mode keeps the original single-output behavior
 			tokens_csv, label_split_csv, label_split_summary_csv = save_outputs(
-				args.output_dir,
+				output_dir,
 				model,
 				None,
 				records,
@@ -1176,6 +1797,9 @@ def main() -> None:
 				"stay_move_split_csv": label_split_csv,
 				"stay_move_split_summary_csv": label_split_summary_csv,
 			}
+
+		if response_model_fingerprint is not None:
+			current_run_parameters["response_model_fingerprint"] = response_model_fingerprint
 
 	if len(records) == 0:
 		raise RuntimeError("No token probability records were extracted")
@@ -1190,6 +1814,9 @@ def main() -> None:
 		"grid_size": SCHELLING_GRID_SIZE,
 		"non_wall_context_elements": NON_WALL_CONTEXT_ELEMENTS,
 		"repeats_per_context": repeats_per_context,
+		"max_meaningful_reasks": MEANINGFUL_ANSWER_MAX_REASKS,
+		"meaningful_error_count": meaningful_error_count,
+		"meaningful_reasks_total": meaningful_reasks_total,
 		"prompt": prompt,
 		"outputs": outputs_payload,
 	}
