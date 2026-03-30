@@ -3,7 +3,8 @@
 Quick start (from repo root):
     python analysis_tools/run_all_scenario_analysis.py \
         [--no-recompute] [--include-movement | --movement-only] \
-        [--output-folder <path>] [--llm-model <name>] [--quiet]
+        [--output-folder <path>] [--llm-model <name>] \
+        [--manifest-file <path/to/run_manifest.json>] [--quiet]
 
 Flags:
     --no-recompute      Skip forced metric recompute; use existing CSVs if present.
@@ -14,7 +15,14 @@ Flags:
     --llm-model          Filter experiments to the specified LLM model. When set
                         and --output-folder is omitted, outputs go to
                         reports_{modelname} (sanitized for filesystem safety).
+    --manifest-file     Analyze exactly the experiments in a run manifest JSON.
+                        Also writes manifest-based experiment parameter reports.
     --quiet             Suppress per-step progress; summary still printed.
+
+Manifest report outputs (when --manifest-file is used):
+    experiment_list_{model}.txt
+    experiment_details_{model}.txt
+    experiment_details_{model}.json
 
 Pipeline order (when not movement-only):
     0) dissimilarity_index_over_time
@@ -39,7 +47,7 @@ import re
 import sys
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from analysis_tools.output_paths import set_reports_dir
 
@@ -228,7 +236,7 @@ def _parse_args_and_run():
     experiments_dir = Path('experiments')
 
     if args.manifest_file:
-        selected, matching, unused, manifest_meta = _select_experiments_from_manifest(
+        selected, matching, unused, manifest_meta, manifest_payload = _select_experiments_from_manifest(
             Path(args.manifest_file),
             experiments_dir,
         )
@@ -247,6 +255,13 @@ def _parse_args_and_run():
             matching,
             selected,
             unused,
+        )
+        _write_manifest_experiment_details_report(
+            reports_dir=Path(output_folder),
+            llm_model=args.llm_model or str(manifest_meta.get("llm_model") or "manifest"),
+            selected=selected,
+            manifest_meta=manifest_meta,
+            manifest_payload=manifest_payload,
         )
         _apply_scenarios_to_plot()
         run_all_analyses(
@@ -401,7 +416,7 @@ def _select_experiments_for_model(
 def _select_experiments_from_manifest(
     manifest_path: Path,
     experiments_dir: Path,
-) -> Tuple[Dict[str, str], List[dict], List[dict], Dict[str, str]]:
+) -> Tuple[Dict[str, str], List[dict], List[dict], Dict[str, str], Dict[str, Any]]:
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -446,7 +461,7 @@ def _select_experiments_from_manifest(
         "created_at": str(payload.get("created_at") or ""),
         "manifest_path": str(manifest_path),
     }
-    return selected, matching, unused, manifest_meta
+    return selected, matching, unused, manifest_meta, payload
 
 
 def _find_mech_baseline_experiment(experiments_dir: Path) -> Optional[str]:
@@ -613,6 +628,102 @@ def _write_experiment_list_report(
     ])
 
     output_path.write_text(content, encoding="utf-8")
+
+
+def _write_manifest_experiment_details_report(
+    reports_dir: Path,
+    llm_model: str,
+    selected: Dict[str, str],
+    manifest_meta: Dict[str, str],
+    manifest_payload: Dict[str, Any],
+) -> None:
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    safe_model = _sanitize_model_for_path_component(llm_model)
+    output_path_txt = reports_dir / f"experiment_details_{safe_model}.txt"
+    output_path_json = reports_dir / f"experiment_details_{safe_model}.json"
+
+    manifest_experiments = manifest_payload.get("experiments")
+    records = manifest_experiments if isinstance(manifest_experiments, list) else []
+
+    selected_by_folder = {folder: scenario for scenario, folder in selected.items()}
+    selected_records: List[dict] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        folder = str(record.get("experiment_name") or "").strip()
+        if not folder:
+            output_dir = str(record.get("output_dir") or "").strip()
+            if output_dir:
+                folder = Path(output_dir).name
+        if not folder or folder not in selected_by_folder:
+            continue
+        selected_records.append(record)
+
+    lines: List[str] = [
+        f"LLM model: {llm_model}",
+        f"Manifest path: {manifest_meta.get('manifest_path', '')}",
+        f"Manifest created_at: {manifest_meta.get('created_at', '')}",
+        "",
+        "Selected experiment details (from manifest):",
+    ]
+
+    if not selected_records:
+        lines.extend([
+            "- (none found in manifest experiments list)",
+            "",
+        ])
+    else:
+        for record in selected_records:
+            folder = str(record.get("experiment_name") or "").strip()
+            output_dir = str(record.get("output_dir") or "").strip()
+            if not folder and output_dir:
+                folder = Path(output_dir).name
+            scenario = selected_by_folder.get(folder, str(record.get("scenario") or "unknown"))
+            status = str(record.get("status") or "")
+            run_count = record.get("run_count")
+            effective_config = record.get("effective_config")
+
+            lines.append(f"- scenario: {scenario}")
+            lines.append(f"  folder: {folder or '(unknown)'}")
+            lines.append(f"  status: {status or '(unknown)'}")
+            lines.append(f"  output_dir: {output_dir or '(unknown)'}")
+            lines.append(f"  run_count: {run_count if run_count is not None else '(unknown)'}")
+            lines.append("  effective_config:")
+            if isinstance(effective_config, dict):
+                config_json = json.dumps(effective_config, indent=2, sort_keys=True)
+                for line in config_json.splitlines():
+                    lines.append(f"    {line}")
+            else:
+                lines.append("    (missing)")
+            lines.append("")
+
+    output_path_txt.write_text("\n".join(lines), encoding="utf-8")
+
+    details_payload = {
+        "llm_model": llm_model,
+        "manifest": {
+            "path": manifest_meta.get("manifest_path", ""),
+            "created_at": manifest_meta.get("created_at", ""),
+        },
+        "selected_experiments": [
+            {
+                "scenario": selected_by_folder.get(
+                    str(record.get("experiment_name") or "").strip()
+                    or Path(str(record.get("output_dir") or "")).name,
+                    str(record.get("scenario") or "unknown"),
+                ),
+                "experiment_name": str(record.get("experiment_name") or "").strip()
+                or Path(str(record.get("output_dir") or "")).name,
+                "status": str(record.get("status") or ""),
+                "output_dir": str(record.get("output_dir") or ""),
+                "run_count": record.get("run_count"),
+                "effective_config": record.get("effective_config"),
+            }
+            for record in selected_records
+            if isinstance(record, dict)
+        ],
+    }
+    output_path_json.write_text(json.dumps(details_payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
 if __name__ == '__main__':
