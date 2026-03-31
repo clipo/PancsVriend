@@ -205,7 +205,7 @@ def test_get_llm_decision_stay_response(monkeypatch):
 
 
 def test_get_llm_decision_unparseable_response(monkeypatch):
-    """Test LLM decision with unparseable response"""
+    """Test LLM decision with unparseable response in strict mode"""
     monkeypatch.setattr(cfg, "GRID_SIZE", 2)  # Match grid size
     
     def fake_post(url, headers, json, timeout):
@@ -214,12 +214,15 @@ def test_get_llm_decision_unparseable_response(monkeypatch):
     
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(time, "time", lambda: 1.0)
+    monkeypatch.setattr(time, "sleep", lambda x: None)  # Skip sleep
     
     grid = [[None, None], [None, None]]
     agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
-    
-    result = agent.get_llm_decision(1, 1, grid)
-    assert result is None  # Unparseable should default to STAY
+
+    with pytest.raises(Exception) as excinfo:
+        agent.get_llm_decision(1, 1, grid, max_retries=2)
+
+    assert "LLM error after 2 retries" in str(excinfo.value)
 
 
 def test_get_llm_decision_timeout_retry(monkeypatch):
@@ -319,7 +322,7 @@ def test_llm_decision_function_forwards():
 
 def test_run_single_simulation_augment(monkeypatch):
     # stub LLMSimulation.run_single_simulation
-    def fake_run(self, output_dir, max_steps):
+    def fake_run(self, output_dir, max_steps, save_every_steps=1):
         return {"foo": "bar"}
     monkeypatch.setattr(llm_runner.LLMSimulation, "run_single_simulation", fake_run)
     
