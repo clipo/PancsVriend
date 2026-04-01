@@ -12,7 +12,7 @@
 run_root: "experiments_with_log_probs"
 
 # Optional run folder name (default: null -> auto run_<timestamp>_<model_slug>)
-run_id: "run_20260330_185545_mixtral-8x22b-instruct"
+run_id: null
 
 # REQUIRED in CLI (no built-in default). Set to your target model.
 llm_model: "mixtral:8x22b-instruct"
@@ -27,7 +27,7 @@ manifest_file: null
 token_log_probs_root: null
 
 # Stage toggles (all defaults)
-skip_token_probs: true
+skip_token_probs: false
 skip_contexts: false
 skip_analysis: false
 
@@ -39,6 +39,8 @@ dry_run: false
 # Keep each field null/empty to omit that flag.
 token_args:
   scenario: all           # default: null (single-prompt mode unless set)
+  logprob_api_structure: openai
+  llm_url: null            # optional explicit token-stage endpoint override
   processes: 10          # default: null (effective default in script: 1)
   temperature: 0.0        # default: 0.3
   num_samples: null        # default: 1
@@ -53,7 +55,7 @@ token_args:
 # Pass-through args for run_all_contexts.py
 contexts_args:
   scenarios: []            # default: all scenarios when omitted
-  runs: 1000               # default: null (effective new-run default in llm_runner: 10)
+  runs: 100               # default: null (effective new-run default in llm_runner: 10)
   max_steps: 1000          # default: null (effective default in llm_runner: 1000)
   llm_model: null          # default: null (pipeline auto-injects top-level llm_model)
   llm_url: null            # default: null (uses config.py OLLAMA_URL)
@@ -68,13 +70,13 @@ contexts_args:
 
 # Pass-through args for analysis_tools/run_all_scenario_analysis.py
 analysis_args:
-  no_recompute: false      # default: false
+  no_recompute: true      # default: false
   movement_only: false     # default: false
   include_movement: false  # default: false
   output_folder: null      # default: null (pipeline auto-sets to <run>/analysis)
   llm_model: null          # default: null (pipeline auto-injects top-level llm_model)
   manifest_file: null      # default: null (pipeline auto-injects manifest path)
-  quiet: false             # default: false
+  quiet: true             # default: false
 
 
 
@@ -113,6 +115,8 @@ profiles:
     llm_model: "mixtral:8x22b-instruct"
     token_args:
       scenario: null
+      logprob_api_structure: ollama
+      llm_url: null
       processes: null
       temperature: null
       num_samples: null

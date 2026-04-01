@@ -24,7 +24,11 @@ from typing import Any
 
 import requests
 from context_scenarios import CONTEXT_SCENARIOS
-from llm_utility_approximation import llm_token_probabilities as ltp
+
+try:
+	from llm_utility_approximation import llm_token_probabilities as ltp
+except ImportError:
+	import llm_token_probabilities as ltp
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,6 +105,19 @@ def parse_args() -> argparse.Namespace:
 		help="Seed for neighborhood layout shuffling (default: 7)",
 	)
 	parser.add_argument(
+		"--request-seed-mode",
+		type=str,
+		choices=["none", "fixed", "varying"],
+		default="varying",
+		help="Request-level seed mode: none, fixed, or varying per sample_index (default: none)",
+	)
+	parser.add_argument(
+		"--request-seed-base",
+		type=int,
+		default=12345,
+		help="Base request seed used for fixed/varying modes (default: 12345)",
+	)
+	parser.add_argument(
 		"--std-threshold",
 		type=float,
 		default=0.08,
@@ -169,6 +186,16 @@ def _temperature_to_slug(temperature: float) -> str:
 	if raw == "":
 		raw = "0"
 	return raw.replace("-", "m").replace(".", "p")
+
+
+def _request_seed_for_call(mode: str, base: int, sample_index: int) -> int | None:
+	if mode == "none":
+		return None
+	if mode == "fixed":
+		return int(base)
+	if mode == "varying":
+		return int(base) + int(sample_index)
+	raise ValueError(f"Unsupported request seed mode: {mode}")
 
 
 def _role_consistency_summary(
@@ -259,6 +286,12 @@ def main() -> None:
 				if args.prompt_nonce_per_trial:
 					prompt = f"{base_prompt}\n\n[trial_nonce:{role_name}:{trial_index}]"
 
+				request_seed = _request_seed_for_call(
+					mode=args.request_seed_mode,
+					base=args.request_seed_base,
+					sample_index=sample_index,
+				)
+
 				task = {
 					"urls": urls,
 					"model": args.llm_model,
@@ -270,6 +303,7 @@ def main() -> None:
 					"sample_index": sample_index,
 					"max_meaningful_reasks": int(ltp.MEANINGFUL_ANSWER_MAX_REASKS),
 					"api_key": api_key,
+					"request_seed": request_seed,
 				}
 				(
 					response_text,
@@ -299,6 +333,7 @@ def main() -> None:
 						"opposite_label": opposite_label,
 						"trial_index": trial_index,
 						"sample_index": sample_index,
+						"request_seed": request_seed,
 						"context": context,
 						"arrangement_code": "".join(neighbors),
 						"response_text": response_text,
@@ -359,6 +394,10 @@ def main() -> None:
 		"max_tokens": args.max_tokens,
 		"top_logprobs": args.top_logprobs,
 		"timeout": args.timeout,
+		"request_seed_settings": {
+			"mode": args.request_seed_mode,
+			"base": args.request_seed_base,
+		},
 		"temperature_slug": temperature_slug,
 		"context": context,
 		"context_slug": context_slug,

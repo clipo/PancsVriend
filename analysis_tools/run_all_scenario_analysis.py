@@ -49,6 +49,10 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import pandas as pd
+from scipy import stats
+
 from analysis_tools.output_paths import set_reports_dir
 
 import experiment_list_for_analysis as experiment_list
@@ -60,6 +64,7 @@ def run_all_analyses(
     include_movement: bool = False,
     verbose: bool = True,
     output_folder: Union[str, Path] = "reports",
+    llm_model: Optional[str] = None,
 ):
     """Run the suite of analysis scripts in a recommended order."""
     at_path = Path(__file__).resolve().parent
@@ -116,36 +121,45 @@ def run_all_analyses(
 
     steps.append(("combined_final_metrics", _run_combined_final_metrics, {}))
 
-    # 2. Movement analysis (can be heavy) – optional
+    # 2. Scenario ranking + significance table for the selected model run
+    def _run_scenario_ranking_significance_table():
+        _write_single_model_scenario_ranking_table(
+            reports_dir=reports_dir,
+            llm_model=llm_model,
+        )
+
+    steps.append(("scenario_ranking_significance", _run_scenario_ranking_significance_table, {}))
+
+    # 3. Movement analysis (can be heavy) – optional
     if include_movement:
         steps.append(movement_step)
 
-    # 3. Stability patterns
+    # 4. Stability patterns
     def _run_stability():
         mod = importlib.import_module('analysis_tools.analyze_stability_patterns')
         mod.analyze_stability()
     steps.append(("analyze_stability_patterns", _run_stability, {}))
 
-    # 4. Convergence patterns & speed
+    # 5. Convergence patterns & speed
     def _run_convergence():
         import importlib as _il
         mod = _il.import_module('analysis_tools.convergence_patterns_and_speed')
         _il.reload(mod)  # code runs on import; reload to regenerate per-model outputs
     steps.append(("convergence_patterns_and_speed", _run_convergence, {}))
 
-    # 5. Movement decision counts (requires move logs)
+    # 6. Movement decision counts (requires move logs)
     def _run_movement_decision_counts():
         mod = importlib.import_module('analysis_tools.movement_decision_counts')
         mod.main(recompute=recompute)
     steps.append(("movement_decision_counts", _run_movement_decision_counts, {}))
 
-    # 6. Per-metric panels
+    # 7. Per-metric panels
     def _run_per_metric_panels():
         mod = importlib.import_module('analysis_tools.per_metric_panels')
         mod.main()
     steps.append(("per_metric_panels", _run_per_metric_panels, {}))
 
-    # 7. Segregation metrics comparison (depends on combined_final_metrics output)
+    # 8. Segregation metrics comparison (depends on combined_final_metrics output)
     def _run_segregation_metrics_comparison():
         import importlib as _il
         mod = _il.import_module('analysis_tools.segregation_metrics_comparison')
@@ -270,6 +284,7 @@ def _parse_args_and_run():
             include_movement=args.include_movement,
             verbose=not args.quiet,
             output_folder=output_folder,
+            llm_model=args.llm_model or str(manifest_meta.get("llm_model") or "manifest"),
         )
         return
 
@@ -301,6 +316,7 @@ def _parse_args_and_run():
                 include_movement=args.include_movement,
                 verbose=not args.quiet,
                 output_folder=output_folder,
+                llm_model=model,
             )
         _run_llm_model_comparison_plots(experiments_dir, Path("reports_all_llm_models"), quiet=args.quiet)
         return
@@ -326,7 +342,128 @@ def _parse_args_and_run():
         include_movement=args.include_movement,
         verbose=not args.quiet,
         output_folder=output_folder,
+        llm_model=args.llm_model,
     )
+
+
+def _write_single_model_scenario_ranking_table(
+    reports_dir: Path,
+    llm_model: Optional[str],
+) -> None:
+    combined_path = reports_dir / "combined_final_metrics.csv"
+    if not combined_path.exists():
+        raise FileNotFoundError(f"Missing combined metrics file: {combined_path}")
+
+    combined_df = pd.read_csv(combined_path)
+    if combined_df.empty:
+        raise RuntimeError(f"Combined metrics file is empty: {combined_path}")
+    if "scenario" not in combined_df.columns:
+        raise RuntimeError("combined_final_metrics.csv is missing required 'scenario' column")
+
+    metrics = [
+        metric
+        for metric in [
+            "dissimilarity_index",
+            "clusters",
+            "switch_rate",
+            "distance",
+            "mix_deviation",
+            "share",
+            "ghetto_rate",
+        ]
+        if metric in combined_df.columns
+    ]
+    if not metrics:
+        raise RuntimeError("No ranking metrics found in combined_final_metrics.csv")
+
+    model_display = (llm_model or "unknown-model").strip() or "unknown-model"
+    safe_model = _sanitize_model_for_path_component(model_display)
+    output_csv = reports_dir / f"segregation_scenario_rankings_{safe_model}.csv"
+    output_md = reports_dir / f"segregation_scenario_rankings_{safe_model}.md"
+
+    rows: List[dict] = []
+    markdown_lines: List[str] = [
+        f"# Segregation Ranking by Scenario ({model_display})",
+        "",
+        "Rankings and significance are computed per metric (Mann-Whitney U, two-sided).",
+        "",
+        "Metrics are ordered with dissimilarity first when available.",
+        "",
+    ]
+
+    for metric in metrics:
+        scenario_values: Dict[str, np.ndarray] = {}
+        for scenario, scenario_df in combined_df.groupby("scenario"):
+            vals = scenario_df[metric].dropna().to_numpy(dtype=float)
+            if len(vals) > 0:
+                scenario_values[str(scenario)] = vals
+
+        if not scenario_values:
+            continue
+
+        ranking = sorted(
+            scenario_values.items(),
+            key=lambda item: float(np.mean(item[1])),
+            reverse=True,
+        )
+
+        markdown_lines.extend([
+            f"## {metric}",
+            "",
+            "| Rank | Scenario | Mean | Std dev | Runs | Significant vs next | p-value vs next |",
+            "|---:|---|---:|---:|---:|:---:|---:|",
+        ])
+
+        for idx, (scenario, values) in enumerate(ranking):
+            mean_value = float(np.mean(values))
+            std_value = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            n_runs = int(len(values))
+
+            sig_marker = ""
+            p_value = None
+            if idx + 1 < len(ranking):
+                next_values = ranking[idx + 1][1]
+                if len(values) >= 2 and len(next_values) >= 2:
+                    try:
+                        _, p_value = stats.mannwhitneyu(
+                            values,
+                            next_values,
+                            alternative="two-sided",
+                        )
+                        if p_value < 0.05:
+                            sig_marker = "*"
+                    except Exception:
+                        p_value = None
+
+            scenario_label = experiment_list.SCENARIO_LABELS.get(
+                scenario,
+                scenario.replace("_", " ").title(),
+            )
+            rows.append({
+                "llm_model": model_display,
+                "metric": metric,
+                "scenario": scenario,
+                "scenario_label": scenario_label,
+                "rank": idx + 1,
+                "mean_value": round(mean_value, 6),
+                "std_value": round(std_value, 6),
+                "n_runs": n_runs,
+                "significant_vs_next": sig_marker,
+                "p_value_vs_next": None if p_value is None else round(float(p_value), 6),
+            })
+
+            p_value_display = "" if p_value is None else f"{p_value:.6f}"
+            markdown_lines.append(
+                f"| {idx + 1} | {scenario_label} | {mean_value:.4f} | {std_value:.4f} | {n_runs} | {sig_marker} | {p_value_display} |"
+            )
+
+        markdown_lines.append("")
+
+    if not rows:
+        raise RuntimeError("No per-metric scenario rankings could be computed")
+
+    pd.DataFrame(rows).to_csv(output_csv, index=False)
+    output_md.write_text("\n".join(markdown_lines), encoding="utf-8")
 
 
 def _resolve_output_folder(output_folder: Optional[str], llm_model: Optional[str]) -> str:

@@ -15,11 +15,16 @@ Each stage also allows pass-through arguments:
 - --contexts-args -> run_all_contexts.py
 - --analysis-args -> analysis_tools/run_all_scenario_analysis.py
 
+Analysis-stage extras:
+- Scenario hierarchy/significance tables are produced by
+    analysis_tools/run_all_scenario_analysis.py and written to analysis output.
+
 Root-path guide:
 - Token stage root can be set via `token_args.token_output_root` in YAML.
 - If `token_args.token_output_root` is missing, fallback is top-level `token_log_probs_root`.
 - Context simulation uses `contexts_args.log_probs_root` when provided.
 - If `contexts_args.log_probs_root` is missing, fallback is the effective token root.
+- Token API structure can be set via `token_args.logprob_api_structure` (`ollama` or `openai`).
 
 
 """
@@ -365,7 +370,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--manifest-file",
         type=str,
         default=None,
-        help="Explicit simulation manifest JSON path used by analysis (required with --skip-contexts).",
+        help="Explicit simulation manifest JSON path used by analysis (if omitted with --skip-contexts, defaults to manifest/<run_id>_run_manifest.json when --run-id is provided).",
     )
     parser.add_argument(
         "--token-log-probs-root",
@@ -428,6 +433,7 @@ def main() -> None:
     analysis_base_args = _parse_passthrough_args(args.analysis_args)
 
     model = args.llm_model
+    explicit_run_id = args.run_id
     model_slug = _sanitize_model_for_path_component(model)
     run_id = args.run_id or _default_run_id(model_slug)
     run_layout = _resolve_run_layout(args.run_root, run_id, model)
@@ -448,9 +454,18 @@ def main() -> None:
     analysis_manifest_arg = _get_flag_value(analysis_base_args, "--manifest-file")
 
     if args.skip_contexts:
-        manifest_path = args.manifest_file or analysis_manifest_arg
+        manifest_path = (
+            args.manifest_file
+            or analysis_manifest_arg
+            or contexts_manifest_arg
+        )
+        if not manifest_path and explicit_run_id:
+            manifest_path = run_layout["default_manifest_file"]
         if not manifest_path:
-            parser.error("--skip-contexts requires a specified manifest via --manifest-file (or in --analysis-args).")
+            parser.error(
+                "--skip-contexts requires --manifest-file, --analysis-args/--contexts-args with --manifest-file, "
+                "or an explicit --run-id to derive the default manifest path."
+            )
     else:
         manifest_path = (
             args.manifest_file

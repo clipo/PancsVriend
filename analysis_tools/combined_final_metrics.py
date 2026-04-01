@@ -126,6 +126,8 @@ def process_scenarios(recompute: bool = True):
     has_dissimilarity = any('dissimilarity_index' in df.columns for df in results.values())
     if has_dissimilarity:
         metrics_list.append('dissimilarity_index')
+
+    anova_rows = []
     for metric in metrics_list:
         print(f"\n{metric.upper()}:")
         groups = [results[s][metric].values for s in scenarios.keys() if s in results]
@@ -133,10 +135,38 @@ def process_scenarios(recompute: bool = True):
             try:
                 f_stat, p_value = stats.f_oneway(*groups)
                 print(f"  ANOVA: F={f_stat:.4f}, p={p_value:.4f}")
+                anova_rows.append({
+                    'metric': metric,
+                    'n_groups': len(groups),
+                    'f_statistic': float(f_stat),
+                    'p_value': float(p_value),
+                    'significant_p_lt_0_05': bool(p_value < 0.05),
+                    'status': 'ok',
+                    'error': '',
+                })
                 if p_value < 0.05:
                     print("  Significant differences found between scenarios!")
             except Exception as e:
                 print(f"  [WARN] ANOVA failed for {metric}: {e}")
+                anova_rows.append({
+                    'metric': metric,
+                    'n_groups': len(groups),
+                    'f_statistic': None,
+                    'p_value': None,
+                    'significant_p_lt_0_05': None,
+                    'status': 'failed',
+                    'error': str(e),
+                })
+        else:
+            anova_rows.append({
+                'metric': metric,
+                'n_groups': len(groups),
+                'f_statistic': None,
+                'p_value': None,
+                'significant_p_lt_0_05': None,
+                'status': 'skipped',
+                'error': 'Need at least 2 scenario groups for ANOVA',
+            })
         for scenario in scenarios.keys():
             if scenario in results:
                 mean_val = results[scenario][metric].mean()
@@ -147,7 +177,29 @@ def process_scenarios(recompute: bool = True):
     out_path = get_reports_dir() / 'combined_final_metrics.csv'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     combined_df.to_csv(out_path, index=False)
+
+    anova_out_path = get_reports_dir() / 'anova_results_by_metric.csv'
+    pd.DataFrame(anova_rows).to_csv(anova_out_path, index=False)
+
+    anova_md_path = get_reports_dir() / 'anova_results_by_metric.md'
+    md_lines = [
+        '# ANOVA Results by Metric',
+        '',
+        '| Metric | Groups | F-statistic | p-value | Significant (p<0.05) | Status |',
+        '|---|---:|---:|---:|:---:|---|',
+    ]
+    for row in anova_rows:
+        f_stat = '' if row['f_statistic'] is None else f"{row['f_statistic']:.6f}"
+        p_val = '' if row['p_value'] is None else f"{row['p_value']:.6f}"
+        sig = '' if row['significant_p_lt_0_05'] is None else ('*' if row['significant_p_lt_0_05'] else '')
+        md_lines.append(
+            f"| {row['metric']} | {row['n_groups']} | {f_stat} | {p_val} | {sig} | {row['status']} |"
+        )
+    anova_md_path.write_text('\n'.join(md_lines), encoding='utf-8')
+
     print(f"\n\nSaved combined results to {out_path}")
+    print(f"Saved ANOVA results to {anova_out_path}")
+    print(f"Saved ANOVA markdown to {anova_md_path}")
     return combined_df
 
 
