@@ -32,6 +32,7 @@ except ImportError:
 	import check_llm_decision_prob_consistency as consistency_check
 	import llm_token_probabilities as ltp
 
+MODELS = ['gemma3:27b', 'gemma3:4b', 'gemma3:latest', 'granite3.1-dense:latest', 'granite3.1-moe:latest', 'hermes3:latest', 'llama3.1:405B', 'llama3.1:70B', 'llama3.2:latest', 'llama3.3:latest', 'mistral:instruct', 'mixtral:8x22b', 'mixtral:8x22b-instruct', 'phi4:latest', 'qwen2.5-coder:32B', 'qwen2.5-coder:latest', 'qwq:latest']
 
 @dataclass
 class CheckRunResult:
@@ -72,13 +73,13 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument(
 		"--tries",
 		type=int,
-		default=30,
+		default=100,
 		help="Trials per role for each mode",
 	)
 	parser.add_argument(
 		"--temperature",
 		type=float,
-		default=0.3,
+		default=1.0,
 		help="Sampling temperature for each request",
 	)
 	parser.add_argument(
@@ -732,7 +733,10 @@ def main() -> None:
 
 	all_models, discovery_endpoint = discover_models(args.llm_url, args.llm_api_key, args.timeout)
 	print(f"Discovered {len(all_models)} models at {discovery_endpoint}: {all_models}")
-	selected_models = apply_model_filters(all_models, args)
+
+	# selected_models = apply_model_filters(all_models, args)
+	print(f"Using the following models for consistency checks: {MODELS}")
+	selected_models = apply_model_filters(MODELS, args)
 
 	output_dir = Path(args.output_dir)
 	per_model_root = output_dir / "per_model"
