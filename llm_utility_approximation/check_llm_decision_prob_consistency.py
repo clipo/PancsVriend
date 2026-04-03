@@ -31,6 +31,8 @@ except ImportError:
 	import llm_token_probabilities as ltp
 
 
+ONLINE_API_URL = "https://chat.binghamton.edu/ollama/v1/chat/completions"
+
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description="Check LLM STAY/MOVE probability consistency on a balanced neighborhood"
@@ -240,7 +242,7 @@ def _resolve_api_settings(args: argparse.Namespace) -> tuple[list[str], str | No
 	if args.llm_url:
 		urls = [args.llm_url]
 	elif bool(ltp.Use_ONLINE_API):
-		urls = [str(ltp.ONLINE_API_URL)]
+		urls = [str(ltp.online_ollama_url)]
 	else:
 		urls = list(ltp.LOCAL_OLLAMA_URLS)
 
