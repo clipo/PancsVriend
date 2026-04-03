@@ -44,6 +44,11 @@ Model / endpoint controls:
 			Model name override. If omitted, this file's configured model is used.
 	--llm-url TEXT
 			Endpoint URL override (typically an OpenAI-compatible/Ollama chat endpoint).
+	--logprob-api-structure {ollama,openai}
+			Explicit request/response structure for logprob extraction.
+			- ollama (default): use Ollama-native payload + native logprobs parser.
+			- openai: use OpenAI-style chat-completions payload + OpenAI parser.
+			Strict mode: no cross-structure fallback.
 
 Scenario controls:
 	--scenario TEXT
@@ -78,6 +83,7 @@ Single prompt, 3 samples:
 Single prompt with custom endpoint and tighter sampling:
 	python llm_utility_approximation/llm_token_probabilities.py \
 			--llm-url "http://127.0.0.1:11434/v1/chat/completions" \
+			--logprob-api-structure openai \
 			--temperature 0.1 \
 			--max-tokens 8 \
 			--top-logprobs 30
@@ -92,6 +98,7 @@ All scenarios with resume + parallel workers + custom output:
 	python llm_utility_approximation/llm_token_probabilities.py \
 			--scenario all \
 			--resume \
+			--logprob-api-structure ollama \
 			--processes 8 \
 			--output-dir "./llm_log_probs"
 
@@ -160,7 +167,8 @@ LOCAL_OLLAMA_URLS = [
 	"http://localhost:11434/v1/chat/completions",
 	"http://127.0.0.1:11434/v1/chat/completions",
 ]
-ONLINE_API_URL = "https://chat.binghamton.edu/ollama/api/chat"
+online_ollama_url = "https://chat.binghamton.edu/ollama/api/chat"
+online_openai_url = "https://chat.binghamton.edu/ollama/v1/chat/completions"
 ONLINE_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"
 Use_ONLINE_API = True
 TIMEOUT_RETRY_ATTEMPTS = 5
@@ -178,6 +186,28 @@ NEIGHBOR_OFFSETS = [
 	(1, 0),
 	(1, 1),
 ]
+
+
+def _default_online_url_for_structure(logprob_api_structure: str) -> str:
+	if logprob_api_structure == "openai":
+		return online_openai_url.rstrip("/")
+	if logprob_api_structure == "ollama":
+		return online_ollama_url.rstrip("/")
+	raise ValueError(f"Unsupported --logprob-api-structure: {logprob_api_structure}")
+
+
+def _default_local_urls_for_structure(logprob_api_structure: str) -> list[str]:
+	if logprob_api_structure == "openai":
+		openai_urls = [
+			url
+			for url in LOCAL_OLLAMA_URLS
+			if url.rstrip("/").endswith("/v1/chat/completions") or url.rstrip("/").endswith("/chat/completions")
+		]
+		return openai_urls if len(openai_urls) > 0 else list(LOCAL_OLLAMA_URLS)
+	if logprob_api_structure == "ollama":
+		ollama_urls = [url for url in LOCAL_OLLAMA_URLS if url.rstrip("/").endswith("/api/chat")]
+		return ollama_urls if len(ollama_urls) > 0 else list(LOCAL_OLLAMA_URLS)
+	raise ValueError(f"Unsupported --logprob-api-structure: {logprob_api_structure}")
 
 @dataclass
 class TokenRecord:
@@ -243,6 +273,13 @@ def parse_args() -> argparse.Namespace:
 		type=str,
 		default=None,
 		help="Optional localhost Ollama OpenAI-compatible endpoint URL",
+	)
+	parser.add_argument(
+		"--logprob-api-structure",
+		type=str,
+		choices=["ollama", "openai"],
+		default="ollama",
+		help="Explicit API structure for request+strict parser behavior (default: ollama)",
 	)
 	parser.add_argument(
 		"--scenario",
@@ -465,81 +502,51 @@ def _parse_chat_content_logprobs(choice: dict[str, Any], sample_index: int) -> l
 	return records
 
 
-def _parse_legacy_logprobs(choice: dict[str, Any], sample_index: int) -> list[TokenRecord]:
-	logprobs = choice.get("logprobs")
-	if not isinstance(logprobs, dict):
-		return []
-
-	tokens = logprobs.get("tokens")
-	values = logprobs.get("token_logprobs") or logprobs.get("logprobs")
-	top_logprobs = logprobs.get("top_logprobs")
-
-	if not isinstance(tokens, list) or not isinstance(values, list) or len(tokens) != len(values):
-		return []
-
-	records: list[TokenRecord] = []
-	for token_index, (token_text, token_lp) in enumerate(zip(tokens, values)):
-		if not isinstance(token_lp, (int, float)):
-			continue
-
-		alts_for_token: list[dict[str, Any]] = []
-		if isinstance(top_logprobs, list) and token_index < len(top_logprobs):
-			entry = top_logprobs[token_index]
-			if isinstance(entry, dict):
-				for alt_token, alt_lp in entry.items():
-					if isinstance(alt_lp, (int, float)):
-						alts_for_token.append({"token": str(alt_token), "logprob": float(alt_lp)})
-
-		if len(alts_for_token) == 0:
-			alts_for_token = [{"token": str(token_text), "logprob": float(token_lp)}]
-
-		for rank, alt in enumerate(alts_for_token):
-			records.append(
-				TokenRecord(
-					sample_index=sample_index,
-					token_index=token_index,
-					token=str(token_text),
-					logprob=float(token_lp),
-					probability=_exp_logprob(float(token_lp)),
-					top_rank=rank,
-					top_token=str(alt["token"]),
-					top_logprob=float(alt["logprob"]),
-					top_probability=_exp_logprob(float(alt["logprob"])),
-				)
-			)
-
-	return records
-
-
 def _first_token_only_records(records: list[TokenRecord]) -> list[TokenRecord]:
 	return [record for record in records if int(record.token_index) == 0]
 
 
-def extract_token_records(response_json: dict[str, Any], sample_index: int) -> tuple[str, list[TokenRecord]]:
-	if isinstance(response_json.get("logprobs"), list):
-		text, native_records = _extract_native_ollama_logprobs(response_json, sample_index)
-		if len(native_records) > 0:
-			return text, _first_token_only_records(native_records)
+def _return_first_token_records_or_raise(
+	text: str,
+	records: list[TokenRecord],
+	error_message: str,
+) -> tuple[str, list[TokenRecord]]:
+	first_token_records = _first_token_only_records(records)
+	if first_token_records:
+		return text, first_token_records
+	raise RuntimeError(error_message)
 
-	choices = response_json.get("choices")
-	if not isinstance(choices, list) or len(choices) == 0 or not isinstance(choices[0], dict):
-		raise RuntimeError("Response does not contain a valid 'choices[0]' object")
 
-	choice = choices[0]
-	text = _extract_message_content(choice).strip()
+def extract_token_records(
+	response_json: dict[str, Any],
+	sample_index: int,
+	logprob_api_structure: str,
+) -> tuple[str, list[TokenRecord]]:
+	if logprob_api_structure == "ollama":
+		text, records = _extract_native_ollama_logprobs(response_json, sample_index)
+		return _return_first_token_records_or_raise(
+			text,
+			records,
+			"Strict parser mode 'ollama' expected native Ollama logprobs, "
+			"but response did not contain supported first-token native Ollama logprobs fields."
+		)
 
-	records = _parse_chat_content_logprobs(choice, sample_index)
-	if len(records) > 0:
-		return text, _first_token_only_records(records)
+	if logprob_api_structure == "openai":
+		choices = response_json.get("choices")
+		if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+			raise RuntimeError("Strict parser mode 'openai' expected a valid 'choices[0]' object")
 
-	records = _parse_legacy_logprobs(choice, sample_index)
-	if len(records) > 0:
-		return text, _first_token_only_records(records)
+		choice = choices[0]
+		text = _extract_message_content(choice).strip()
+		records = _parse_chat_content_logprobs(choice, sample_index)
+		return _return_first_token_records_or_raise(
+			text,
+			records,
+			"Strict parser mode 'openai' expected OpenAI chat-content logprobs fields, "
+			"but none were found for the first generated token in the response."
+		)
 
-	raise RuntimeError(
-		"Endpoint/model did not return token logprobs. "
-		"Requested logprobs but no supported logprobs fields were found in the response."
-	)
+	raise ValueError(f"Unsupported --logprob-api-structure: {logprob_api_structure}")
 
 
 def request_with_logprobs(
@@ -552,6 +559,8 @@ def request_with_logprobs(
 	timeout: int,
 	session: requests.Session,
 	api_key: str | None = None,
+	request_seed: int | None = None,
+	logprob_api_structure: str = "ollama",
 ) -> tuple[dict[str, Any], float, str]:
 	headers = {"Content-Type": "application/json"}
 	if api_key:
@@ -562,7 +571,7 @@ def request_with_logprobs(
 		for attempt in range(1, TIMEOUT_RETRY_ATTEMPTS + 1):
 			start = time.time()
 			try:
-				if url.rstrip("/").endswith("/api/chat"):
+				if logprob_api_structure == "ollama":
 					payload: dict[str, Any] = {
 						"model": model,
 						"messages": [{"role": "user", "content": prompt}],
@@ -574,7 +583,9 @@ def request_with_logprobs(
 							"num_predict": max_tokens,
 						},
 					}
-				else:
+					if request_seed is not None:
+						payload["options"]["seed"] = int(request_seed)
+				elif logprob_api_structure == "openai":
 					payload = {
 						"model": model,
 						"messages": [{"role": "user", "content": prompt}],
@@ -584,6 +595,10 @@ def request_with_logprobs(
 						"logprobs": True,
 						"top_logprobs": top_logprobs,
 					}
+					if request_seed is not None:
+						payload["seed"] = int(request_seed)
+				else:
+					raise ValueError(f"Unsupported --logprob-api-structure: {logprob_api_structure}")
 
 				response = session.post(url, headers=headers, json=payload, timeout=timeout)
 				elapsed = time.time() - start
@@ -598,7 +613,8 @@ def request_with_logprobs(
 				break
 
 	raise RuntimeError(
-		"Failed to query local Ollama endpoint. Ensure Ollama is running and OpenAI-compatible API is enabled on localhost:11434."
+		f"Failed to query endpoint(s) using '{logprob_api_structure}' request structure. "
+		"Verify endpoint compatibility, URL, model, and authentication settings."
 	) from last_error
 
 
@@ -982,6 +998,8 @@ def _query_until_meaningful_labels(
 			timeout=task["timeout"],
 			session=session,
 			api_key=task.get("api_key"),
+			request_seed=task.get("request_seed"),
+			logprob_api_structure=str(task.get("logprob_api_structure", "ollama")),
 		)
 		last_response_fingerprint = _extract_response_fingerprint(
 			response_json=response_json,
@@ -989,7 +1007,11 @@ def _query_until_meaningful_labels(
 			request_url=used_url,
 		)
 
-		response_text, sample_records = extract_token_records(response_json, int(task["sample_index"]))
+		response_text, sample_records = extract_token_records(
+			response_json,
+			int(task["sample_index"]),
+			str(task.get("logprob_api_structure", "ollama")),
+		)
 		token_candidates = _token_candidates_from_sample_records(sample_records)
 		label_metrics = _compute_label_metrics(token_candidates, labels=("STAY", "MOVE"))
 
@@ -1087,6 +1109,7 @@ def evaluate_scenario_permutations(
 	repeats_per_context: int,
 	model: str,
 	urls: list[str],
+	logprob_api_structure: str,
 	temperature: float,
 	max_tokens: int,
 	top_logprobs: int,
@@ -1133,13 +1156,15 @@ def evaluate_scenario_permutations(
 			num_opposite = int(sum(1 for item in neighbors if item == "O"))
 			num_empty = int(sum(1 for item in neighbors if item == "E"))
 			num_wall = int(sum(1 for item in neighbors if item == "#"))
-			ratio_similar = num_same / 8
+			num_non_wall = 8 - num_wall
+			ratio_similar = (num_same / num_non_wall) if num_non_wall > 0 else 0.0
 
 			for repeat_index in range(repeats_per_context):
 				request_tasks.append(
 					{
 						"urls": urls,
 						"model": model,
+						"logprob_api_structure": logprob_api_structure,
 						"prompt": prompt,
 						"temperature": temperature,
 						"max_tokens": max_tokens,
@@ -1508,7 +1533,7 @@ def main() -> None:
 	api_key: str | None = None
 	if Use_ONLINE_API:
 		model = args.llm_model if args.llm_model else LLM_MODEL
-		candidate_urls = [args.llm_url] if args.llm_url else [ONLINE_API_URL]
+		candidate_urls = [args.llm_url] if args.llm_url else [_default_online_url_for_structure(args.logprob_api_structure)]
 		api_key = ONLINE_API_KEY
 	else:
 		if args.llm_model:
@@ -1522,7 +1547,7 @@ def main() -> None:
 				raise ValueError("--llm-url must point to localhost/127.0.0.1 for local-only execution")
 			candidate_urls = [args.llm_url]
 		else:
-			candidate_urls = LOCAL_OLLAMA_URLS
+			candidate_urls = _default_local_urls_for_structure(args.logprob_api_structure)
 
 		for candidate_url in candidate_urls:
 			if not _is_local_url(candidate_url):
@@ -1543,6 +1568,7 @@ def main() -> None:
 	current_run_parameters: dict[str, Any] = {
 		"llm_model": model,
 		"candidate_urls": candidate_urls,
+		"logprob_api_structure": args.logprob_api_structure,
 		"scenario_request": args.scenario,
 		"effective_agent_role": effective_agent_role,
 		"repeats_per_context": repeats_per_context,
@@ -1566,6 +1592,7 @@ def main() -> None:
 			comparable_keys = [
 				"llm_model",
 				"candidate_urls",
+				"logprob_api_structure",
 				"effective_agent_role",
 				"repeats_per_context",
 				"num_samples",
@@ -1667,6 +1694,7 @@ def main() -> None:
 					repeats_per_context=repeats_per_context,
 					model=model,
 					urls=candidate_urls,
+					logprob_api_structure=args.logprob_api_structure,
 					temperature=args.temperature,
 					max_tokens=args.max_tokens,
 					top_logprobs=args.top_logprobs,
@@ -1729,6 +1757,7 @@ def main() -> None:
 					{
 						"urls": candidate_urls,
 						"model": model,
+						"logprob_api_structure": args.logprob_api_structure,
 						"prompt": prompt,
 						"temperature": args.temperature,
 						"max_tokens": args.max_tokens,
@@ -1761,6 +1790,7 @@ def main() -> None:
 					task = {
 						"urls": candidate_urls,
 						"model": model,
+						"logprob_api_structure": args.logprob_api_structure,
 						"prompt": prompt,
 						"temperature": args.temperature,
 						"max_tokens": args.max_tokens,
