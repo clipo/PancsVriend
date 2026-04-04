@@ -44,6 +44,10 @@ class CheckRunResult:
 	stderr: str
 
 
+def _progress(message: str) -> None:
+	print(f"[progress] {message}", flush=True)
+
+
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description=(
@@ -357,8 +361,15 @@ def run_mode_for_model(
 	else:
 		cmd.append("--no-prompt-nonce-per-trial")
 
+	_progress(
+		f"Running {mode} seed check for model='{model}' at temperature={temperature}"
+	)
+
 	process = subprocess.run(cmd, capture_output=True, text=True)
 	if process.returncode != 0:
+		_progress(
+			f"{mode} seed check FAILED for model='{model}' (exit={process.returncode})"
+		)
 		return CheckRunResult(
 			mode=mode,
 			success=False,
@@ -370,6 +381,7 @@ def run_mode_for_model(
 
 	try:
 		summary = _extract_json_stdout(process.stdout)
+		_progress(f"{mode} seed check completed for model='{model}'")
 		return CheckRunResult(
 			mode=mode,
 			success=True,
@@ -730,6 +742,9 @@ def main() -> None:
 	if args.tries < 1:
 		raise ValueError("--tries must be >= 1")
 	temperature_values = _parse_temperature_values()
+	_progress(
+		f"Starting all-model consistency run (scenario='{args.scenario}', tries={args.tries})"
+	)
 
 	all_models, discovery_endpoint = discover_models(args.llm_url, args.llm_api_key, args.timeout)
 	print(f"Discovered {len(all_models)} models at {discovery_endpoint}: {all_models}")
@@ -737,12 +752,14 @@ def main() -> None:
 	# selected_models = apply_model_filters(all_models, args)
 	print(f"Using the following models for consistency checks: {MODELS}")
 	selected_models = apply_model_filters(MODELS, args)
+	_progress(f"Selected {len(selected_models)} models for evaluation")
 
 	output_dir = Path(args.output_dir)
 	per_model_root = output_dir / "per_model"
 	model_results: list[dict[str, Any]] = []
 
-	for model in selected_models:
+	for idx, model in enumerate(selected_models, start=1):
+		_progress(f"Evaluating model {idx}/{len(selected_models)}: {model}")
 		model_slug = ltp._sanitize_model_for_path_component(model)
 		model_output_dir = per_model_root / model_slug
 
@@ -768,6 +785,7 @@ def main() -> None:
 		)
 
 		if not fixed_run.success or not varying_run.success:
+			_progress(f"Model '{model}' failed during fixed/varying seed checks")
 			error_parts = []
 			if not fixed_run.success:
 				error_parts.append(f"fixed: {fixed_run.error}")
@@ -795,6 +813,7 @@ def main() -> None:
 			temp_key = str(temp)
 			temp_slug = temp_key.replace("-", "m").replace(".", "p")
 			temp_dir = model_output_dir / "varying_temp" / f"T{temp_slug}"
+			_progress(f"Model '{model}': running cross-temperature fixed-seed check at T={temp_key}")
 			temp_run = run_mode_for_model(
 				model=model,
 				mode="fixed",
@@ -819,6 +838,7 @@ def main() -> None:
 			per_temperature_fixed_summaries[temp_key] = temp_run.summary or {}
 
 		if len(temp_errors) > 0:
+			_progress(f"Model '{model}' failed during cross-temperature checks")
 			model_results.append(
 				_build_error_model_result(
 					model=model,
@@ -853,6 +873,7 @@ def main() -> None:
 				"temperature_comparison": temperature_comparison,
 			}
 		)
+		_progress(f"Completed model {idx}/{len(selected_models)}: {model}")
 
 	passing_models = [
 		str(item["model"])
@@ -903,6 +924,9 @@ def main() -> None:
 
 	report_paths = write_reports(output_dir, payload)
 	payload["report_paths"] = report_paths
+	_progress(
+		f"Report generation complete. JSON={report_paths['report_json']} CSV={report_paths['report_csv']}"
+	)
 
 	print(json.dumps({
 		"status": "ok",
