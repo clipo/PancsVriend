@@ -16,6 +16,7 @@ Key options:
 * --use-log-probs         Use precomputed MOVE/STAY shares from summary CSVs.
 * --log-probs-root PATH   Optional root/model directory for log-prob summary files.
 * --llm-model/url/api-key Override the LLM endpoint configuration.
+* --temperature T         Sampling temperature for live LLM requests (default 0.3).
 
 The script checks for existing experiments whose config matches the requested
 scenario and model. Incomplete experiments are resumed using their stored
@@ -48,6 +49,7 @@ def _sorted_experiment_dirs(root: Path) -> Iterable[Path]:
 def _find_resume_candidate(
 	scenario: str,
 	llm_model: str,
+	temperature: float,
 	target_runs: Optional[int] = None,
 ) -> Tuple[Optional[str], bool]:
 	experiments_root = Path("experiments")
@@ -67,6 +69,14 @@ def _find_resume_candidate(
 
 		configured_model = config_data.get("llm_model") or cfg.OLLAMA_MODEL
 		if configured_model != llm_model:
+			continue
+
+		configured_temperature = config_data.get("temperature", 0.3)
+		try:
+			configured_temperature = float(configured_temperature)
+		except (TypeError, ValueError):
+			configured_temperature = 0.3 # old experiments that don't have the temp in the log have a default value of 0.3
+		if configured_temperature != temperature:
 			continue
 
 		exists, _, output_dir, existing_run_ids = check_existing_experiment(exp_dir.name)
@@ -250,6 +260,7 @@ def main() -> None:
 	parser.add_argument("--llm-model", type=str, default=None, help="LLM model identifier")
 	parser.add_argument("--llm-url", type=str, default=None, help="Override LLM endpoint URL")
 	parser.add_argument("--llm-api-key", type=str, default=None, help="Override LLM API key")
+	parser.add_argument("--temperature", type=float, default=0.3, help="Sampling temperature for live LLM API requests")
 	parser.add_argument("--processes", type=int, default=None, help="Parallel process count")
 	parser.add_argument("--save-every-steps", type=int, default=None, help="Persist states/move logs every N steps (default: 1)")
 	parser.add_argument("--no-parallel", action="store_true", help="Force sequential execution")
@@ -306,7 +317,7 @@ def main() -> None:
 			resume_candidate = None
 			print("--new set: skipping resume detection and starting a new experiment")
 		else:
-			resume_candidate, fully_completed = _find_resume_candidate(scenario, llm_model, args.runs)
+			resume_candidate, fully_completed = _find_resume_candidate(scenario, llm_model, args.temperature, args.runs)
 			if resume_candidate:
 				if fully_completed:
 					print(f"Found completed experiment '{resume_candidate}' – reusing results")
@@ -322,6 +333,7 @@ def main() -> None:
 			llm_model=llm_model,
 			llm_url=llm_url,
 			llm_api_key=llm_api_key,
+			temperature=args.temperature,
 			parallel=parallel,
 			n_processes=args.processes,
 			resume_experiment=resume_candidate,

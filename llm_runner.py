@@ -209,7 +209,7 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
                  run_id=None, step=None, use_log_prob_policy=False, log_prob_policy=None,
-                 log_prob_summary_path=None):
+                 log_prob_summary_path=None, temperature=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -218,6 +218,9 @@ class LLMAgent(Agent):
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if temperature is None:
+            raise ValueError("temperature must be provided to LLMAgent")
+        self.temperature = float(temperature)
         self.run_id = run_id
         # Initialize LLM tracking metrics
         self.llm_call_count = 0
@@ -398,7 +401,7 @@ class LLMAgent(Agent):
                     "model": self.llm_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    "temperature": 0.3,  # Lower temperature for more consistent responses
+                    "temperature": self.temperature,
                     "max_tokens": 50,    # Limit response length
                     "timeout": 10000     # 10 second timeout in milliseconds
                 }
@@ -535,12 +538,16 @@ def llm_decision_function(agent, r, c, grid):
 class LLMSimulation(Simulation):
     def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
                  initial_int_grid=None, initial_step=None, initial_no_move_steps=None,
-                 use_log_prob_policy=False, log_prob_policy=None, log_prob_summary_path=None):
+                 use_log_prob_policy=False, log_prob_policy=None, log_prob_summary_path=None,
+                 temperature=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if temperature is None:
+            raise ValueError("temperature must be provided to LLMSimulation")
+        self.temperature = float(temperature)
         self.use_log_prob_policy = bool(use_log_prob_policy)
         self.log_prob_policy = log_prob_policy or {}
         self.log_prob_summary_path = log_prob_summary_path
@@ -573,6 +580,7 @@ class LLMSimulation(Simulation):
             use_log_prob_policy=self.use_log_prob_policy,
             log_prob_policy=self.log_prob_policy,
             log_prob_summary_path=self.log_prob_summary_path,
+            temperature=self.temperature,
         )
 
     def run_step(self, verbose_move_log: bool = False):
@@ -637,8 +645,13 @@ def run_single_simulation(args):
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir)
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps)
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, initial_int_grid, initial_step)
-            (..., initial_no_move_steps, use_log_prob_policy, log_prob_policy, log_prob_summary_path, save_every_steps)
+                (..., initial_no_move_steps, use_log_prob_policy, log_prob_policy, log_prob_summary_path, save_every_steps, temperature)
     """
+    if len(args) < 6:
+        raise ValueError(
+            f"incomplete worker args: expected at least 6 required values, got {len(args)}"
+        )
+
     run_id, scenario, llm_model, llm_url, llm_api_key, output_dir = args[:6]
     max_steps = args[6] if len(args) >= 7 and args[6] is not None else 1000
     initial_int_grid = args[7] if len(args) >= 8 else None
@@ -648,13 +661,21 @@ def run_single_simulation(args):
     log_prob_policy = args[11] if len(args) >= 12 else None
     log_prob_summary_path = args[12] if len(args) >= 13 else None
     save_every_steps = args[13] if len(args) >= 14 else 1
+    if len(args) < 15:
+        raise ValueError(
+            f"incomplete worker args: expected 15 values including temperature, got {len(args)}"
+        )
+    temperature = args[14]
+    if temperature is None:
+        raise ValueError("temperature argument missing in run_single_simulation worker args")
 
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
                         initial_int_grid=initial_int_grid, initial_step=initial_step,
                         initial_no_move_steps=initial_no_move_steps,
                         use_log_prob_policy=use_log_prob_policy,
                         log_prob_policy=log_prob_policy,
-                        log_prob_summary_path=log_prob_summary_path)
+                        log_prob_summary_path=log_prob_summary_path,
+                        temperature=temperature)
     result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps, save_every_steps=save_every_steps)
     
     # Add LLM-specific metrics to the result
@@ -837,7 +858,7 @@ def check_existing_experiment(experiment_name):
 
 def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None,
                        parallel=True, n_processes=None, resume_experiment=None,
-                       use_log_probs=None, log_probs_root=None, save_every_steps=None):
+                       use_log_probs=None, log_probs_root=None, save_every_steps=None, temperature=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
@@ -871,6 +892,8 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
     save_every_steps : int or None
         Persist states and move logs every N simulation steps (default: 1 / every step).
         Keeps all details; only changes disk write frequency.
+    temperature : float
+        Sampling temperature for live LLM API requests.
         
     Returns:
     --------
@@ -931,6 +954,15 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                 if llm_api_key is None and existing_config.get('llm_api_key_last4'):
                     # API key cannot be reconstructed from last4; fall back to cfg if not provided
                     pass
+                if temperature is None:
+                    temperature_from_config = existing_config.get('temperature')
+                    if temperature_from_config is not None:
+                        try:
+                            temperature = float(temperature_from_config)
+                            config_defaults_used.append('temperature')
+                            config_values_from_file['temperature'] = temperature
+                        except (TypeError, ValueError):
+                            pass
                 if use_log_probs is None:
                     use_log_probs_from_config = existing_config.get('use_log_probs')
                     if isinstance(use_log_probs_from_config, bool):
@@ -992,6 +1024,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         llm_model = llm_model or cfg.OLLAMA_MODEL
         llm_url = llm_url or cfg.OLLAMA_URL
         llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if temperature is None:
+            raise ValueError("temperature must be provided via caller arguments")
+        try:
+            temperature = float(temperature)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid temperature value: {temperature}") from exc
         if use_log_probs is None:
             use_log_probs = False
         if not isinstance(n_processes, int) or n_processes < 1:
@@ -1004,6 +1042,7 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'max_steps': max_steps,
             'llm_model': llm_model,
             'llm_url': llm_url,
+            'temperature': temperature,
             'n_runs': n_runs,
             'n_processes': n_processes,
             'use_log_probs': use_log_probs,
@@ -1023,6 +1062,10 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             print(f"   LLM model: {llm_model} (from config)")
         if 'llm_url' in config_defaults_used:
             print(f"   LLM URL: {llm_url} (from config)")
+        if 'temperature' in config_defaults_used:
+            print(f"   Temperature: {temperature} (from config)")
+        else:
+            print(f"   Temperature: {temperature}")
         print(f"   Decision source: {'log_prob_summary' if use_log_probs else 'llm_api'}")
         if use_log_probs:
             if 'log_probs_root' in config_defaults_used:
@@ -1085,6 +1128,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         llm_model = llm_model or cfg.OLLAMA_MODEL
         llm_url = llm_url or cfg.OLLAMA_URL
         llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        if temperature is None:
+            raise ValueError("temperature must be provided via caller arguments")
+        try:
+            temperature = float(temperature)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid temperature value: {temperature}") from exc
         if use_log_probs is None:
             use_log_probs = False
         if not isinstance(save_every_steps, int) or save_every_steps < 1:
@@ -1135,6 +1184,7 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             log_prob_policy,
             log_prob_summary_path,
             save_every_steps,
+            temperature,
         )
         for rid, seed_grid, next_step, no_move_streak in pending_run_specs
     ]
@@ -1150,6 +1200,7 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'scenario': scenario,
             'llm_model': llm_model,
             'llm_url': llm_url,
+            'temperature': temperature,
             'llm_api_key_last4': (llm_api_key)[-4:] if llm_api_key else None,
             'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
             'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S"),
@@ -1283,6 +1334,7 @@ if __name__ == "__main__":
     parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
     parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
     parser.add_argument('--llm-api-key', type=str, help='LLM API key (overrides config.py)')
+    parser.add_argument('--temperature', type=float, default=0.3, help='Sampling temperature for live LLM API requests')
     parser.add_argument('--no-parallel', action='store_true', help='Disable parallel processing')
     parser.add_argument('--processes', type=int, default=None, 
                        help=f'Number of CPU processes to use (default: min(cpu_count={cpu_count()}, n_runs)). Use 1 for sequential execution.')
@@ -1334,6 +1386,7 @@ if __name__ == "__main__":
         llm_model=args.llm_model,
         llm_url=args.llm_url,
         llm_api_key=args.llm_api_key,
+        temperature=args.temperature,
         parallel=not args.no_parallel,
         n_processes=args.processes,
         resume_experiment=args.resume,
