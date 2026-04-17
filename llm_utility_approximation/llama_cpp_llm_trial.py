@@ -59,9 +59,9 @@ class LogitTraceConfig:
     """Storage and quality settings for per-step following-token traces."""
 
     storage_mode: str = "top_logits"  # full_logits or top_logits
-    top_n: int = 200
-    top_n_cap: int = 4000
-    min_step_retained_mass: float = 0.995
+    top_n: int = 2
+    top_n_cap: int = 4096
+    min_step_retained_mass: float = 0.999
     fallback_to_full_logits_on_insufficient_mass: bool = True
 
 
@@ -70,9 +70,14 @@ class BranchingEstimatorConfig:
     """Controls for branch-aware following-token probability estimation."""
 
     beam_width: int = 48
-    candidate_top_n: int = 512
+    candidate_top_n: int = 2
     candidate_top_n_cap: int = 4096
-    min_step_retained_mass: float = 0.02
+    # Adaptive expansion grows the candidate set until cumulative probability
+    # reaches this mass; also drives the low-coverage quality flag. Must be
+    # close to 1.0 so tail_mass stays negligible before being booked to UNKNOWN.
+    min_step_retained_mass: float = 0.999
+    # Early-stop when enough mass is already resolved to MOVE/STAY.
+    early_stop_move_stay_mass: float = 0.99
 
 
 GENERATION_CONFIG = GenerationConfig()
@@ -80,7 +85,6 @@ LOGIT_TRACE_CONFIG = LogitTraceConfig()
 BRANCHING_ESTIMATOR_CONFIG = BranchingEstimatorConfig()
 
 _DECISION_HINT_TOKEN_IDS: set[int] | None = None
-_TOKEN_DECISION_CATEGORY_CACHE: dict[int, str] | None = None
 
 # DEFAULT_MODEL_PATH = Path(r"C:\Users\Sriki\.ollama\models")
 # MODEL: "gemma3:4b"
@@ -178,6 +182,11 @@ def _adaptive_top_indices(
     return ordered[:required_n]
 
 
+def _sort_indices_by_probability_desc(probs: np.ndarray, indices: set[int]) -> list[int]:
+    """Sort candidate token ids by descending probability."""
+    return sorted((int(idx) for idx in indices), key=lambda idx: float(probs[idx]), reverse=True)
+
+
 def _prompt_hash(prompt: str) -> str:
     return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
@@ -187,121 +196,216 @@ def capture_following_token_logit_trace(
     temperature: float = GENERATION_CONFIG.temperature,
     max_tokens: int = GENERATION_CONFIG.max_tokens,
     trace_config: LogitTraceConfig = LOGIT_TRACE_CONFIG,
+    branching_config: BranchingEstimatorConfig = BRANCHING_ESTIMATOR_CONFIG,
     rng: np.random.Generator | None = None,
 ) -> dict[str, Any]:
-    """Capture per-step following-token logits conditioned on realized prefixes.
+    """Capture a branch-wise trace containing all logits used by branching estimator.
 
-    This uses one shared parser (`parse_decision`) and the same max token horizon
-    used by empirical sampling so replay and sampling are directly comparable.
+    Unlike single-path tracing, this records candidate logits for every active
+    branch state explored at each step by the branching estimator logic.
     """
-    if trace_config.storage_mode not in {"full_logits", "top_logits"}:
-        raise ValueError("trace_config.storage_mode must be 'full_logits' or 'top_logits'")
+    del rng  # Branch-wise capture is deterministic for fixed prompt and config.
 
-    local_rng = rng or np.random.default_rng()
     prompt_tokens = llm.tokenize(prompt.encode("utf-8"))
-    llm.reset()
-    llm.eval(prompt_tokens)
-
-    generated_token_ids: list[int] = []
+    quality_flags: list[str] = []
     steps: list[dict[str, Any]] = []
-    trace_quality_flags: list[str] = []
 
-    for step_index in range(1, int(max_tokens) + 1):
-        if llm.scores is None or len(llm.scores) == 0:
-            raise RuntimeError("Could not read logits from llama-cpp during trace capture")
+    active_states: list[tuple[tuple[int, ...], float]] = [(tuple(), 1.0)]
+    move_mass = 0.0
+    stay_mass = 0.0
+    unknown_mass = 0.0
 
-        score_index = len(prompt_tokens) + len(generated_token_ids) - 1
-        if score_index < 0 or score_index >= len(llm.scores):
-            raise RuntimeError("Could not locate logits row for current trace step")
-        raw_logits = llm.scores[score_index]
-        probs = _stable_softmax(raw_logits, temperature=temperature)
-        top_indices = _adaptive_top_indices(
-            probs,
-            min_retained_mass=trace_config.min_step_retained_mass,
-            min_top_n=trace_config.top_n,
-            top_n_cap=trace_config.top_n_cap,
-        )
-        retained_mass = float(np.sum(probs[top_indices]))
-        unresolved_tail_mass = float(max(0.0, 1.0 - retained_mass))
-        effective_storage_mode = trace_config.storage_mode
+    for step_idx in range(1, int(max_tokens) + 1):
+        if len(active_states) == 0:
+            break
 
-        if retained_mass < trace_config.min_step_retained_mass:
-            trace_quality_flags.append(
-                f"step_{step_index}_retained_mass_below_threshold:{retained_mass:.6f}"
-            )
-            if (
-                trace_config.storage_mode == "top_logits"
-                and trace_config.fallback_to_full_logits_on_insufficient_mass
-            ):
-                effective_storage_mode = "full_logits"
-                unresolved_tail_mass = 0.0
-                trace_quality_flags.append(
-                    f"step_{step_index}_fallback_to_full_logits"
-                )
+        next_state_masses: dict[tuple[int, ...], float] = {}
+        step_states: list[dict[str, Any]] = []
+        pruned_mass = 0.0
 
-        sampled_token_id = int(local_rng.choice(len(probs), p=probs))
-        sampled_token_text = llm.detokenize([sampled_token_id]).decode("utf-8", errors="replace")
+        for generated_ids, state_mass in active_states:
+            if state_mass <= 0.0:
+                continue
 
-        step_record: dict[str, Any] = {
-            "step_index": step_index,
-            "prefix_token_ids": [int(t) for t in (prompt_tokens + generated_token_ids)],
-            "generated_prefix_token_ids": [int(t) for t in generated_token_ids],
-            "generated_prefix_text": llm.detokenize(generated_token_ids).decode(
+            generated_prefix_text = llm.detokenize(list(generated_ids)).decode(
                 "utf-8", errors="replace"
-            ),
-            "sampled_token_id": sampled_token_id,
-            "sampled_token_text": sampled_token_text,
-            "retained_mass": retained_mass,
-            "unresolved_tail_mass": unresolved_tail_mass,
-            "trace_storage_mode": effective_storage_mode,
-        }
+            )
+            state_record: dict[str, Any] = {
+                "generated_token_ids": [int(t) for t in generated_ids],
+                "generated_prefix_text": generated_prefix_text,
+                "state_mass": float(state_mass),
+                "candidates": [],
+            }
 
-        if effective_storage_mode == "full_logits":
-            step_record["full_logits"] = [float(x) for x in raw_logits]
-        else:
-            top_entries: list[dict[str, Any]] = []
-            for token_id in top_indices:
+            prefix_decision = parse_decision(generated_prefix_text)
+            if prefix_decision == "MOVE":
+                move_mass += state_mass
+                state_record["prefix_decision"] = "MOVE"
+                state_record["resolved_mass"] = float(state_mass)
+                step_states.append(state_record)
+                continue
+            if prefix_decision == "STAY":
+                stay_mass += state_mass
+                state_record["prefix_decision"] = "STAY"
+                state_record["resolved_mass"] = float(state_mass)
+                step_states.append(state_record)
+                continue
+
+            llm.reset()
+            llm.eval(prompt_tokens + list(generated_ids))
+            if llm.scores is None or len(llm.scores) == 0:
+                quality_flags.append(f"step_{step_idx}_missing_scores")
+                unknown_mass += state_mass
+                state_record["prefix_decision"] = "UNKNOWN"
+                state_record["failure"] = "missing_scores"
+                step_states.append(state_record)
+                continue
+
+            score_index = len(prompt_tokens) + len(generated_ids) - 1
+            if score_index < 0 or score_index >= len(llm.scores):
+                quality_flags.append(f"step_{step_idx}_invalid_score_index")
+                unknown_mass += state_mass
+                state_record["prefix_decision"] = "UNKNOWN"
+                state_record["failure"] = "invalid_score_index"
+                step_states.append(state_record)
+                continue
+
+            raw_logits = llm.scores[score_index]
+            probs = _stable_softmax(raw_logits, temperature=temperature)
+            top_indices = _adaptive_top_indices(
+                probs,
+                min_retained_mass=branching_config.min_step_retained_mass,
+                min_top_n=branching_config.candidate_top_n,
+                top_n_cap=branching_config.candidate_top_n_cap,
+            )
+            hint_ids = _get_decision_hint_token_ids()
+            top_index_set = {int(x) for x in top_indices.tolist()}
+            for hint_id in hint_ids:
+                if 0 <= hint_id < len(probs):
+                    top_index_set.add(int(hint_id))
+            candidate_indices = _sort_indices_by_probability_desc(probs, top_index_set)
+
+            retained_candidate_mass = 0.0
+            for token_id in candidate_indices:
                 token_int = int(token_id)
+                token_prob = float(probs[token_int])
+                retained_candidate_mass += token_prob
                 token_text = llm.detokenize([token_int]).decode("utf-8", errors="replace")
-                top_entries.append(
+                decision = parse_decision(generated_prefix_text + token_text)
+                branch_mass = state_mass * token_prob
+
+                next_state_token_ids: list[int] | None = None
+                if decision == "MOVE":
+                    move_mass += branch_mass
+                elif decision == "STAY":
+                    stay_mass += branch_mass
+                else:
+                    next_ids = tuple(list(generated_ids) + [token_int])
+                    next_state_masses[next_ids] = next_state_masses.get(next_ids, 0.0) + branch_mass
+                    next_state_token_ids = [int(t) for t in next_ids]
+
+                state_record["candidates"].append(
                     {
                         "token_id": token_int,
                         "token_text": token_text,
                         "logit": float(raw_logits[token_int]),
-                        "probability": float(probs[token_int]),
+                        "probability": token_prob,
+                        "decision": decision,
+                        "branch_mass": float(branch_mass),
+                        "next_state_token_ids": next_state_token_ids,
                     }
                 )
-            step_record["top_logits"] = top_entries
 
-        steps.append(step_record)
+            tail_mass = float(max(0.0, 1.0 - retained_candidate_mass))
+            if tail_mass > 0.0:
+                unknown_mass += state_mass * tail_mass
 
-        generated_token_ids.append(sampled_token_id)
-        llm.eval([sampled_token_id])
+            if retained_candidate_mass < branching_config.min_step_retained_mass:
+                quality_flags.append(
+                    f"step_{step_idx}_branch_retained_mass_below_threshold:{retained_candidate_mass:.6f}"
+                )
 
-        generated_text = llm.detokenize(generated_token_ids).decode("utf-8", errors="replace")
-        decision = parse_decision(generated_text)
-        if decision in {"MOVE", "STAY"}:
+            state_record["prefix_decision"] = "UNKNOWN"
+            state_record["retained_candidate_mass"] = float(retained_candidate_mass)
+            state_record["unresolved_tail_mass"] = float(tail_mass)
+            step_states.append(state_record)
+
+        sorted_states = sorted(next_state_masses.items(), key=lambda item: item[1], reverse=True)
+        beam_cutoff = int(max(1, branching_config.beam_width))
+        pruned_mass = float(sum(mass for _, mass in sorted_states[beam_cutoff:]))
+        if pruned_mass > 0.0:
+            unknown_mass += pruned_mass
+            quality_flags.append(f"step_{step_idx}_pruned_beam_mass:{pruned_mass:.6f}")
+        active_states = sorted_states[:beam_cutoff]
+
+        steps.append(
+            {
+                "step_index": step_idx,
+                "num_active_states_in": int(len(step_states)),
+                "num_next_states_before_prune": int(len(sorted_states)),
+                "num_next_states_after_prune": int(len(active_states)),
+                "pruned_beam_mass": float(pruned_mass),
+                "states": step_states,
+            }
+        )
+
+        resolved_mass = float(move_mass + stay_mass)
+        if resolved_mass >= float(branching_config.early_stop_move_stay_mass):
+            quality_flags.append(
+                f"early_stop_move_stay_mass_reached:{resolved_mass:.6f}"
+            )
             break
 
-    final_text = llm.detokenize(generated_token_ids).decode("utf-8", errors="replace")
-    final_decision = parse_decision(final_text)
+    if len(active_states) > 0:
+        unknown_mass += float(sum(mass for _, mass in active_states))
+
+    total_mass = float(move_mass + stay_mass + unknown_mass)
+    if total_mass <= 0.0:
+        move_probability = 0.0
+        stay_probability = 0.0
+        unknown_probability = 1.0
+    else:
+        move_probability = float(move_mass / total_mass)
+        stay_probability = float(stay_mass / total_mass)
+        unknown_probability = float(unknown_mass / total_mass)
+
+    parseable_mass = move_probability + stay_probability
+    move_probability_parseable = float(move_probability / parseable_mass) if parseable_mass > 0 else 0.0
+    stay_probability_parseable = float(stay_probability / parseable_mass) if parseable_mass > 0 else 0.0
+
+    parsed_decision = "UNKNOWN"
+    if move_probability > stay_probability and move_probability > unknown_probability:
+        parsed_decision = "MOVE"
+    elif stay_probability > move_probability and stay_probability > unknown_probability:
+        parsed_decision = "STAY"
 
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
+        "capture_mode": "branchwise_following_token",
         "prompt_hash": _prompt_hash(prompt),
         "prompt": prompt,
         "prompt_token_ids": [int(t) for t in prompt_tokens],
         "model_path": str(model_file),
         "generation_config": asdict(GENERATION_CONFIG),
         "trace_config": asdict(trace_config),
+        "branching_config": asdict(branching_config),
         "replay_temperature": float(temperature),
-        "seed_policy": "random_seed_empirical_sampling",
+        "seed_policy": "deterministic_branching_expansion",
         "num_steps": len(steps),
         "steps": steps,
-        "generated_token_ids": generated_token_ids,
-        "generated_text": final_text,
-        "parsed_decision": final_decision,
-        "trace_quality_flags": trace_quality_flags,
+        "final_mass": {
+            "move_mass": float(move_mass),
+            "stay_mass": float(stay_mass),
+            "unknown_mass": float(unknown_mass),
+            "total_mass": float(total_mass),
+            "move_probability": float(move_probability),
+            "stay_probability": float(stay_probability),
+            "unknown_probability": float(unknown_probability),
+            "move_probability_parseable": float(move_probability_parseable),
+            "stay_probability_parseable": float(stay_probability_parseable),
+        },
+        "parsed_decision": parsed_decision,
+        "trace_quality_flags": quality_flags,
     }
 
 
@@ -400,22 +504,6 @@ def _get_decision_hint_token_ids() -> set[int]:
     return token_ids
 
 
-def _get_token_decision_category(token_id: int) -> str:
-    """Return MOVE/STAY/UNKNOWN for a token id with lazy caching."""
-    global _TOKEN_DECISION_CATEGORY_CACHE
-    if _TOKEN_DECISION_CATEGORY_CACHE is None:
-        _TOKEN_DECISION_CATEGORY_CACHE = {}
-
-    cached = _TOKEN_DECISION_CATEGORY_CACHE.get(int(token_id))
-    if cached is not None:
-        return cached
-
-    token_text = llm.detokenize([int(token_id)]).decode("utf-8", errors="replace")
-    category = parse_decision(token_text)
-    _TOKEN_DECISION_CATEGORY_CACHE[int(token_id)] = category
-    return category
-
-
 def clear_runtime_caches(reset_decision_hints: bool = False) -> None:
     """Clear runtime caches so runs start from a clean cache state.
 
@@ -423,8 +511,7 @@ def clear_runtime_caches(reset_decision_hints: bool = False) -> None:
         reset_decision_hints: Also clear cached decision-hint token ids.
             Default keeps hint ids because they are model-static and cheap to reuse.
     """
-    global _TOKEN_DECISION_CATEGORY_CACHE, _DECISION_HINT_TOKEN_IDS
-    _TOKEN_DECISION_CATEGORY_CACHE = None
+    global _DECISION_HINT_TOKEN_IDS
     if reset_decision_hints:
         _DECISION_HINT_TOKEN_IDS = None
 
@@ -463,6 +550,19 @@ def estimate_move_stay_probability_branching(
             if state_mass <= 0.0:
                 continue
 
+            generated_prefix_text = llm.detokenize(list(generated_ids)).decode(
+                "utf-8", errors="replace"
+            )
+            # Short-circuit: if the accumulated prefix already parses to a decision,
+            # no need to eval another step — all state_mass resolves now.
+            prefix_decision = parse_decision(generated_prefix_text)
+            if prefix_decision == "MOVE":
+                move_mass += state_mass
+                continue
+            if prefix_decision == "STAY":
+                stay_mass += state_mass
+                continue
+
             llm.reset()
             llm.eval(prompt_tokens + list(generated_ids))
             if llm.scores is None or len(llm.scores) == 0:
@@ -477,7 +577,7 @@ def estimate_move_stay_probability_branching(
                 continue
             raw_logits = llm.scores[score_index]
             probs = _stable_softmax(raw_logits, temperature=temperature)
-            # Build a candidate set, then classify only those tokens.
+
             top_indices = _adaptive_top_indices(
                 probs,
                 min_retained_mass=config.min_step_retained_mass,
@@ -489,82 +589,57 @@ def estimate_move_stay_probability_branching(
             for hint_id in hint_ids:
                 if 0 <= hint_id < len(probs):
                     top_index_set.add(int(hint_id))
-            candidate_indices = sorted(top_index_set)
+            candidate_indices = _sort_indices_by_probability_desc(probs, top_index_set)
 
-            immediate_move = 0.0
-            immediate_stay = 0.0
-            unresolved_indices: list[int] = []
+            # One classifier, prefix-aware, for every candidate. No immediate vs.
+            # unresolved split — that asymmetry was the source of the token-alone
+            # vs prefix+token disagreement (e.g., prefix "STAY" + token "MOVE"
+            # parses to UNKNOWN, not MOVE).
+            retained_candidate_mass = 0.0
             for token_id in candidate_indices:
-                token_prob = float(probs[int(token_id)])
-                category = _get_token_decision_category(int(token_id))
-                if category == "MOVE":
-                    immediate_move += token_prob
-                elif category == "STAY":
-                    immediate_stay += token_prob
-                else:
-                    unresolved_indices.append(int(token_id))
-
-            # If prefix already contains decision tokens, parser semantics can differ.
-            # In normal unresolved branching prefixes this will be UNKNOWN.
-            generated_prefix_text = llm.detokenize(list(generated_ids)).decode(
-                "utf-8", errors="replace"
-            )
-            prefix_decision = parse_decision(generated_prefix_text)
-            if prefix_decision == "MOVE":
-                move_mass += state_mass
-                continue
-            if prefix_decision == "STAY":
-                stay_mass += state_mass
-                continue
-
-            unresolved_mass_in_candidates = float(
-                np.sum(probs[np.asarray(unresolved_indices, dtype=int)])
-            ) if unresolved_indices else 0.0
-            retained_mass = float(immediate_move + immediate_stay + unresolved_mass_in_candidates)
-            tail_mass = float(max(0.0, 1.0 - retained_mass))
-
-            move_mass += state_mass * immediate_move
-            stay_mass += state_mass * immediate_stay
-
-            if unresolved_mass_in_candidates <= 1e-15:
-                if tail_mass > 0.0:
-                    unknown_mass += state_mass * tail_mass
-                continue
-
-            if retained_mass < config.min_step_retained_mass:
-                quality_flags.append(
-                    f"step_{step_idx}_branch_retained_mass_below_threshold:{retained_mass:.6f}"
-                )
-
-            local_known_mass = 0.0
-            for token_int in unresolved_indices:
-                token_int = int(token_int)
+                token_int = int(token_id)
                 token_prob = float(probs[token_int])
+                retained_candidate_mass += token_prob
                 token_text = llm.detokenize([token_int]).decode("utf-8", errors="replace")
                 decision = parse_decision(generated_prefix_text + token_text)
-
                 branch_mass = state_mass * token_prob
-                local_known_mass += token_prob
 
-                if decision == "UNKNOWN":
-                    next_ids = tuple(list(generated_ids) + [token_int])
-                    next_state_masses[next_ids] = next_state_masses.get(next_ids, 0.0) + branch_mass
-                elif decision == "MOVE":
+                if decision == "MOVE":
                     move_mass += branch_mass
                 elif decision == "STAY":
                     stay_mass += branch_mass
+                else:
+                    next_ids = tuple(list(generated_ids) + [token_int])
+                    next_state_masses[next_ids] = next_state_masses.get(next_ids, 0.0) + branch_mass
 
-            # Treat truncated tail as unresolved unknown because token identity is missing.
+            # Candidates above are the top-k head; any truncated tail is booked
+            # as UNKNOWN. With min_step_retained_mass=0.999 this should be tiny.
+            tail_mass = float(max(0.0, 1.0 - retained_candidate_mass))
             if tail_mass > 0.0:
                 unknown_mass += state_mass * tail_mass
+            if retained_candidate_mass < config.min_step_retained_mass:
+                quality_flags.append(
+                    f"step_{step_idx}_branch_retained_mass_below_threshold:{retained_candidate_mass:.6f}"
+                )
 
-            # Defensive guard for numeric drift.
-            if local_known_mass > 1.000001:
-                quality_flags.append(f"step_{step_idx}_local_known_mass_gt_one:{local_known_mass:.6f}")
-
-        # Beam pruning by probability mass.
+        # Beam pruning by probability mass. Mass dropped below the beam_width
+        # cutoff is booked to UNKNOWN so the final denominator stays honest.
         sorted_states = sorted(next_state_masses.items(), key=lambda item: item[1], reverse=True)
-        active_states = sorted_states[: int(max(1, config.beam_width))]
+        beam_cutoff = int(max(1, config.beam_width))
+        pruned_mass = float(sum(mass for _, mass in sorted_states[beam_cutoff:]))
+        if pruned_mass > 0.0:
+            unknown_mass += pruned_mass
+            quality_flags.append(
+                f"step_{step_idx}_pruned_beam_mass:{pruned_mass:.6f}"
+            )
+        active_states = sorted_states[:beam_cutoff]
+
+        resolved_mass = float(move_mass + stay_mass)
+        if resolved_mass >= float(config.early_stop_move_stay_mass):
+            quality_flags.append(
+                f"early_stop_move_stay_mass_reached:{resolved_mass:.6f}"
+            )
+            break
 
     # Any unresolved states remaining at horizon contribute to UNKNOWN.
     if len(active_states) > 0:
@@ -612,6 +687,46 @@ def replay_move_stay_probability_from_trace(
     - For top-logit traces, tail mass is tracked as unresolved/unknown mass.
     - Replay consumes the same max-token horizon as sampling.
     """
+    schema_version = str(trace_payload.get("schema_version", ""))
+    if schema_version == "2.0":
+        generation_cfg = trace_payload.get("generation_config", {})
+        trace_max_tokens = int(generation_cfg.get("max_tokens", max_tokens))
+        if int(max_tokens) != trace_max_tokens:
+            raise ValueError(
+                f"Shared max-token mismatch: replay max_tokens={max_tokens} trace max_tokens={trace_max_tokens}"
+            )
+
+        final_mass = trace_payload.get("final_mass", {})
+        move_mass = float(final_mass.get("move_mass", 0.0))
+        stay_mass = float(final_mass.get("stay_mass", 0.0))
+        unknown_mass = float(final_mass.get("unknown_mass", 0.0))
+
+        total_mass = float(move_mass + stay_mass + unknown_mass)
+        if total_mass > 0.0:
+            move_mass /= total_mass
+            stay_mass /= total_mass
+            unknown_mass /= total_mass
+        else:
+            move_mass = 0.0
+            stay_mass = 0.0
+            unknown_mass = 1.0
+
+        parseable_mass = move_mass + stay_mass
+        move_parseable = move_mass / parseable_mass if parseable_mass > 0 else 0.0
+        stay_parseable = stay_mass / parseable_mass if parseable_mass > 0 else 0.0
+
+        quality_flags = trace_payload.get("trace_quality_flags", [])
+        quality_flags_text = "|".join(str(x) for x in quality_flags)
+        return {
+            "replay_temperature": float(replay_temperature),
+            "move_probability": float(move_mass),
+            "stay_probability": float(stay_mass),
+            "unknown_probability": float(unknown_mass),
+            "move_probability_parseable": float(move_parseable),
+            "stay_probability_parseable": float(stay_parseable),
+            "quality_flags": quality_flags_text,
+        }
+
     generation_cfg = trace_payload.get("generation_config", {})
     trace_steps = trace_payload.get("steps", [])
     prompt_token_ids = trace_payload.get("prompt_token_ids", [])
@@ -764,7 +879,7 @@ def get_ten_neighborhood_contexts() -> list[str]:
 
     # Deduplicate while preserving order, then keep the first 10.
     unique_contexts = list(dict.fromkeys(contexts))
-    return unique_contexts[:3]
+    return unique_contexts[:10]
 
 
 def parse_decision(raw_response: str) -> str:
@@ -820,6 +935,74 @@ def sample_prompt_move_stay_probabilities(
     """Sample the same prompt repeatedly and estimate MOVE/STAY probabilities."""
     if n_samples <= 0:
         raise ValueError("n_samples must be positive")
+
+    if table_path.exists():
+        print(f"Using cached samples from: {table_path}")
+        move_count = 0
+        stay_count = 0
+        unknown_count = 0
+
+        with table_path.open("r", encoding="utf-8", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                parsed = str(row.get("parsed_decision", "")).strip().upper()
+                if parsed not in {"MOVE", "STAY", "UNKNOWN"}:
+                    parsed = parse_decision(str(row.get("raw_response", "")))
+
+                if parsed == "MOVE":
+                    move_count += 1
+                elif parsed == "STAY":
+                    stay_count += 1
+                else:
+                    unknown_count += 1
+
+        cached_samples = move_count + stay_count + unknown_count
+        if cached_samples <= 0:
+            print("Cached sample file is empty; running fresh sampling.")
+        else:
+            if cached_samples != n_samples:
+                print(
+                    f"Cached sample count ({cached_samples}) differs from requested "
+                    f"n_samples ({n_samples}); using cached rows."
+                )
+
+            total = float(cached_samples)
+            parseable_total = float(move_count + stay_count)
+            move_probability = move_count / total
+            stay_probability = stay_count / total
+            unknown_probability = unknown_count / total
+            move_probability_parseable = (move_count / parseable_total) if parseable_total else 0.0
+            stay_probability_parseable = (stay_count / parseable_total) if parseable_total else 0.0
+
+            summary_lines = [
+                "MOVE/STAY Probability Summary",
+                "=" * 80,
+                f"Samples: {cached_samples}",
+                "Source: cached sample CSV",
+                f"MOVE count: {move_count}",
+                f"STAY count: {stay_count}",
+                f"UNKNOWN count: {unknown_count}",
+                "",
+                "Probabilities over all samples:",
+                f"P(MOVE) = {move_probability:.6f}",
+                f"P(STAY) = {stay_probability:.6f}",
+                f"P(UNKNOWN) = {unknown_probability:.6f}",
+                "",
+                "Probabilities over parseable samples only (MOVE+STAY):",
+                f"P(MOVE | parseable) = {move_probability_parseable:.6f}",
+                f"P(STAY | parseable) = {stay_probability_parseable:.6f}",
+                "",
+                f"Table file: {table_path}",
+            ]
+            probability_txt_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+
+            return {
+                "move_probability": move_probability,
+                "stay_probability": stay_probability,
+                "unknown_probability": unknown_probability,
+                "move_probability_parseable": move_probability_parseable,
+                "stay_probability_parseable": stay_probability_parseable,
+            }
 
     rows: list[dict[str, Any]] = []
     move_count = 0
@@ -931,7 +1114,7 @@ def sample_prompt_move_stay_probabilities(
         writer.writeheader()
         writer.writerows(rows)
 
-    total = float(n_samples)
+    total = float(len(rows))
     parseable_total = float(move_count + stay_count)
     move_probability = move_count / total
     stay_probability = stay_count / total
@@ -1247,12 +1430,15 @@ def run_trials_for_ten_neighborhoods(
 
         prompt_path.write_text(prompt + "\n", encoding="utf-8")
 
+        print("  [1/6] Estimating first-token logits...")
         logit_probs = get_move_stay_probability_from_logits(prompt, temperature=temperature)
         write_logits_probability_summary_txt(logit_probs, output_path=logits_txt_path)
 
+        print("  [2/6] Capturing top token logits...")
         top_logits_rows = get_top_n_logits_for_prompt(prompt, top_n=10, temperature=temperature)
         write_top_logits_files(top_logits_rows, top_logits_csv_path, top_logits_json_path)
 
+        print("  [3/6] Running repeated sampling trials...")
         sample_probs = sample_prompt_move_stay_probabilities(
             prompt,
             n_samples=n_samples,
@@ -1261,7 +1447,8 @@ def run_trials_for_ten_neighborhoods(
             probability_txt_path=sample_txt_path,
             num_workers=num_workers,
         )
-
+        
+        print("  [4/6] Capturing following-token logit trace...")
         trace_payload = capture_following_token_logit_trace(
             prompt=prompt,
             temperature=temperature,
@@ -1270,11 +1457,13 @@ def run_trials_for_ten_neighborhoods(
         )
         write_logit_trace(trace_payload, trace_json_path)
 
+        print("  [5/6] Replaying probabilities from stored trace...")
         replay_probs = replay_move_stay_probability_from_trace(
             trace_payload=trace_payload,
             replay_temperature=temperature,
             max_tokens=GENERATION_CONFIG.max_tokens,
         )
+        print("  [6/6] Estimating branch-wise move/stay probabilities...")
         branch_probs = estimate_move_stay_probability_branching(
             prompt=prompt,
             temperature=temperature,
@@ -1282,15 +1471,19 @@ def run_trials_for_ten_neighborhoods(
             config=BRANCHING_ESTIMATOR_CONFIG,
         )
 
-        branch_move_probability = float(branch_probs["move_probability"])
-        branch_move_probability_parseable = float(branch_probs["move_probability_parseable"])
+        print(
+            "  Completed trial: "
+            f"sample MOVE={sample_probs['move_probability']:.4f}, "
+            f"replay MOVE={replay_probs['move_probability']:.4f}, "
+            f"branch MOVE={branch_probs['move_probability']:.4f}"
+        )
 
+        branch_move_probability = float(branch_probs["move_probability"])
+        branch_stay_probability = float(branch_probs["stay_probability"])
         summary_rows.append(
             {
                 "neighborhood_label": label,
                 "context": context.replace("\n", " | "),
-                "first_token_logits_move_probability": logit_probs["move_probability"],
-                "logits_stay_probability": logit_probs["stay_probability"],
                 "sample_move_probability": sample_probs["move_probability"],
                 "sample_stay_probability": sample_probs["stay_probability"],
                 "sample_unknown_probability": sample_probs["unknown_probability"],
@@ -1300,6 +1493,8 @@ def run_trials_for_ten_neighborhoods(
                 "derived_unknown_probability": float(branch_probs["unknown_probability"]),
                 "derived_move_probability_parseable": float(branch_probs["move_probability_parseable"]),
                 "derived_stay_probability_parseable": float(branch_probs["stay_probability_parseable"]),
+                "first_token_logits_move_probability": logit_probs["move_probability"],
+                "first_token_logits_stay_probability": logit_probs["stay_probability"],
                 "logits_txt": str(logits_txt_path),
                 "top_logits_csv": str(top_logits_csv_path),
                 "top_logits_json": str(top_logits_json_path),
@@ -1325,18 +1520,16 @@ def run_trials_for_ten_neighborhoods(
                 "branch_delta_move_probability": float(
                     branch_move_probability - sample_probs["move_probability"]
                 ),
-                "branch_abs_delta_move_probability": float(
-                    abs(branch_move_probability - sample_probs["move_probability"])
+                "branch_delta_stay_probability": float(
+                    branch_stay_probability - sample_probs["stay_probability"]
                 ),
-                "branch_delta_move_probability_parseable": float(
-                    branch_move_probability_parseable
-                    - sample_probs["move_probability_parseable"]
+                "replay_vs_branch_delta_move_probability": float(
+                    float(replay_probs["move_probability"])
+                    - float(branch_probs["move_probability"])
                 ),
-                "branch_abs_delta_move_probability_parseable": float(
-                    abs(
-                        branch_move_probability_parseable
-                        - sample_probs["move_probability_parseable"]
-                    )
+                "replay_vs_branch_delta_stay_probability": float(
+                    float(replay_probs["stay_probability"])
+                    - float(branch_probs["stay_probability"])
                 ),
             }
         )
@@ -1360,11 +1553,6 @@ if __name__ == "__main__":
         max_contexts=10,
     )
     print(f"Total runtime: {time.time() - run_start:.1f}s")
-
-    # Optional: single-response inspection helpers
-    # response = llm(PROMPT_TEXT, logprobs=5, max_tokens=5)
-    # save_response_organized(response)
-    # dump_all_logits_first_completion_token(response, llm)
 
 
 
