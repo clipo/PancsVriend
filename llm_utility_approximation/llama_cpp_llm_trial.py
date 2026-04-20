@@ -2,7 +2,9 @@ import json
 import csv
 import time
 import os
+import base64
 import hashlib
+import zlib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from itertools import combinations
 from pathlib import Path
@@ -424,7 +426,9 @@ def _trace_step_generated_prefix_text(step_record: dict[str, Any], prompt_token_
     if isinstance(generated_prefix_text, str):
         return generated_prefix_text
 
-    generated_ids = step_record.get("generated_prefix_token_ids", [])
+    generated_ids = step_record.get("generated_token_ids", [])
+    if not isinstance(generated_ids, list):
+        generated_ids = step_record.get("generated_prefix_token_ids", [])
     if isinstance(generated_ids, list):
         try:
             token_ids = [int(x) for x in generated_ids]
@@ -447,10 +451,78 @@ def _trace_step_generated_prefix_text(step_record: dict[str, Any], prompt_token_
     return llm.detokenize(generated_only_ids).decode("utf-8", errors="replace")
 
 
-def _step_candidates_from_trace(step_record: dict[str, Any]) -> tuple[list[tuple[str, float]], float, str]:
-    """Return (token_text, raw_logit) candidates and unresolved tail mass estimate."""
+def _decode_compressed_full_logits(full_logits_payload: dict[str, Any]) -> np.ndarray | None:
+    """Decode full logits payload saved as base64(zlib(float16|float32 bytes))."""
+    if not isinstance(full_logits_payload, dict):
+        return None
+
+    encoding = str(full_logits_payload.get("encoding", ""))
+    if encoding != "zlib+base64":
+        return None
+
+    dtype_name = str(full_logits_payload.get("dtype", "")).lower()
+    if dtype_name == "float16":
+        dtype = np.float16
+    elif dtype_name == "float32":
+        dtype = np.float32
+    else:
+        return None
+
+    compressed_b64 = full_logits_payload.get("compressed_b64", "")
+    if not isinstance(compressed_b64, str) or len(compressed_b64) == 0:
+        return None
+
+    try:
+        compressed_bytes = base64.b64decode(compressed_b64.encode("ascii"), validate=True)
+        raw_bytes = zlib.decompress(compressed_bytes)
+        logits = np.frombuffer(raw_bytes, dtype=dtype)
+    except Exception:
+        return None
+
+    vocab_size = full_logits_payload.get("vocab_size")
+    if isinstance(vocab_size, int) and vocab_size > 0 and int(logits.shape[0]) != int(vocab_size):
+        return None
+
+    return logits.astype(float, copy=False)
+
+
+def _step_candidates_from_trace(
+    step_record: dict[str, Any],
+    payload_mode: str,
+) -> tuple[list[tuple[int, str, float]], float, str]:
+    """Return (token_id, token_text, raw_logit) candidates and unresolved tail mass estimate."""
     storage_mode = str(step_record.get("trace_storage_mode", ""))
     unresolved_tail = float(step_record.get("unresolved_tail_mass", 0.0) or 0.0)
+
+    # New schema from llama_cpp_llm_token_probabilities.py
+    if payload_mode == "full_logits_compressed":
+        full_logits_payload = step_record.get("full_logits", {})
+        full_logits = _decode_compressed_full_logits(full_logits_payload)
+        if full_logits is None or full_logits.size == 0:
+            return [], 1.0, payload_mode
+
+        candidates: list[tuple[int, str, float]] = []
+        for token_id, raw_logit in enumerate(full_logits):
+            token_text = llm.detokenize([int(token_id)]).decode("utf-8", errors="replace")
+            candidates.append((int(token_id), token_text, float(raw_logit)))
+        return candidates, 0.0, payload_mode
+
+    if payload_mode == "candidate_only" or "candidates" in step_record:
+        candidate_rows = step_record.get("candidates", [])
+        if not isinstance(candidate_rows, list) or len(candidate_rows) == 0:
+            return [], 1.0, payload_mode or "candidate_only"
+
+        candidates: list[tuple[int, str, float]] = []
+        for row in candidate_rows:
+            if not isinstance(row, dict):
+                continue
+            token_id = int(row.get("token_id", -1))
+            if token_id < 0:
+                continue
+            token_text = str(row.get("token_text", ""))
+            raw_logit = float(row.get("raw_logit", row.get("logit", 0.0)))
+            candidates.append((token_id, token_text, raw_logit))
+        return candidates, max(0.0, min(1.0, unresolved_tail)), payload_mode or "candidate_only"
 
     if storage_mode == "full_logits":
         full_logits = step_record.get("full_logits", [])
@@ -458,10 +530,10 @@ def _step_candidates_from_trace(step_record: dict[str, Any]) -> tuple[list[tuple
             return [], 1.0, storage_mode
 
         raw_logits = np.asarray(full_logits, dtype=float)
-        candidates: list[tuple[str, float]] = []
+        candidates: list[tuple[int, str, float]] = []
         for token_id, raw_logit in enumerate(raw_logits):
             token_text = llm.detokenize([int(token_id)]).decode("utf-8", errors="replace")
-            candidates.append((token_text, float(raw_logit)))
+            candidates.append((int(token_id), token_text, float(raw_logit)))
         return candidates, 0.0, storage_mode
 
     if storage_mode == "top_logits":
@@ -475,7 +547,9 @@ def _step_candidates_from_trace(step_record: dict[str, Any]) -> tuple[list[tuple
                 continue
             token_text = str(entry.get("token_text", ""))
             raw_logit = float(entry.get("logit", 0.0))
-            candidates.append((token_text, raw_logit))
+            token_ids = llm.tokenize(token_text.encode("utf-8"), add_bos=False)
+            token_id = int(token_ids[0]) if isinstance(token_ids, list) and len(token_ids) == 1 else -1
+            candidates.append((token_id, token_text, raw_logit))
         return candidates, max(0.0, min(1.0, unresolved_tail)), storage_mode
 
     return [], 1.0, storage_mode
@@ -728,6 +802,7 @@ def replay_move_stay_probability_from_trace(
         }
 
     generation_cfg = trace_payload.get("generation_config", {})
+    payload_mode = str(trace_payload.get("payload_mode", ""))
     trace_steps = trace_payload.get("steps", [])
     prompt_token_ids = trace_payload.get("prompt_token_ids", [])
     if not isinstance(trace_steps, list):
@@ -740,21 +815,99 @@ def replay_move_stay_probability_from_trace(
             f"Shared max-token mismatch: replay max_tokens={max_tokens} trace max_tokens={trace_max_tokens}"
         )
 
-    active_mass = 1.0
+    active_states: dict[tuple[int, ...], float] = {tuple(): 1.0}
     move_mass = 0.0
     stay_mass = 0.0
     unknown_mass = 0.0
     replay_quality_flags: list[str] = []
 
-    for step_record in trace_steps[:trace_max_tokens]:
-        candidates, unresolved_tail_mass, storage_mode = _step_candidates_from_trace(step_record)
+    for step_idx, step in enumerate(trace_steps[:trace_max_tokens], start=1):
+        step_states = step.get("states", []) if isinstance(step, dict) else []
+
+        # New branchwise format stores per-step state arrays.
+        if isinstance(step_states, list) and len(step_states) > 0:
+            state_lookup: dict[tuple[int, ...], dict[str, Any]] = {}
+            for state_record in step_states:
+                if not isinstance(state_record, dict):
+                    continue
+                token_ids = state_record.get("generated_token_ids", [])
+                if not isinstance(token_ids, list):
+                    continue
+                try:
+                    key = tuple(int(t) for t in token_ids)
+                except Exception:
+                    continue
+                state_lookup[key] = state_record
+
+            next_state_masses: dict[tuple[int, ...], float] = {}
+            for state_token_ids, state_mass in active_states.items():
+                if state_mass <= 0.0:
+                    continue
+
+                state_record = state_lookup.get(state_token_ids)
+                if state_record is None:
+                    unknown_mass += state_mass
+                    replay_quality_flags.append(f"step_{step_idx}_missing_state_record")
+                    continue
+
+                prefix_text = _trace_step_generated_prefix_text(state_record, prompt_token_len)
+                prefix_decision = parse_decision(prefix_text)
+                if prefix_decision == "MOVE":
+                    move_mass += state_mass
+                    continue
+                if prefix_decision == "STAY":
+                    stay_mass += state_mass
+                    continue
+
+                candidates, unresolved_tail_mass, storage_mode = _step_candidates_from_trace(
+                    state_record,
+                    payload_mode=payload_mode,
+                )
+                if len(candidates) == 0:
+                    unknown_mass += state_mass
+                    replay_quality_flags.append(f"step_{step_idx}_missing_candidates")
+                    continue
+
+                raw_logits = np.asarray([raw_logit for _, _, raw_logit in candidates], dtype=float)
+                candidate_probs = _stable_softmax(raw_logits, temperature=replay_temperature)
+
+                local_assigned = 0.0
+                for (token_id, token_text, _), token_prob in zip(candidates, candidate_probs):
+                    branch_mass = state_mass * float(token_prob)
+                    local_assigned += float(token_prob)
+                    decision = parse_decision(prefix_text + token_text)
+                    if decision == "MOVE":
+                        move_mass += branch_mass
+                    elif decision == "STAY":
+                        stay_mass += branch_mass
+                    else:
+                        next_key = tuple(list(state_token_ids) + [int(token_id)])
+                        next_state_masses[next_key] = float(next_state_masses.get(next_key, 0.0) + branch_mass)
+
+                if storage_mode in {"top_logits", "candidate_only", ""} and unresolved_tail_mass > 0.0:
+                    unknown_mass += state_mass * float(unresolved_tail_mass)
+                elif local_assigned < 1.0:
+                    unknown_mass += state_mass * float(max(0.0, 1.0 - local_assigned))
+
+            active_states = next_state_masses
+            if len(active_states) == 0:
+                break
+            continue
+
+        # Legacy non-branchwise format: treat each step as a single unresolved path.
+        step_record = step if isinstance(step, dict) else {}
+        candidates, unresolved_tail_mass, storage_mode = _step_candidates_from_trace(
+            step_record,
+            payload_mode=payload_mode,
+        )
+        active_mass = float(sum(active_states.values()))
+        active_states = {}
         if len(candidates) == 0:
             unknown_mass += active_mass
-            replay_quality_flags.append("step_missing_candidates")
-            active_mass = 0.0
+            replay_quality_flags.append(f"step_{step_idx}_missing_candidates")
             break
 
-        raw_logits = np.asarray([raw_logit for _, raw_logit in candidates], dtype=float)
+        raw_logits = np.asarray([raw_logit for _, _, raw_logit in candidates], dtype=float)
         candidate_probs = _stable_softmax(raw_logits, temperature=replay_temperature)
 
         prefix_text = _trace_step_generated_prefix_text(step_record, prompt_token_len)
@@ -762,7 +915,7 @@ def replay_move_stay_probability_from_trace(
         local_stay = 0.0
         local_unknown = 0.0
 
-        for (token_text, _), token_prob in zip(candidates, candidate_probs):
+        for (_, token_text, _), token_prob in zip(candidates, candidate_probs):
             decision = parse_decision(prefix_text + token_text)
             if decision == "MOVE":
                 local_move += float(token_prob)
@@ -771,14 +924,13 @@ def replay_move_stay_probability_from_trace(
             else:
                 local_unknown += float(token_prob)
 
-        if storage_mode == "top_logits":
+        if storage_mode in {"top_logits", "candidate_only", ""}:
             local_unknown += unresolved_tail_mass
 
         step_total = local_move + local_stay + local_unknown
         if step_total <= 0:
             unknown_mass += active_mass
-            replay_quality_flags.append("step_probability_zero")
-            active_mass = 0.0
+            replay_quality_flags.append(f"step_{step_idx}_probability_zero")
             break
 
         local_move /= step_total
@@ -788,12 +940,9 @@ def replay_move_stay_probability_from_trace(
         move_mass += active_mass * local_move
         stay_mass += active_mass * local_stay
         unknown_mass += active_mass * local_unknown
-        active_mass = active_mass * local_unknown
+        active_states = {tuple(): active_mass * local_unknown}
 
-        if active_mass <= 1e-12:
-            break
-
-    unknown_mass += active_mass
+    unknown_mass += float(sum(active_states.values()))
     move_mass = float(max(0.0, move_mass))
     stay_mass = float(max(0.0, stay_mass))
     unknown_mass = float(max(0.0, unknown_mass))
@@ -864,22 +1013,26 @@ def neighborhood_label(context: str) -> str:
     return sanitized
 
 
-def get_ten_neighborhood_contexts() -> list[str]:
-    """Build 10 deterministic neighborhood configurations."""
-    contexts: list[str] = []
+def get_neighborhood_contexts(max_contexts: int | None = None) -> list[str]:
+    """Build deterministic neighborhood configurations up to max_contexts.
 
-    # One configuration for each similarity level 0..8 gives 9 contexts.
+    Ordering is deterministic by similarity level (0..8), then arrangement order
+    within each level. If max_contexts is None, return all configurations.
+    """
+    if max_contexts is not None and max_contexts <= 0:
+        raise ValueError("max_contexts must be positive when provided")
+
+    contexts: list[str] = []
+    requested = int(max_contexts) if max_contexts is not None else None
+
     for num_similar in range(TOTAL_NEIGHBORS + 1):
         arrangements = generate_neighbor_arrangements(num_similar)
-        contexts.append(generate_neighbor_context(arrangements[0]))
+        for arrangement in arrangements:
+            contexts.append(generate_neighbor_context(arrangement))
+            if requested is not None and len(contexts) >= requested:
+                return contexts
 
-    # Add a tenth configuration from the middle of the 4-similar arrangement set.
-    four_similar = generate_neighbor_arrangements(4)
-    contexts.append(generate_neighbor_context(four_similar[len(four_similar) // 2]))
-
-    # Deduplicate while preserving order, then keep the first 10.
-    unique_contexts = list(dict.fromkeys(contexts))
-    return unique_contexts[:10]
+    return contexts
 
 
 def parse_decision(raw_response: str) -> str:
@@ -1390,23 +1543,19 @@ def write_logits_probability_summary_txt(
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_trials_for_ten_neighborhoods(
+def run_trials_for_neighborhoods(
     n_samples: int = 1000,
     temperature: float = 0.3,
     output_dir: Path = BATCH_OUTPUT_DIR,
     num_workers: int = 1,
     max_contexts: int | None = None,
 ) -> None:
-    """Run logits + sampling trials for 10 contexts and store labeled outputs."""
+    """Run logits + sampling trials for deterministic neighborhood contexts."""
     # Ensure reproducible per-run cache behavior for branching estimators.
     clear_runtime_caches()
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    contexts = get_ten_neighborhood_contexts()
-    if max_contexts is not None:
-        if max_contexts <= 0:
-            raise ValueError("max_contexts must be positive when provided")
-        contexts = contexts[: int(max_contexts)]
+    contexts = get_neighborhood_contexts(max_contexts=max_contexts)
     summary_rows: list[dict[str, Any]] = []
 
     print(f"Batch output directory: {output_dir}")
@@ -1545,12 +1694,11 @@ def run_trials_for_ten_neighborhoods(
 
 if __name__ == "__main__":
     run_start = time.time()
-    default_workers = min(1, max(1, os.cpu_count() or 1))
-    run_trials_for_ten_neighborhoods(
-        n_samples=1000,
+    run_trials_for_neighborhoods(
+        n_samples=5000,
         temperature=0.3,
-        num_workers=default_workers,
-        max_contexts=10,
+        num_workers=min(1, max(1, os.cpu_count() or 1)),
+        max_contexts=20,
     )
     print(f"Total runtime: {time.time() - run_start:.1f}s")
 
