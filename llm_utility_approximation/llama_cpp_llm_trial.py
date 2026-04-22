@@ -6,7 +6,7 @@ import base64
 import hashlib
 import zlib
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from itertools import combinations
+from itertools import combinations, product
 from pathlib import Path
 from typing import Any
 import numpy as np
@@ -46,10 +46,10 @@ class GenerationConfig:
     """Shared generation settings used by both sampling and replay paths."""
 
     temperature: float = 0.3
-    max_tokens: int = 8
+    max_tokens: int = 16
     n_ctx: int = 256
     top_k: int = 0
-    top_p: float = 1.0
+    top_p: float = 0.9999
     min_p: float = 0.0
     repeat_penalty: float = 1.0
     frequency_penalty: float = 0.0
@@ -61,8 +61,8 @@ class LogitTraceConfig:
     """Storage and quality settings for per-step following-token traces."""
 
     storage_mode: str = "top_logits"  # full_logits or top_logits
-    top_n: int = 2
-    top_n_cap: int = 4096
+    top_n: int = 1
+    top_n_cap: int = 2048
     min_step_retained_mass: float = 0.999
     fallback_to_full_logits_on_insufficient_mass: bool = True
 
@@ -71,15 +71,15 @@ class LogitTraceConfig:
 class BranchingEstimatorConfig:
     """Controls for branch-aware following-token probability estimation."""
 
-    beam_width: int = 48
-    candidate_top_n: int = 2
-    candidate_top_n_cap: int = 4096
+    beam_width: int = 16
+    candidate_top_n: int = 1
+    candidate_top_n_cap: int = 2048
     # Adaptive expansion grows the candidate set until cumulative probability
     # reaches this mass; also drives the low-coverage quality flag. Must be
     # close to 1.0 so tail_mass stays negligible before being booked to UNKNOWN.
     min_step_retained_mass: float = 0.999
     # Early-stop when enough mass is already resolved to MOVE/STAY.
-    early_stop_move_stay_mass: float = 0.99
+    early_stop_move_stay_mass: float = 0.999
 
 
 GENERATION_CONFIG = GenerationConfig()
@@ -105,8 +105,11 @@ ORGANIZED_RESPONSE_PATH = Path(__file__).with_name("llama_cpp_response_organized
 ALL_LOGITS_PATH = Path(__file__).with_name("llama_cpp_all_logits_first_token.jsonl")
 SAMPLES_TABLE_PATH = Path(__file__).with_name("llama_cpp_prompt_samples_table.csv")
 PROBABILITY_SUMMARY_PATH = Path(__file__).with_name("llama_cpp_move_stay_probability.txt")
-LOGITS_PROBABILITY_SUMMARY_PATH = Path(__file__).with_name(
-    "llama_cpp_logits_move_stay_probability.txt"
+FIRST_TOKEN_LOGITS_PROBABILITY_SUMMARY_PATH = Path(__file__).with_name(
+    "llama_cpp_first_token_logits_move_stay_probability.txt"
+)
+REPLAY_PROBABILITY_SUMMARY_PATH = Path(__file__).with_name(
+    "llama_cpp_replay_move_stay_probability.txt"
 )
 BATCH_OUTPUT_DIR = Path(__file__).resolve().parent / "llama_cpp_neighborhood_trials"
 TRACE_OUTPUT_DIR = BATCH_OUTPUT_DIR / "logit_traces"
@@ -1013,11 +1016,70 @@ def neighborhood_label(context: str) -> str:
     return sanitized
 
 
+def get_diverse_neighborhood_contexts() -> list[str]:
+    """Return deterministic contexts spanning balanced, empty-heavy, and wall cases."""
+    # Each tuple is the 8-neighbor ring in generate_neighbor_context order.
+    # These presets intentionally mix:
+    # - equal similar/opposite compositions,
+    # - empty-heavy neighborhoods,
+    # - neighborhoods containing wall cells (#).
+    neighborhood_presets: list[tuple[str, ...]] = [
+        ("S", "O", "S", "O", "O", "S", "O", "S"),
+        ("O", "S", "O", "S", "S", "O", "S", "O"),
+        ("S", "E", "O", "S", "O", "E", "S", "O"),
+        ("E", "S", "O", "O", "S", "S", "E", "O"),
+        ("E", "E", "S", "E", "O", "E", "S", "E"),
+        ("O", "E", "E", "S", "E", "E", "O", "E"),
+        ("#", "S", "O", "#", "S", "E", "O", "S"),
+        ("E", "#", "S", "O", "#", "E", "S", "O"),
+        ("#", "#", "E", "#", "S", "O", "#", "E"),
+        ("S", "#", "O", "S", "#", "O", "S", "O"),
+    ]
+    return [generate_neighbor_context(list(preset)) for preset in neighborhood_presets]
+
+
+def _build_extended_diverse_pools(seen_contexts: set[str]) -> dict[str, list[str]]:
+    """Build deterministic pools for balanced, empty-heavy, and wall contexts."""
+    pools: dict[str, list[str]] = {
+        "balanced": [],
+        "empty_heavy": [],
+        "with_walls": [],
+        "other": [],
+    }
+
+    symbols = ["S", "O", "E", "#"]
+    for arrangement_tuple in product(symbols, repeat=TOTAL_NEIGHBORS):
+        arrangement = list(arrangement_tuple)
+        context = generate_neighbor_context(arrangement)
+        if context in seen_contexts:
+            continue
+
+        num_similar = arrangement.count("S")
+        num_opposite = arrangement.count("O")
+        num_empty = arrangement.count("E")
+        num_walls = arrangement.count("#")
+
+        # Use one primary bucket per arrangement for deterministic, duplicate-free pooling.
+        if num_walls >= 1:
+            pools["with_walls"].append(context)
+        elif num_empty >= 3:
+            pools["empty_heavy"].append(context)
+        elif num_similar == num_opposite and num_similar > 0:
+            pools["balanced"].append(context)
+        else:
+            pools["other"].append(context)
+
+    return pools
+
+
 def get_neighborhood_contexts(max_contexts: int | None = None) -> list[str]:
     """Build deterministic neighborhood configurations up to max_contexts.
 
-    Ordering is deterministic by similarity level (0..8), then arrangement order
-    within each level. If max_contexts is None, return all configurations.
+    If max_contexts is provided, return deterministic diverse contexts first:
+    balanced, empty-heavy, and wall-containing patterns are selected in
+    round-robin fashion. Remaining slots (if any) are filled by
+    similarity-ordered S/O permutations.
+    If max_contexts is None, return all S/O configurations.
     """
     if max_contexts is not None and max_contexts <= 0:
         raise ValueError("max_contexts must be positive when provided")
@@ -1025,10 +1087,50 @@ def get_neighborhood_contexts(max_contexts: int | None = None) -> list[str]:
     contexts: list[str] = []
     requested = int(max_contexts) if max_contexts is not None else None
 
+    if requested is not None:
+        diverse_contexts = get_diverse_neighborhood_contexts()
+        if requested <= len(diverse_contexts):
+            return diverse_contexts[:requested]
+        contexts.extend(diverse_contexts)
+
+    seen_contexts = set(contexts)
+
+    if requested is not None and len(contexts) < requested:
+        pools = _build_extended_diverse_pools(seen_contexts)
+        round_robin_order = ["balanced", "empty_heavy", "with_walls", "other"]
+        pool_indices: dict[str, int] = {pool_name: 0 for pool_name in round_robin_order}
+
+        while len(contexts) < requested:
+            added_any = False
+            for pool_name in round_robin_order:
+                pool = pools[pool_name]
+                idx = pool_indices[pool_name]
+                if idx >= len(pool):
+                    continue
+
+                context = pool[idx]
+                pool_indices[pool_name] = idx + 1
+                if context in seen_contexts:
+                    continue
+
+                contexts.append(context)
+                seen_contexts.add(context)
+                added_any = True
+                if len(contexts) >= requested:
+                    return contexts
+
+            if not added_any:
+                break
+
     for num_similar in range(TOTAL_NEIGHBORS + 1):
         arrangements = generate_neighbor_arrangements(num_similar)
         for arrangement in arrangements:
-            contexts.append(generate_neighbor_context(arrangement))
+            context = generate_neighbor_context(arrangement)
+            if context in seen_contexts:
+                continue
+
+            contexts.append(context)
+            seen_contexts.add(context)
             if requested is not None and len(contexts) >= requested:
                 return contexts
 
@@ -1036,21 +1138,21 @@ def get_neighborhood_contexts(max_contexts: int | None = None) -> list[str]:
 
 
 def parse_decision(raw_response: str) -> str:
-    """Parse MOVE/STAY using the same logic as get_llm_decision in llm_runner.py."""
-    text_upper = raw_response.strip().upper()
+    """Parse MOVE/STAY exactly like get_llm_decision in llm_runner.py."""
+    text = str(raw_response)
+    text_upper = text.strip().upper()
     has_move = "MOVE" in text_upper
     has_stay = "STAY" in text_upper
 
-    # Ambiguous responses are treated as unparseable.
+    # Match llm_runner.py semantics: ambiguous responses are unparseable.
     if has_move and has_stay:
         return "UNKNOWN"
-
     if has_move:
         return "MOVE"
-    if has_stay:
+    elif has_stay:
         return "STAY"
-
-    return "UNKNOWN"
+    else:
+        return "UNKNOWN"
 
 
 def extract_response_text(payload: Any) -> str:
@@ -1525,7 +1627,7 @@ def write_top_logits_files(
 
 def write_logits_probability_summary_txt(
     probabilities: dict[str, float],
-    output_path: Path = LOGITS_PROBABILITY_SUMMARY_PATH,
+    output_path: Path = FIRST_TOKEN_LOGITS_PROBABILITY_SUMMARY_PATH,
 ) -> None:
     """Write logits-derived MOVE/STAY probabilities to a txt file."""
     lines = [
@@ -1539,6 +1641,28 @@ def write_logits_probability_summary_txt(
         "Normalized over MOVE/STAY mass only:",
         f"P(MOVE | MOVE/STAY) = {probabilities['move_probability_normalized']:.6f}",
         f"P(STAY | MOVE/STAY) = {probabilities['stay_probability_normalized']:.6f}",
+    ]
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_replay_probability_summary_txt(
+    probabilities: dict[str, float | str],
+    output_path: Path = REPLAY_PROBABILITY_SUMMARY_PATH,
+) -> None:
+    """Write replay-derived MOVE/STAY probabilities to a txt file."""
+    lines = [
+        "Replay-Based MOVE/STAY Probability Summary",
+        "=" * 80,
+        f"Replay temperature: {probabilities['replay_temperature']}",
+        f"P(MOVE) = {float(probabilities['move_probability']):.6f}",
+        f"P(STAY) = {float(probabilities['stay_probability']):.6f}",
+        f"P(UNKNOWN) = {float(probabilities['unknown_probability']):.6f}",
+        "",
+        "Probabilities over parseable mass only:",
+        f"P(MOVE | parseable) = {float(probabilities['move_probability_parseable']):.6f}",
+        f"P(STAY | parseable) = {float(probabilities['stay_probability_parseable']):.6f}",
+        "",
+        f"Quality flags: {probabilities.get('quality_flags', '')}",
     ]
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -1566,12 +1690,13 @@ def run_trials_for_neighborhoods(
         prompt = build_prompt_for_context(context)
 
         prompt_path = output_dir / f"{label}_prompt.txt"
-        logits_txt_path = output_dir / f"{label}_logits_probability.txt"
+        first_token_logits_txt_path = output_dir / f"{label}_first_token_logits_probability.txt"
         top_logits_csv_path = output_dir / f"{label}_top10_logits.csv"
         top_logits_json_path = output_dir / f"{label}_top10_logits.json"
         sample_csv_path = output_dir / f"{label}_samples.csv"
         sample_txt_path = output_dir / f"{label}_sample_probability.txt"
         trace_json_path = TRACE_OUTPUT_DIR / f"{label}_trace.json"
+        replay_txt_path = output_dir / f"{label}_replay_probability.txt"
 
         print("-" * 80)
         print(f"[Neighborhood {idx}/{len(contexts)}] {label}")
@@ -1581,7 +1706,7 @@ def run_trials_for_neighborhoods(
 
         print("  [1/6] Estimating first-token logits...")
         logit_probs = get_move_stay_probability_from_logits(prompt, temperature=temperature)
-        write_logits_probability_summary_txt(logit_probs, output_path=logits_txt_path)
+        write_logits_probability_summary_txt(logit_probs, output_path=first_token_logits_txt_path)
 
         print("  [2/6] Capturing top token logits...")
         top_logits_rows = get_top_n_logits_for_prompt(prompt, top_n=10, temperature=temperature)
@@ -1612,6 +1737,7 @@ def run_trials_for_neighborhoods(
             replay_temperature=temperature,
             max_tokens=GENERATION_CONFIG.max_tokens,
         )
+        write_replay_probability_summary_txt(replay_probs, output_path=replay_txt_path)
         print("  [6/6] Estimating branch-wise move/stay probabilities...")
         branch_probs = estimate_move_stay_probability_branching(
             prompt=prompt,
@@ -1644,12 +1770,13 @@ def run_trials_for_neighborhoods(
                 "derived_stay_probability_parseable": float(branch_probs["stay_probability_parseable"]),
                 "first_token_logits_move_probability": logit_probs["move_probability"],
                 "first_token_logits_stay_probability": logit_probs["stay_probability"],
-                "logits_txt": str(logits_txt_path),
+                "first_token_logits_txt": str(first_token_logits_txt_path),
                 "top_logits_csv": str(top_logits_csv_path),
                 "top_logits_json": str(top_logits_json_path),
                 "sample_txt": str(sample_txt_path),
                 "sample_csv": str(sample_csv_path),
                 "logit_trace_json": str(trace_json_path),
+                "replay_txt": str(replay_txt_path),
                 "trace_decision": trace_payload.get("parsed_decision", "UNKNOWN"),
                 "trace_steps": int(trace_payload.get("num_steps", 0)),
                 "trace_quality_flags": "|".join(trace_payload.get("trace_quality_flags", [])),
@@ -1695,10 +1822,10 @@ def run_trials_for_neighborhoods(
 if __name__ == "__main__":
     run_start = time.time()
     run_trials_for_neighborhoods(
-        n_samples=5000,
+        n_samples=1000,
         temperature=0.3,
         num_workers=min(1, max(1, os.cpu_count() or 1)),
-        max_contexts=20,
+        max_contexts=10,
     )
     print(f"Total runtime: {time.time() - run_start:.1f}s")
 
