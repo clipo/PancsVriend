@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import json
 import math
@@ -33,7 +34,7 @@ import sqlite3
 import sys
 import time
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import product
 from pathlib import Path
@@ -74,10 +75,10 @@ NEIGHBOR_OFFSETS = [
 @dataclass(frozen=True)
 class GenerationConfig:
     temperature: float = 0.3
-    max_tokens: int = 8
+    max_tokens: int = 16
     n_ctx: int = 256
     top_k: int = 0
-    top_p: float = 1.0
+    top_p: float = 0.9999
     min_p: float = 0.0
     repeat_penalty: float = 1.0
     frequency_penalty: float = 0.0
@@ -86,11 +87,11 @@ class GenerationConfig:
 
 @dataclass(frozen=True)
 class BranchingEstimatorConfig:
-    beam_width: int = 48
-    candidate_top_n: int = 2
-    candidate_top_n_cap: int = 4096
+    beam_width: int = 16
+    candidate_top_n: int = 1
+    candidate_top_n_cap: int = 2048
     min_step_retained_mass: float = 0.999
-    early_stop_move_stay_mass: float = 0.99
+    early_stop_move_stay_mass: float = 0.999
 
 
 @dataclass
@@ -120,6 +121,42 @@ TRACE_STORE_CONFIG = TraceStoreConfig()
 
 llm: Llama | None = None
 model_file: Path | None = None
+
+
+@dataclass
+class RuntimeProfile:
+    enabled: bool = False
+    timings: dict[str, float] = field(default_factory=dict)
+    counters: dict[str, int] = field(default_factory=dict)
+
+    def add_time(self, key: str, seconds: float) -> None:
+        if not self.enabled:
+            return
+        self.timings[key] = float(self.timings.get(key, 0.0) + max(0.0, float(seconds)))
+
+    def add_count(self, key: str, value: int = 1) -> None:
+        if not self.enabled:
+            return
+        self.counters[key] = int(self.counters.get(key, 0) + int(value))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": bool(self.enabled),
+            "timings_seconds": {k: float(v) for k, v in sorted(self.timings.items())},
+            "counters": {k: int(v) for k, v in sorted(self.counters.items())},
+        }
+
+
+@contextlib.contextmanager
+def _profile_time(profile: RuntimeProfile | None, key: str):
+    if profile is None or not profile.enabled:
+        yield
+        return
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        profile.add_time(key, time.perf_counter() - start)
 
 
 def parse_args() -> argparse.Namespace:
@@ -238,6 +275,64 @@ def parse_args() -> argparse.Namespace:
         default=TRACE_STORE_CONFIG.full_logits_compression_level,
         help="zlib compression level for full-logits payloads (0-9)",
     )
+    parser.add_argument(
+        "--enable-profiling",
+        action="store_true",
+        help="Enable lightweight stage timing and profiling summary output",
+    )
+    parser.add_argument(
+        "--profiling-context-limit",
+        type=int,
+        default=10,
+        help="When profiling is enabled, cap neighborhood permutations to this many contexts",
+    )
+    parser.add_argument(
+        "--db-commit-every",
+        type=int,
+        default=TRACE_STORE_CONFIG.commit_every,
+        help="Commit SQLite writes every N processed requests",
+    )
+    parser.add_argument(
+        "--n-threads",
+        type=int,
+        default=None,
+        help="Optional llama.cpp CPU thread count override",
+    )
+    parser.add_argument(
+        "--n-batch",
+        type=int,
+        default=None,
+        help="Optional llama.cpp batch size override",
+    )
+    parser.add_argument(
+        "--n-gpu-layers",
+        type=int,
+        default=None,
+        help="Optional llama.cpp GPU offload layer count override",
+    )
+    parser.add_argument(
+        "--enable-kv-state-reuse",
+        action="store_true",
+        help=(
+            "Enable prompt-prefill KV state reuse for branch eval: prefill prompt once, "
+            "restore state per branch, and eval only generated suffix tokens"
+        ),
+    )
+    parser.add_argument(
+        "--step-heartbeat-every",
+        type=int,
+        default=0,
+        help=(
+            "Emit heartbeat logs every N branch steps inside a request (0 disables). "
+            "Useful when request-level progress appears stalled"
+        ),
+    )
+    parser.add_argument(
+        "--step-heartbeat-min-seconds",
+        type=float,
+        default=10.0,
+        help="Minimum elapsed seconds between heartbeat logs when enabled",
+    )
     args, ignored_args = parser.parse_known_args()
     setattr(args, "ignored_cli_args", ignored_args)
     return args
@@ -249,6 +344,28 @@ def _warn_ignored_args(ignored_args: list[str]) -> None:
     print(
         "[warning] Ignoring unsupported arguments for llama.cpp branchwise mode: "
         + " ".join(ignored_args),
+        flush=True,
+    )
+
+
+def _warn_kv_reuse_runtime_risk(args: argparse.Namespace) -> None:
+    if not bool(args.enable_kv_state_reuse):
+        return
+
+    risky_beam = int(args.beam_width) >= 16
+    risky_horizon = int(args.max_tokens) >= 6
+    risky_mass = float(args.min_step_retained_mass) >= 0.995
+
+    if not (risky_beam or risky_horizon or risky_mass):
+        return
+
+    print(
+        (
+            "[warning] KV state reuse is enabled with branch-heavy settings. "
+            "On this workload, repeated state load/copy can be slower than full re-eval. "
+            "If throughput regresses, disable --enable-kv-state-reuse or reduce "
+            "--beam-width / --max-tokens / --min-step-retained-mass."
+        ),
         flush=True,
     )
 
@@ -419,14 +536,28 @@ def _adaptive_top_indices(
     min_top_n: int,
     top_n_cap: int,
 ) -> np.ndarray:
-    max_n = int(max(1, min(top_n_cap, len(probs))))
+    # Use iterative partial selection to avoid full-vocabulary O(V log V) sorts.
+    vocab_size = int(len(probs))
+    max_n = int(max(1, min(top_n_cap, vocab_size)))
     start_n = int(max(1, min(min_top_n, max_n)))
-    ordered = np.argsort(probs)[::-1]
+    target_mass = float(min_retained_mass)
 
-    cumulative = np.cumsum(probs[ordered])
-    threshold_idx = int(np.searchsorted(cumulative, min_retained_mass, side="left")) + 1
-    required_n = int(max(start_n, min(threshold_idx, max_n)))
-    return ordered[:required_n]
+    k = start_n
+    best_sorted: np.ndarray | None = None
+    while True:
+        candidate = np.argpartition(probs, -k)[-k:]
+        # Only sort selected head for deterministic descending order.
+        sorted_candidate = candidate[np.argsort(probs[candidate])[::-1]]
+        retained_mass = float(np.sum(probs[sorted_candidate]))
+        best_sorted = sorted_candidate
+
+        if retained_mass >= target_mass or k >= max_n:
+            break
+        k = int(min(max_n, max(k + 1, k * 2)))
+
+    if best_sorted is None:
+        return np.array([], dtype=int)
+    return best_sorted
 
 
 def _sort_indices_by_probability_desc(probs: np.ndarray, indices: set[int]) -> list[int]:
@@ -455,20 +586,45 @@ def _compress_full_logits(raw_logits: np.ndarray, dtype: str, compression_level:
     }
 
 
-def _init_llama(model_path: str, temperature: float, n_ctx: int) -> None:
+def _detokenize_single_token_cached(model: Llama, token_id: int, cache: dict[int, str]) -> str:
+    token_int = int(token_id)
+    cached = cache.get(token_int)
+    if cached is not None:
+        return cached
+    token_text = model.detokenize([token_int]).decode("utf-8", errors="replace")
+    cache[token_int] = token_text
+    return token_text
+
+
+def _init_llama(
+    model_path: str,
+    temperature: float,
+    n_ctx: int,
+    n_threads: int | None,
+    n_batch: int | None,
+    n_gpu_layers: int | None,
+) -> None:
     global llm
     global model_file
     model_file = Path(model_path).expanduser().resolve()
     if not model_file.exists():
         raise FileNotFoundError(f"Model file not found: {model_file}")
 
-    llm = Llama(
-        model_path=str(model_file),
-        logits_all=True,
-        verbose=False,
-        temperature=float(temperature),
-        n_ctx=int(n_ctx),
-    )
+    llama_kwargs: dict[str, Any] = {
+        "model_path": str(model_file),
+        "logits_all": True,
+        "verbose": False,
+        "temperature": float(temperature),
+        "n_ctx": int(n_ctx),
+    }
+    if n_threads is not None and int(n_threads) > 0:
+        llama_kwargs["n_threads"] = int(n_threads)
+    if n_batch is not None and int(n_batch) > 0:
+        llama_kwargs["n_batch"] = int(n_batch)
+    if n_gpu_layers is not None:
+        llama_kwargs["n_gpu_layers"] = int(n_gpu_layers)
+
+    llm = Llama(**llama_kwargs)
 
 
 def _require_llm() -> Llama:
@@ -483,24 +639,74 @@ def _safe_log(probability: float) -> float:
     return float(math.log(probability))
 
 
+def _model_supports_state_io(model: Llama) -> bool:
+    save_state_fn = getattr(model, "save_state", None)
+    load_state_fn = getattr(model, "load_state", None)
+    return callable(save_state_fn) and callable(load_state_fn)
+
+
 def capture_following_token_logit_trace(
     prompt: str,
+    prompt_tokens: list[int] | None,
     temperature: float,
     max_tokens: int,
     config: BranchingEstimatorConfig,
     store_full_logits: bool,
     full_logits_dtype: str,
     full_logits_compression_level: int,
+    enable_kv_state_reuse: bool,
+    step_heartbeat_every: int,
+    step_heartbeat_min_seconds: float,
+    heartbeat_context_label: str,
+    profile: RuntimeProfile | None,
 ) -> dict[str, Any]:
     model = _require_llm()
-    prompt_tokens = model.tokenize(prompt.encode("utf-8"))
+    with _profile_time(profile, "tokenize_prompt_seconds"):
+        effective_prompt_tokens = (
+            list(int(t) for t in prompt_tokens)
+            if prompt_tokens is not None
+            else list(model.tokenize(prompt.encode("utf-8")))
+        )
     quality_flags: list[str] = []
     steps: list[dict[str, Any]] = []
+    single_token_text_cache: dict[int, str] = {}
+
+    kv_reuse_enabled = bool(enable_kv_state_reuse)
+    kv_reuse_active = False
+    prompt_state_blob: Any = None
+    prompt_prefill_logits: np.ndarray | None = None
+
+    if kv_reuse_enabled:
+        if not _model_supports_state_io(model):
+            kv_reuse_enabled = False
+            quality_flags.append("kv_reuse_state_io_unsupported")
+        else:
+            save_state_fn = getattr(model, "save_state")
+            try:
+                with _profile_time(profile, "kv_prompt_prefill_seconds"):
+                    model.reset()
+                    model.eval(effective_prompt_tokens)
+                if model.scores is not None and len(model.scores) > 0:
+                    prompt_prefill_logits = np.asarray(model.scores[len(effective_prompt_tokens) - 1], dtype=float)
+                with _profile_time(profile, "kv_save_prompt_state_seconds"):
+                    prompt_state_blob = save_state_fn()
+                kv_reuse_active = prompt_state_blob is not None
+                if profile is not None and profile.enabled and kv_reuse_active:
+                    profile.add_count("kv_prompt_state_saved", 1)
+            except Exception:
+                kv_reuse_active = False
+                prompt_state_blob = None
+                prompt_prefill_logits = None
+                quality_flags.append("kv_reuse_prompt_prefill_failed")
+
+    if profile is not None and profile.enabled:
+        profile.add_count("trace_calls", 1)
 
     active_states: list[tuple[tuple[int, ...], float]] = [(tuple(), 1.0)]
     move_mass = 0.0
     stay_mass = 0.0
     unknown_mass = 0.0
+    last_heartbeat_time = 0.0
 
     for step_idx in range(1, int(max_tokens) + 1):
         if len(active_states) == 0:
@@ -513,7 +719,8 @@ def capture_following_token_logit_trace(
             if state_mass <= 0.0:
                 continue
 
-            generated_prefix_text = model.detokenize(list(generated_ids)).decode("utf-8", errors="replace")
+            with _profile_time(profile, "detokenize_prefix_seconds"):
+                generated_prefix_text = model.detokenize(list(generated_ids)).decode("utf-8", errors="replace")
             prefix_decision = parse_decision(generated_prefix_text)
 
             state_record: dict[str, Any] = {
@@ -535,25 +742,47 @@ def capture_following_token_logit_trace(
                 step_states.append(state_record)
                 continue
 
-            eval_tokens = prompt_tokens + list(generated_ids)
-            model.reset()
-            model.eval(eval_tokens)
-            if model.scores is None or len(model.scores) == 0:
-                unknown_mass += state_mass
-                state_record["failure"] = "missing_scores"
-                step_states.append(state_record)
-                quality_flags.append(f"step_{step_idx}_missing_scores")
-                continue
+            raw_logits: np.ndarray | None = None
+            if kv_reuse_active and prompt_state_blob is not None:
+                try:
+                    if len(generated_ids) == 0 and prompt_prefill_logits is not None:
+                        raw_logits = prompt_prefill_logits
+                    else:
+                        load_state_fn = getattr(model, "load_state")
+                        with _profile_time(profile, "kv_load_prompt_state_seconds"):
+                            model.reset()
+                            load_state_fn(prompt_state_blob)
+                        with _profile_time(profile, "llama_eval_suffix_only_seconds"):
+                            model.eval(list(generated_ids))
+                        if model.scores is not None and len(model.scores) > 0:
+                            raw_logits = np.asarray(model.scores[len(generated_ids) - 1], dtype=float)
+                except Exception:
+                    quality_flags.append(f"step_{step_idx}_kv_reuse_fallback")
+                    raw_logits = None
 
-            raw_logits = np.asarray(model.scores[len(eval_tokens) - 1], dtype=float)
-            probs = _stable_softmax(raw_logits, temperature=temperature)
+            if raw_logits is None:
+                eval_tokens = effective_prompt_tokens + list(generated_ids)
+                with _profile_time(profile, "llama_eval_seconds"):
+                    model.reset()
+                    model.eval(eval_tokens)
+                if model.scores is None or len(model.scores) == 0:
+                    unknown_mass += state_mass
+                    state_record["failure"] = "missing_scores"
+                    step_states.append(state_record)
+                    quality_flags.append(f"step_{step_idx}_missing_scores")
+                    continue
+                raw_logits = np.asarray(model.scores[len(eval_tokens) - 1], dtype=float)
+
+            with _profile_time(profile, "softmax_seconds"):
+                probs = _stable_softmax(raw_logits, temperature=temperature)
 
             if bool(store_full_logits):
-                state_record["full_logits"] = _compress_full_logits(
-                    raw_logits=raw_logits,
-                    dtype=full_logits_dtype,
-                    compression_level=full_logits_compression_level,
-                )
+                with _profile_time(profile, "compress_full_logits_seconds"):
+                    state_record["full_logits"] = _compress_full_logits(
+                        raw_logits=raw_logits,
+                        dtype=full_logits_dtype,
+                        compression_level=full_logits_compression_level,
+                    )
 
             candidate_ids = _adaptive_top_indices(
                 probs=probs,
@@ -570,10 +799,14 @@ def capture_following_token_logit_trace(
                     quality_flags.append(f"step_{step_idx}_low_retained_mass")
 
             candidate_rows: list[dict[str, Any]] = []
-            for token_id in _sort_indices_by_probability_desc(probs, set(int(i) for i in candidate_ids)):
+            with _profile_time(profile, "sort_candidates_seconds"):
+                sorted_candidate_ids = [int(i) for i in candidate_ids]
+
+            for token_id in sorted_candidate_ids:
                 token_prob = float(probs[token_id])
                 branch_mass = state_mass * token_prob
-                token_text = model.detokenize([int(token_id)]).decode("utf-8", errors="replace")
+                with _profile_time(profile, "detokenize_candidate_seconds"):
+                    token_text = _detokenize_single_token_cached(model, int(token_id), single_token_text_cache)
                 decision = parse_decision(generated_prefix_text + token_text)
 
                 candidate_rows.append(
@@ -623,6 +856,24 @@ def capture_following_token_logit_trace(
             quality_flags.append(f"step_{step_idx}_early_stop")
             break
 
+        heartbeat_every = int(max(0, step_heartbeat_every))
+        if heartbeat_every > 0 and (step_idx % heartbeat_every == 0):
+            now = time.time()
+            min_seconds = max(0.0, float(step_heartbeat_min_seconds))
+            if (now - last_heartbeat_time) >= min_seconds:
+                print(
+                    (
+                        f"[heartbeat][{heartbeat_context_label}] "
+                        f"step={step_idx}/{int(max_tokens)} "
+                        f"active={len(active_states)} "
+                        f"move_mass={move_mass:.6f} "
+                        f"stay_mass={stay_mass:.6f} "
+                        f"unknown_mass={unknown_mass:.6f}"
+                    ),
+                    flush=True,
+                )
+                last_heartbeat_time = now
+
     if len(active_states) > 0:
         unknown_mass += float(sum(mass for _, mass in active_states))
 
@@ -646,13 +897,30 @@ def capture_following_token_logit_trace(
     elif stay_probability > move_probability and stay_probability > unknown_probability:
         parsed_decision = "STAY"
 
+    # Emit a final heartbeat snapshot so long requests always show resolved end-state mass.
+    if int(max(0, step_heartbeat_every)) > 0:
+        print(
+            (
+                f"[heartbeat-final][{heartbeat_context_label}] "
+                f"steps={len(steps)}/{int(max_tokens)} "
+                f"move_mass={move_mass:.6f} "
+                f"stay_mass={stay_mass:.6f} "
+                f"unknown_mass={unknown_mass:.6f} "
+                f"move_prob={move_probability:.6f} "
+                f"stay_prob={stay_probability:.6f} "
+                f"unknown_prob={unknown_probability:.6f} "
+                f"parsed={parsed_decision}"
+            ),
+            flush=True,
+        )
+
     return {
         "schema_version": "3.0" if store_full_logits else "2.1",
         "payload_mode": "full_logits_compressed" if store_full_logits else "candidate_only",
         "capture_mode": "branchwise_following_token",
         "prompt_hash": _prompt_hash(prompt),
         "prompt": prompt,
-        "prompt_token_ids": [int(t) for t in prompt_tokens],
+        "prompt_token_ids": [int(t) for t in effective_prompt_tokens],
         "model_path": str(model_file) if model_file is not None else "",
         "generation_config": {
             "temperature": float(temperature),
@@ -888,7 +1156,18 @@ def _store_trace_record(
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
         ),
     )
-    return int(cursor.lastrowid), payload_sha
+    row_id_raw = cursor.lastrowid
+    row_id = int(row_id_raw) if row_id_raw is not None else -1
+    return row_id, payload_sha
+
+
+def _write_profile_report(output_dir: str, model: str, profile: RuntimeProfile) -> str:
+    ensure_directory(output_dir)
+    model_slug = _sanitize_model_for_path_component(model)
+    profile_path = os.path.join(output_dir, f"{model_slug}_profiling_summary.json")
+    with open(profile_path, "w", encoding="utf-8") as handle:
+        json.dump(profile.as_dict(), handle, indent=2)
+    return profile_path
 
 
 def summarize_label_probability_split(label_split_df: pd.DataFrame) -> pd.DataFrame:
@@ -998,12 +1277,31 @@ def evaluate_scenario_permutations(
     store_full_logits: bool,
     full_logits_dtype: str,
     full_logits_compression_level: int,
+    enable_kv_state_reuse: bool,
+    step_heartbeat_every: int,
+    step_heartbeat_min_seconds: float,
+    profile: RuntimeProfile | None,
+    profiling_context_limit: int,
+    db_commit_every: int,
 ) -> tuple[list[TokenRecord], pd.DataFrame]:
     if repeats_per_context < 1:
         raise ValueError("--repeats-per-context must be >= 1")
 
     role_configs = _role_configs(scenario_key, agent_role)
-    all_neighbor_arrangements = generate_all_valid_schelling_neighbors(SCHELLING_GRID_SIZE)
+    with _profile_time(profile, "generate_neighbor_arrangements_seconds"):
+        all_neighbor_arrangements = generate_all_valid_schelling_neighbors(SCHELLING_GRID_SIZE)
+
+    if profile is not None and profile.enabled:
+        cap = int(max(1, profiling_context_limit))
+        if len(all_neighbor_arrangements) > cap:
+            print(
+                (
+                    f"[profiling][scenario={scenario_key}] limiting contexts "
+                    f"from {len(all_neighbor_arrangements)} to {cap}."
+                ),
+                flush=True,
+            )
+            all_neighbor_arrangements = all_neighbor_arrangements[:cap]
 
     all_records: list[TokenRecord] = []
     context_rows: list[dict[str, Any]] = []
@@ -1024,34 +1322,48 @@ def evaluate_scenario_permutations(
 
     for role_name, role_label, opposite_label in role_configs:
         for arrangement_idx, neighbors in enumerate(all_neighbor_arrangements):
-            context_grid = generate_neighbor_context(neighbors)
-            prompt = build_scenario_prompt(scenario_key, context_grid, role_label, opposite_label)
+            with _profile_time(profile, "build_prompt_seconds"):
+                context_grid = generate_neighbor_context(neighbors)
+                prompt = build_scenario_prompt(scenario_key, context_grid, role_label, opposite_label)
+            with _profile_time(profile, "tokenize_prompt_seconds"):
+                prompt_token_ids = list(_require_llm().tokenize(prompt.encode("utf-8")))
             arrangement_code = "".join(neighbors)
 
             for repeat_index in range(repeats_per_context):
                 sample_index = int(global_sample_idx)
                 global_sample_idx += 1
 
-                trace_payload = capture_following_token_logit_trace(
-                    prompt=prompt,
-                    temperature=float(generation_temperature),
-                    max_tokens=int(max_tokens),
-                    config=branching_config,
-                    store_full_logits=bool(store_full_logits),
-                    full_logits_dtype=str(full_logits_dtype),
-                    full_logits_compression_level=int(full_logits_compression_level),
-                )
+                with _profile_time(profile, "trace_capture_seconds"):
+                    trace_payload = capture_following_token_logit_trace(
+                        prompt=prompt,
+                        prompt_tokens=prompt_token_ids,
+                        temperature=float(generation_temperature),
+                        max_tokens=int(max_tokens),
+                        config=branching_config,
+                        store_full_logits=bool(store_full_logits),
+                        full_logits_dtype=str(full_logits_dtype),
+                        full_logits_compression_level=int(full_logits_compression_level),
+                        enable_kv_state_reuse=bool(enable_kv_state_reuse),
+                        step_heartbeat_every=int(step_heartbeat_every),
+                        step_heartbeat_min_seconds=float(step_heartbeat_min_seconds),
+                        heartbeat_context_label=(
+                            f"scenario={scenario_key};role={role_name};arr={arrangement_idx + 1};"
+                            f"sample={sample_index}"
+                        ),
+                        profile=profile,
+                    )
 
-                trace_row_id, trace_payload_sha = _store_trace_record(
-                    trace_db_conn,
-                    model_label=model_label,
-                    scenario=scenario_key,
-                    agent_role=role_name,
-                    arrangement_code=arrangement_code,
-                    sample_index=sample_index,
-                    repeat_index=repeat_index,
-                    trace_payload=trace_payload,
-                )
+                with _profile_time(profile, "store_trace_seconds"):
+                    trace_row_id, trace_payload_sha = _store_trace_record(
+                        trace_db_conn,
+                        model_label=model_label,
+                        scenario=scenario_key,
+                        agent_role=role_name,
+                        arrangement_code=arrangement_code,
+                        sample_index=sample_index,
+                        repeat_index=repeat_index,
+                        trace_payload=trace_payload,
+                    )
 
                 final_mass = trace_payload.get("final_mass", {})
                 stay_probability = float(final_mass.get("stay_probability", 0.0))
@@ -1081,12 +1393,14 @@ def evaluate_scenario_permutations(
                     }
                 )
 
-                all_records.extend(_token_records_from_trace(trace_payload, sample_index=sample_index))
+                with _profile_time(profile, "token_records_from_trace_seconds"):
+                    all_records.extend(_token_records_from_trace(trace_payload, sample_index=sample_index))
 
                 processed_requests += 1
-                if processed_requests % TRACE_STORE_CONFIG.commit_every == 0:
-                    trace_db_conn.commit()
-                if processed_requests % 100 == 0 or processed_requests == total_requests:
+                if processed_requests % int(max(1, db_commit_every)) == 0:
+                    with _profile_time(profile, "db_commit_seconds"):
+                        trace_db_conn.commit()
+                if processed_requests % 1 == 0 or processed_requests == total_requests:
                     now = time.time()
                     elapsed = now - progress_start_time
                     ratio = processed_requests / total_requests if total_requests > 0 else 1.0
@@ -1103,7 +1417,8 @@ def evaluate_scenario_permutations(
 
     context_rows.sort(key=lambda row: int(row.get("sample_index", -1)))
     all_records.sort(key=lambda rec: (rec.sample_index, rec.token_index, rec.top_rank))
-    trace_db_conn.commit()
+    with _profile_time(profile, "db_commit_seconds"):
+        trace_db_conn.commit()
     return all_records, pd.DataFrame(context_rows)
 
 
@@ -1116,8 +1431,27 @@ def main() -> None:
 
     repeats_per_context = _validate_repeats(args)
     scenario_keys = _resolve_scenarios(args.scenario)
+    if int(args.db_commit_every) < 1:
+        raise ValueError("--db-commit-every must be >= 1")
+    if int(args.profiling_context_limit) < 1:
+        raise ValueError("--profiling-context-limit must be >= 1")
+    if int(args.step_heartbeat_every) < 0:
+        raise ValueError("--step-heartbeat-every must be >= 0")
+    if float(args.step_heartbeat_min_seconds) < 0.0:
+        raise ValueError("--step-heartbeat-min-seconds must be >= 0")
 
-    _init_llama(model_path=args.model_path, temperature=float(args.temperature), n_ctx=int(args.n_ctx))
+    _warn_kv_reuse_runtime_risk(args)
+
+    runtime_profile = RuntimeProfile(enabled=bool(args.enable_profiling))
+
+    _init_llama(
+        model_path=args.model_path,
+        temperature=float(args.temperature),
+        n_ctx=int(args.n_ctx),
+        n_threads=args.n_threads,
+        n_batch=args.n_batch,
+        n_gpu_layers=args.n_gpu_layers,
+    )
 
     branching_config = BranchingEstimatorConfig(
         beam_width=int(args.beam_width),
@@ -1154,6 +1488,15 @@ def main() -> None:
         "store_full_logits": bool(args.store_full_logits),
         "full_logits_dtype": str(args.full_logits_dtype),
         "full_logits_compression_level": int(_normalize_compression_level(args.full_logits_compression_level)),
+        "profiling_enabled": bool(args.enable_profiling),
+        "profiling_context_limit": int(args.profiling_context_limit),
+        "db_commit_every": int(args.db_commit_every),
+        "n_threads": args.n_threads,
+        "n_batch": args.n_batch,
+        "n_gpu_layers": args.n_gpu_layers,
+        "enable_kv_state_reuse": bool(args.enable_kv_state_reuse),
+        "step_heartbeat_every": int(args.step_heartbeat_every),
+        "step_heartbeat_min_seconds": float(args.step_heartbeat_min_seconds),
     }
 
     resume_outputs: dict[str, dict[str, str]] = {}
@@ -1198,6 +1541,12 @@ def main() -> None:
                 store_full_logits=bool(args.store_full_logits),
                 full_logits_dtype=str(args.full_logits_dtype),
                 full_logits_compression_level=int(_normalize_compression_level(args.full_logits_compression_level)),
+                enable_kv_state_reuse=bool(args.enable_kv_state_reuse),
+                step_heartbeat_every=int(args.step_heartbeat_every),
+                step_heartbeat_min_seconds=float(args.step_heartbeat_min_seconds),
+                profile=runtime_profile,
+                profiling_context_limit=int(args.profiling_context_limit),
+                db_commit_every=int(args.db_commit_every),
             )
 
             scenario_summary_df = summarize_label_probability_split(scenario_split_df)
@@ -1241,6 +1590,16 @@ def main() -> None:
         only_key = scenario_keys[0]
         outputs_payload.update(per_scenario_outputs[only_key])
 
+    profile_report_path: str | None = None
+    if runtime_profile.enabled:
+        profile_report_path = _write_profile_report(output_dir=output_dir, model=model, profile=runtime_profile)
+        top_timings = sorted(runtime_profile.timings.items(), key=lambda item: item[1], reverse=True)
+        print("[profiling] Top timing buckets (seconds):", flush=True)
+        for key, value in top_timings[:12]:
+            print(f"[profiling] {key}: {value:.6f}", flush=True)
+        if profile_report_path:
+            print(f"[profiling] Saved profiling summary: {profile_report_path}", flush=True)
+
     result = {
         "success": True,
         "model": model,
@@ -1254,6 +1613,8 @@ def main() -> None:
         "prompt": "scenario_mode_only",
         "outputs": outputs_payload,
         "mode": "llama_cpp_branchwise",
+        "profiling": runtime_profile.as_dict() if runtime_profile.enabled else {"enabled": False},
+        "profiling_report": profile_report_path,
     }
     print(json.dumps(result, indent=2))
 
