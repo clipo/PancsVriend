@@ -168,7 +168,7 @@ LOCAL_OLLAMA_URLS = [
 	"http://127.0.0.1:11434/v1/chat/completions",
 ]
 online_ollama_url = "https://chat.binghamton.edu/ollama/api/chat"
-online_openai_url = "https://chat.binghamton.edu/ollama/v1/chat/completions"
+online_openai_url = "https://chat.binghamton.edu/ollama/v1/chat"
 ONLINE_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"
 Use_ONLINE_API = True
 TIMEOUT_RETRY_ATTEMPTS = 5
@@ -561,6 +561,7 @@ def request_with_logprobs(
 	api_key: str | None = None,
 	request_seed: int | None = None,
 	logprob_api_structure: str = "ollama",
+	extra_ollama_options: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], float, str]:
 	headers = {"Content-Type": "application/json"}
 	if api_key:
@@ -572,16 +573,23 @@ def request_with_logprobs(
 			start = time.time()
 			try:
 				if logprob_api_structure == "ollama":
+					options_payload: dict[str, Any] = {
+						"temperature": temperature,
+						"num_predict": max_tokens,
+					}
+					if isinstance(extra_ollama_options, dict):
+						for option_key, option_value in extra_ollama_options.items():
+							if not isinstance(option_key, str) or option_key.strip() == "":
+								continue
+							options_payload[option_key] = option_value
+
 					payload: dict[str, Any] = {
 						"model": model,
 						"messages": [{"role": "user", "content": prompt}],
 						"stream": False,
 						"logprobs": True,
 						"top_logprobs": top_logprobs,
-						"options": {
-							"temperature": temperature,
-							"num_predict": max_tokens,
-						},
+						"options": options_payload,
 					}
 					if request_seed is not None:
 						payload["options"]["seed"] = int(request_seed)
