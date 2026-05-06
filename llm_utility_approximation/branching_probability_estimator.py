@@ -27,10 +27,8 @@ Usage (production sweep with resume)::
         --agent-roles type_a type_b \\
         --resume
 
-The summary CSV lands at both
-``<output-root>/<model_slug>/T<temp_slug>/<model_slug>_<scenario>_T<temp_slug>_stay_move_probability_split_summary.csv``
-and (for backwards-compatible loading) at
-``<output-root>/<model_slug>/<model_slug>_<scenario>_stay_move_probability_split_summary.csv``.
+The summary CSV lands at
+``<output-root>/<model_slug>/T<temp_slug>/<model_slug>_<scenario>_T<temp_slug>_stay_move_probability_split_summary.csv``.
 """
 
 from __future__ import annotations
@@ -540,13 +538,9 @@ def summary_csv_paths(
     temp_dir = model_dir / ts
 
     nested_summary = temp_dir / f"{model_slug_}_{scen_slug}_{ts}_stay_move_probability_split_summary{suffix}.csv"
-    nested_full = temp_dir / f"{model_slug_}_{scen_slug}_{ts}_stay_move_probability_split{suffix}.csv"
-    flat_summary = model_dir / f"{model_slug_}_{scen_slug}_stay_move_probability_split_summary{suffix}.csv"
 
     return {
         "nested_summary": nested_summary,
-        "nested_full": nested_full,
-        "flat_summary": flat_summary,
         "model_dir": model_dir,
         "temp_dir": temp_dir,
         "manifest": temp_dir / f"manifest_{scen_slug}{suffix}.json",
@@ -742,7 +736,7 @@ def run_scenario_sweep(
 
     completed_keys: set[tuple[str, str]] = set()
     if resume:
-        completed_keys = read_completed_keys(paths["nested_summary"]) | read_completed_keys(paths["flat_summary"])
+        completed_keys = read_completed_keys(paths["nested_summary"])
 
     remaining = [t for t in tasks if (t.agent_role, t.arrangement_code) not in completed_keys]
 
@@ -751,14 +745,12 @@ def run_scenario_sweep(
     print(
         f"[sweep] scenario={scenario} roles={agent_roles} total_tasks={total} "
         f"already_done={skipped} to_run={len(remaining)} "
-        f"output_nested={paths['nested_summary']}",
+        f"output={paths['nested_summary']}",
         flush=True,
     )
 
     start_time = time.time()
     nested_header_written = paths["nested_summary"].exists()
-    flat_header_written = paths["flat_summary"].exists()
-    full_header_written = paths["nested_full"].exists()
 
     for idx, task in enumerate(remaining, start=1):
         t0 = time.time()
@@ -788,8 +780,6 @@ def run_scenario_sweep(
         )
 
         nested_header_written = append_row(paths["nested_summary"], row, nested_header_written)
-        flat_header_written = append_row(paths["flat_summary"], row, flat_header_written)
-        full_header_written = append_row(paths["nested_full"], row, full_header_written)
 
         if idx % progress_every == 0 or idx == len(remaining):
             total_elapsed = time.time() - start_time
@@ -819,9 +809,7 @@ def run_scenario_sweep(
         "total_tasks": total,
         "already_done_before_run": skipped,
         "newly_processed": len(remaining),
-        "summary_csv_nested": str(paths["nested_summary"]),
-        "summary_csv_flat": str(paths["flat_summary"]),
-        "full_csv_nested": str(paths["nested_full"]),
+        "summary_csv": str(paths["nested_summary"]),
         "trace_dir": str(paths["trace_dir"]),
         "generation_config": asdict(engine.gen_config),
         "branching_config": asdict(engine.branch_config),
@@ -851,7 +839,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=16)
     parser.add_argument("--n-ctx", type=int, default=512)
     parser.add_argument("--n-threads", type=int, default=None)
-    parser.add_argument("--n-gpu-layers", type=int, default=0)
+    parser.add_argument("--n-gpu-layers", type=int, default=99)
 
     parser.add_argument("--scenarios", nargs="+", default=["baseline"],
                         help="Scenario keys from context_scenarios.CONTEXT_SCENARIOS (or 'all')")

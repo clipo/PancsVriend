@@ -336,7 +336,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--max-tokens", type=int, default=16)
     p.add_argument("--n-ctx", type=int, default=512)
     p.add_argument("--n-threads", type=int, default=None)
-    p.add_argument("--n-gpu-layers", type=int, default=0)
+    p.add_argument("--n-gpu-layers", type=int, default=99)
 
     p.add_argument("--scenarios", nargs="+", default=["baseline"])
     p.add_argument("--agent-roles", nargs="+", default=["type_a"], choices=["type_a", "type_b"])
