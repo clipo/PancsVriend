@@ -28,12 +28,27 @@ def _sanitize_model_for_path_component(name: str) -> str:
     return sanitized or "unknown-model"
 
 
+def _temp_slug(temperature: float) -> str:
+    """Format a temperature into a filesystem-safe slug matching branching_probability_estimator."""
+    return f"T{float(temperature):.3f}".replace(".", "p")
+
+
 def _resolve_log_prob_summary_csv(
     llm_model: str,
     scenario: str,
     log_probs_root: str | None = None,
+    temperature: float | None = None,
 ) -> str:
-    """Resolve scenario summary CSV path for a model using sanitized model naming."""
+    """Resolve scenario summary CSV path for a model using sanitized model naming.
+
+    Lookup order when ``temperature`` is provided:
+      1. Nested branching-estimator path:
+         ``<root>/<model_slug>/T<temp_slug>/<model_slug>_<scenario>_T<temp_slug>_stay_move_probability_split_summary.csv``
+      2. Flat legacy path:
+         ``<root>/<model_slug>/<model_slug>_<scenario>_stay_move_probability_split_summary.csv``
+
+    When ``temperature`` is ``None`` the nested path is not probed.
+    """
     model_slug = _sanitize_model_for_path_component(llm_model)
     scenario_slug = _sanitize_model_for_path_component(scenario)
 
@@ -46,20 +61,33 @@ def _resolve_log_prob_summary_csv(
     else:
         model_dir = Path(__file__).resolve().parent / "llm_log_probs" / model_slug
 
-    summary_path = model_dir / f"{model_slug}_{scenario_slug}_stay_move_probability_split_summary.csv"
-    return str(summary_path)
+    if temperature is not None:
+        ts = _temp_slug(temperature)
+        nested_path = model_dir / ts / f"{model_slug}_{scenario_slug}_{ts}_stay_move_probability_split_summary.csv"
+        if nested_path.exists():
+            return str(nested_path)
+
+    flat_path = model_dir / f"{model_slug}_{scenario_slug}_stay_move_probability_split_summary.csv"
+    return str(flat_path)
 
 
 def load_log_prob_policy(
     llm_model: str,
     scenario: str,
     log_probs_root: str | None = None,
+    temperature: float | None = None,
 ) -> tuple[dict[tuple[str, str], dict[str, float]], str]:
-    """Load per-(agent_role, arrangement_code) stay/move shares from summary CSV."""
-    summary_path = _resolve_log_prob_summary_csv(llm_model, scenario, log_probs_root)
+    """Load per-(agent_role, arrangement_code) stay/move shares from summary CSV.
+
+    If ``temperature`` is provided, the temperature-scoped nested summary path
+    (written by ``branching_probability_estimator.py``) is tried first, falling
+    back to the legacy flat path.
+    """
+    summary_path = _resolve_log_prob_summary_csv(llm_model, scenario, log_probs_root, temperature=temperature)
     if not os.path.exists(summary_path):
         raise FileNotFoundError(
-            f"Log-probability summary CSV not found for model='{llm_model}', scenario='{scenario}': {summary_path}"
+            f"Log-probability summary CSV not found for model='{llm_model}', scenario='{scenario}', "
+            f"temperature={temperature}: {summary_path}"
         )
 
     df = pd.read_csv(summary_path)
@@ -1157,6 +1185,7 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             llm_model=llm_model,
             scenario=scenario,
             log_probs_root=log_probs_root,
+            temperature=temperature,
         )
         print(f"✅ Loaded log-probability policy from: {log_prob_summary_path}")
         print(f"   Policy entries: {len(log_prob_policy)}")

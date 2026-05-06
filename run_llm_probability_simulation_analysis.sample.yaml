@@ -12,10 +12,10 @@
 run_root: "experiments_with_log_probs"
 
 # Optional run folder name (default: null -> auto run_<timestamp>_<model_slug>)
-run_id: null
+run_id: "run_20260407_120217_gemma3-27b"
 
 # REQUIRED in CLI (no built-in default). Set to your target model.
-llm_model: "mixtral:8x22b-instruct"
+llm_model: "gemma3:27b"
 
 # Optional explicit manifest path (default: null -> auto-created under <run>/manifest)
 manifest_file: null
@@ -39,10 +39,10 @@ dry_run: false
 # Keep each field null/empty to omit that flag.
 token_args:
   scenario: all           # default: null (single-prompt mode unless set)
-  logprob_api_structure: openai  # options: ollama | openai (default in token script: ollama)
-  llm_url: "https://chat.binghamton.edu/ollama/v1/chat/completions"  # optional explicit token-stage endpoint override
-  processes: 10          # default: null (effective default in script: 1)
-  temperature: 0.0        # default: 0.3
+  logprob_api_structure: ollama  # options: ollama | openai (default in token script: ollama)
+  llm_url: "https://chat.binghamton.edu/ollama/api/chat" # optional explicit token-stage endpoint override
+  processes: 20          # default: null (effective default in script: 1)
+  temperature: 1.0        # default: 0.3
   num_samples: null        # default: 1
   repeats_per_context: null  # default: null (falls back to num_samples)
   max_tokens: null         # default: 24
@@ -50,17 +50,17 @@ token_args:
   timeout: null            # default: 30
   token_output_root: null  # pipeline-only key; preferred token root override for this stage
   output_dir: null         # default: null (pipeline auto-sets to <run>/log_probs/<model_slug>)
-  resume: false            # default: false
+  resume: true            # default: false
 
 # Pass-through args for run_all_contexts.py
 contexts_args:
   scenarios: []            # default: all scenarios when omitted
-  runs: 1000               # default: null (effective new-run default in llm_runner: 10)
+  runs: 100               # default: null (effective new-run default in llm_runner: 10)
   max_steps: 1000          # default: null (effective default in llm_runner: 1000)
   llm_model: null          # default: null (pipeline auto-injects top-level llm_model)
   llm_url: null            # default: null (uses config.py OLLAMA_URL)
   llm_api_key: null        # default: null (uses config.py OLLAMA_API_KEY)
-  processes: 50          # default: null (auto process count)
+  processes: 10          # default: null (auto process count)
   save_every_steps: 1000   # default: null (effective default in llm_runner: 1)
   no_parallel: false       # default: false
   use_log_probs: true     # default: false
@@ -70,7 +70,7 @@ contexts_args:
 
 # Pass-through args for analysis_tools/run_all_scenario_analysis.py
 analysis_args:
-  no_recompute: true      # default: false
+  no_recompute: false      # default: false
   movement_only: false     # default: false
   include_movement: false  # default: false
   output_folder: null      # default: null (pipeline auto-sets to <run>/analysis)

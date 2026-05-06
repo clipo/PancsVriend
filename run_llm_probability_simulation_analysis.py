@@ -46,7 +46,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-TOKEN_SCRIPT = REPO_ROOT / "llm_utility_approximation" / "llm_token_probabilities.py"
+TOKEN_SCRIPT = REPO_ROOT / "llm_utility_approximation" / "llama_cpp_llm_token_probabilities.py"
 CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 ANALYSIS_SCRIPT = REPO_ROOT / "analysis_tools" / "run_all_scenario_analysis.py"
 
