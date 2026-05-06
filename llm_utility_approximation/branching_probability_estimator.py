@@ -41,11 +41,10 @@ import gzip
 import hashlib
 import json
 import math
-import os
-import re
+import random
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -723,6 +722,7 @@ def run_scenario_sweep(
     temperature: float,
     max_tokens: int,
     debug_subset: int | None,
+    sample_seed: int | None,
     resume: bool,
     capture_trace: bool,
     progress_every: int = 25,
@@ -734,7 +734,11 @@ def run_scenario_sweep(
     tasks = enumerate_arrangement_tasks(scenario, agent_roles)
 
     if debug_subset is not None and debug_subset > 0:
-        tasks = tasks[:int(debug_subset)]
+        sample_count = min(int(debug_subset), len(tasks))
+        if sample_seed is None:
+            tasks = random.sample(tasks, sample_count)
+        else:
+            tasks = random.Random(int(sample_seed)).sample(tasks, sample_count)
 
     completed_keys: set[tuple[str, str]] = set()
     if resume:
@@ -809,6 +813,7 @@ def run_scenario_sweep(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "debug_subset": debug_subset,
+        "sample_seed": sample_seed,
         "resume": resume,
         "capture_trace": capture_trace,
         "total_tasks": total,
@@ -864,7 +869,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-root", default=str(_THIS_DIR.parent / "llm_log_probs"),
                         help="Root directory for outputs (default: <repo>/llm_log_probs)")
     parser.add_argument("--debug-subset", type=int, default=None,
-                        help="Process only the first N arrangements per scenario (forces --capture-trace)")
+                        help="Process only N arrangements per scenario, sampled randomly if --sample-seed is set")
+    parser.add_argument("--sample-seed", type=int, default=0,
+                        help="Seed used when randomly sampling the debug subset (default: 0)")
     parser.add_argument("--resume", action="store_true",
                         help="Skip (agent_role, arrangement_code) pairs already present in summary CSV")
 
@@ -914,7 +921,8 @@ def main(argv: list[str] | None = None) -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     print(f"[config] model={args.model_name} temp={args.temperature} scenarios={scenarios} "
-          f"roles={args.agent_roles} debug_subset={debug_subset} capture_trace={capture_trace}",
+            f"roles={args.agent_roles} debug_subset={debug_subset} sample_seed={args.sample_seed} "
+            f"capture_trace={capture_trace}",
           flush=True)
 
     for scenario in scenarios:
@@ -928,6 +936,7 @@ def main(argv: list[str] | None = None) -> None:
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
                 debug_subset=debug_subset,
+                sample_seed=args.sample_seed,
                 resume=args.resume,
                 capture_trace=capture_trace,
             )

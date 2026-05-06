@@ -123,3 +123,7 @@ assign_runs.txt
 ! reports/**/
 !experiments/
 !experiments/**/
+
+llm_log_probs/**
+llms/**
+llm_utility_approximation/llama_cpp_neighborhood_trials/**

@@ -34,6 +34,7 @@ import argparse
 import csv
 import json
 import math
+import random
 import sys
 import time
 from datetime import datetime
@@ -340,10 +341,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--scenarios", nargs="+", default=["baseline"])
     p.add_argument("--agent-roles", nargs="+", default=["type_a"], choices=["type_a", "type_b"])
 
-    p.add_argument("--n-samples", type=int, default=500,
-                   help="Number of empirical samples per context (default: 500)")
+    p.add_argument("--n-samples", type=int, default=1000,
+                   help="Number of empirical samples per context (default: 1000)")
     p.add_argument("--debug-subset", type=int, default=10,
-                   help="Only compare the first N arrangement tasks (default: 10)")
+                   help="Only compare N arrangement tasks; sampled randomly with --sample-seed")
+    p.add_argument("--sample-seed", type=int, default=0,
+                   help="Seed used when randomly sampling the debug subset (default: 0)")
 
     p.add_argument("--beam-width", type=int, default=16)
     p.add_argument("--candidate-top-n", type=int, default=1)
@@ -411,7 +414,8 @@ def main(argv: list[str] | None = None) -> None:
     for scenario in scenarios:
         tasks = enumerate_arrangement_tasks(scenario, list(args.agent_roles))
         if args.debug_subset is not None and args.debug_subset > 0:
-            tasks = tasks[: int(args.debug_subset)]
+            sample_count = min(int(args.debug_subset), len(tasks))
+            tasks = random.Random(int(args.sample_seed)).sample(tasks, sample_count)
         all_tasks.extend(tasks)
 
     print(f"[comparison] {len(all_tasks)} contexts to compare", flush=True)
