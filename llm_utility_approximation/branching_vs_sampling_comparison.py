@@ -343,7 +343,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     p.add_argument("--n-samples", type=int, default=1000,
                    help="Number of empirical samples per context (default: 1000)")
-    p.add_argument("--debug-subset", type=int, default=10,
+    p.add_argument("--debug-subset", type=int, default=50,
                    help="Only compare N arrangement tasks; sampled randomly with --sample-seed")
     p.add_argument("--sample-seed", type=int, default=0,
                    help="Seed used when randomly sampling the debug subset (default: 0)")
