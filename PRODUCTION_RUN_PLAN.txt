@@ -1,0 +1,74 @@
+Production Run Plan
+===================
+
+Goal
+----
+Run the branching vs. sampling comparison for both models at full production
+settings (--debug-subset 50, --n-samples 1000, defaults).
+
+Models
+------
+1. Gemma 4 31B-it  (Q5_K_M, ~22 GB)   → llms/gemma-4-31B-it-Q5_K_M.gguf
+2. Llama 3.3 70B   (Q4_K_M, ~40 GB)   → llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf
+
+Execution (UPDATED: parallel on two machines)
+----------------------------------------------
+- Gemma runs on machine 1 (promaxgb10-4ae4, 128.226.22.222)
+- Llama runs on machine 2 (promaxgb10-4be9, 169.254.107.161) IN PARALLEL
+- Each run is in a detached screen session named "llm-runs" on its respective machine
+- venv: ~/schelling/PancsVriend/.venv (llama-cpp-python 0.3.20, CUDA build)
+- Working directory: ~/schelling/PancsVriend (required by the script)
+
+Status
+------
+  Gemma:  RUNNING on machine 1 — started 10:39 AM, 2026-05-13
+  Llama:  RUNNING on machine 2 — started  1:41 PM, 2026-05-13
+
+Note: The original screen command on machine 1 had Llama queued to run after
+Gemma automatically. A background watcher process (PID 3258230) will kill the
+screen session on machine 1 as soon as "GEMMA DONE" appears in the log,
+preventing the redundant Llama run there.
+
+Monitoring
+----------
+  # Gemma (machine 1 — local):
+  tail -f /tmp/prod_gemma.log
+
+  # Llama (machine 2 — remote):
+  ssh apape@169.254.107.161 "tail -f /tmp/prod_llama.log"
+
+  # Attach to screen directly:
+  screen -r llm-runs                                        # machine 1 (Gemma)
+  ssh apape@169.254.107.161 "screen -r llm-runs"           # machine 2 (Llama)
+
+  # Check watcher log (machine 1):
+  cat /tmp/gemma_watcher.log
+
+Estimated duration
+------------------
+  Gemma:  ~21 hours from 10:39 AM → done ~7:30 AM, 2026-05-14
+  Llama:  ~30-40 hours from  1:41 PM → done ~7 PM, 2026-05-14 – 5 AM, 2026-05-15
+  (Both running in parallel — total wall-clock time ≈ Llama duration)
+
+Output location
+---------------
+  Machine 1 — Gemma:
+  llm_log_probs/gemma-4-31B-it-Q5_K_M/T0p300/
+    comparison_*_summary.json   ← evaluate this
+    comparison_*.csv
+    comparison_*_scatter.png
+    comparison_*_histogram.png
+
+  Machine 2 — Llama (same path, different machine):
+  llm_log_probs/Llama-3.3-70B-Instruct-Q4_K_M/T0p300/
+    comparison_*_summary.json   ← evaluate this
+    comparison_*.csv
+    comparison_*_scatter.png
+    comparison_*_histogram.png
+
+Pass/fail thresholds (from instructions)
+-----------------------------------------
+  pct_inside_95_ci_MOVE  >= 0.90  → good   (0.75-0.90 marginal, <0.75 bad)
+  mean_abs_delta_MOVE    <  0.05  → good   (0.05-0.10 marginal, >0.10 bad)
+  pearson_r              >  0.95  → good   (0.85-0.95 marginal, <0.85 bad)
+  Note: mean_abs_delta < 0.03 is at the noise floor → treat as perfect.
