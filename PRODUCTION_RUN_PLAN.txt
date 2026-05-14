@@ -21,8 +21,8 @@ Execution (UPDATED: parallel on two machines)
 
 Status
 ------
-  Gemma:  RUNNING on machine 1 — started 10:39 AM, 2026-05-13
-  Llama:  RUNNING on machine 2 — started  1:41 PM, 2026-05-13
+  Gemma:  DONE — 2026-05-13 10:39 AM → 2026-05-14 2:47 AM  (~16 hours)
+  Llama:  DONE — 2026-05-13  1:41 PM → 2026-05-14 12:54 PM (~23 hours)
 
 Note: The original screen command on machine 1 had Llama queued to run after
 Gemma automatically. A background watcher process (PID 3258230) will kill the
@@ -72,3 +72,25 @@ Pass/fail thresholds (from instructions)
   mean_abs_delta_MOVE    <  0.05  → good   (0.05-0.10 marginal, >0.10 bad)
   pearson_r              >  0.95  → good   (0.85-0.95 marginal, <0.85 bad)
   Note: mean_abs_delta < 0.03 is at the noise floor → treat as perfect.
+
+Results
+-------
+  Gemma 4 31B-it (Q5_K_M):
+    pct_inside_95_ci_MOVE : 0.60   BAD
+    mean_abs_delta_MOVE   : 0.153  BAD
+    pearson_r             : 0.765  BAD
+    Note: median_abs_delta_MOVE = 0.001 (near-perfect for most contexts).
+    Extreme outliers (max delta ~1.0) inflate the mean. Branching works well
+    on the majority of contexts but fails on a subset — check scatter/histogram.
+
+  Llama 3.3 70B (Q4_K_M):
+    pct_inside_95_ci_MOVE : 0.48   BAD (but CI calibration issue — see note)
+    mean_abs_delta_MOVE   : 0.024  GOOD (at noise floor, treat as perfect)
+    pearson_r             : 0.919  MARGINAL
+    Note: mean_abs_delta at noise floor means branching tracks sampling
+    accurately. Low pct_inside_95_ci likely reflects CIs being too narrow
+    rather than estimator inaccuracy.
+
+  Speed (branching vs sampling):
+    Gemma:  30s vs 1132s per context (~38x faster)
+    Llama:   3s vs 1669s per context (~556x faster)
