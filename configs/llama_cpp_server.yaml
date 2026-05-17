@@ -1,0 +1,25 @@
+# =============================================================================
+# llama.cpp server config — speed-optimized, run directly
+# =============================================================================
+#
+# Start the server with NO extra flags:
+#
+#   python -m llama_cpp.server --config_file configs/llama_cpp_server.yaml
+#
+# The ONLY thing you must edit is `model:` below (absolute path to your GGUF).
+# Every speed setting is already baked in, so there is nothing else to specify.
+# =============================================================================
+
+host: "0.0.0.0"
+port: 8080
+
+models:
+  # EDIT THIS: absolute path to your GGUF file
+  - model: "/absolute/path/to/your-model.gguf"
+    model_alias: "local-gguf"
+
+    # Speed settings (pre-tuned — leave alone).
+    n_gpu_layers: -1     # all layers on GPU; if it OOMs, lower to e.g. 28
+    flash_attn: true     # faster attention + smaller KV cache
+    n_ctx: 2048          # ample for this workload's short prompts
+    n_batch: 512
