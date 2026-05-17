@@ -61,6 +61,7 @@ contexts_args:
   llm_url: null            # default: null (uses config.py OLLAMA_URL)
   llm_api_key: null        # default: null (uses config.py OLLAMA_API_KEY)
   processes: 10          # default: null (auto process count)
+  temperature: null        # default: 0.3 (sampling temperature for live LLM requests in Stage 2)
   save_every_steps: 1000   # default: null (effective default in llm_runner: 1)
   no_parallel: false       # default: false
   use_log_probs: true     # default: false

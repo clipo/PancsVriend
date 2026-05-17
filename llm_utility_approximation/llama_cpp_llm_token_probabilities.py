@@ -307,7 +307,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--n-gpu-layers",
         type=int,
-        default=None,
+        default=-1,
         help="Optional llama.cpp GPU offload layer count override",
     )
     parser.add_argument(
