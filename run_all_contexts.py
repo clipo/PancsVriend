@@ -24,6 +24,14 @@ parameters and resume seeds; otherwise a fresh experiment directory is created.
 Results for each scenario are summarized at the end of the run.
 """
 
+import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, OSError):
+    pass  # Older Pythons or non-tty streams
+
 import argparse
 import json
 from datetime import datetime

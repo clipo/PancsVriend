@@ -38,6 +38,13 @@ import shlex
 import shutil
 import subprocess
 import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, OSError):
+    pass  # Older Pythons or non-tty streams
+
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable

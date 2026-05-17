@@ -45,6 +45,13 @@ import argparse
 import json
 import re
 import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, OSError):
+    pass  # Older Pythons or non-tty streams
+
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union

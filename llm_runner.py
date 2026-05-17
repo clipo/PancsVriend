@@ -1,3 +1,11 @@
+import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, OSError):
+    pass  # Older Pythons or non-tty streams
+
 import numpy as np
 import json
 import os
