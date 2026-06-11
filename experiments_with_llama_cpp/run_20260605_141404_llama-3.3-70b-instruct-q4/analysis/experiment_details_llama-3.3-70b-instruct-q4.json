@@ -1,0 +1,207 @@
+{
+  "llm_model": "llama-3.3-70b-instruct-q4",
+  "manifest": {
+    "created_at": "2026-06-11T13:57:47",
+    "path": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/manifest/run_20260605_141404_llama-3.3-70b-instruct-q4_run_manifest.json"
+  },
+  "selected_experiments": [
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community  \n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "red team resident",
+          "type_b": "blue team resident"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "baseline",
+        "temperature": 0.3,
+        "timestamp": "20260605_141405",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_baseline_20260605_141404",
+      "output_dir": "experiments/llm_baseline_20260605_141404",
+      "run_count": 100,
+      "scenario": "llm_baseline",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nYour immediate 3x3 neighborhood looks like this:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s like you\n- O = neighbors who are {opposite_type}s\n- E = empty houses available to move to  \n- # = outside the immediate area\n\nAs a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live. Consider factors like community comfort, children's friendships, cultural connections, safety perceptions, and social dynamics that matter to you.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "white middle class family",
+          "type_b": "Black family"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "race_white_black",
+        "temperature": 0.3,
+        "timestamp": "20260606_125631",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_race_white_black_20260606_125631",
+      "output_dir": "experiments/llm_race_white_black_20260606_125631",
+      "run_count": 100,
+      "scenario": "race_white_black",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering moving to a different house in your neighborhood.\n\nYour immediate 3x3 neighborhood currently looks like:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s with similar backgrounds\n- O = neighbors who are {opposite_type}s  \n- E = empty houses you could potentially move to\n- # = outside your immediate area\n\nAs a real person with your own cultural background, family needs, and community connections, consider where you would actually want to live. Think about factors like cultural familiarity, language communities, children's social connections, extended family proximity, and your comfort level in different neighborhood compositions.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "Asian American family",
+          "type_b": "Hispanic/Latino family"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "ethnic_asian_hispanic",
+        "temperature": 0.3,
+        "timestamp": "20260607_130450",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_ethnic_asian_hispanic_20260607_130449",
+      "output_dir": "experiments/llm_ethnic_asian_hispanic_20260607_130449",
+      "run_count": 100,
+      "scenario": "ethnic_asian_hispanic",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nYou are looking at your immediate 3x3 neighborhood:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors from households similar to yours ({agent_type}s)\n- O = neighbors from {opposite_type}s\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person making housing decisions, consider your economic priorities: affordability, property values, proximity to work, schools, and the kind of community environment that matches your lifestyle and budget.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "high-income household",
+          "type_b": "low-income household"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "income_high_low",
+        "temperature": 0.3,
+        "timestamp": "20260608_134254",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_income_high_low_20260608_134253",
+      "output_dir": "experiments/llm_income_high_low_20260608_134253",
+      "run_count": 100,
+      "scenario": "income_high_low",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nYour immediate 3x3 neighborhood situation:\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s with similar political views\n- O = neighbors who are {opposite_type}s with different political perspectives  \n- E = empty houses you could move to\n- # = beyond your immediate area\n\nAs a real person with your own political beliefs, social values, and family considerations, think about where you would actually want to live. Consider factors like community discussions, local politics, school board dynamics, social comfort at neighborhood gatherings, shared values around children's upbringing, and day-to-day interactions with neighbors.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "politically liberal household",
+          "type_b": "politically conservative household"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "political_liberal_conservative",
+        "temperature": 0.3,
+        "timestamp": "20260609_125417",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_political_liberal_conservative_20260609_125416",
+      "output_dir": "experiments/llm_political_liberal_conservative_20260609_125416",
+      "run_count": 100,
+      "scenario": "political_liberal_conservative",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community  \n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "green team resident",
+          "type_b": "yellow team resident"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 1000,
+        "n_processes": 1,
+        "n_runs": 100,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 10,
+        "scenario": "green_yellow",
+        "temperature": 0.3,
+        "timestamp": "20260610_150107",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_green_yellow_20260610_150106",
+      "output_dir": "experiments/llm_green_yellow_20260610_150106",
+      "run_count": 100,
+      "scenario": "green_yellow",
+      "status": "success"
+    }
+  ]
+}

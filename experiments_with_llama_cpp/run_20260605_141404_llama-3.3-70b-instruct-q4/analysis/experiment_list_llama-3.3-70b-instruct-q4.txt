@@ -1,0 +1,20 @@
+LLM model: llama-3.3-70b-instruct-q4
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260605_141404
+- race_white_black: llm_race_white_black_20260606_125631
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260607_130449
+- income_high_low: llm_income_high_low_20260608_134253
+- political_liberal_conservative: llm_political_liberal_conservative_20260609_125416
+- green_yellow: llm_green_yellow_20260610_150106
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260605_141404
+- race_white_black: llm_race_white_black_20260606_125631
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260607_130449
+- income_high_low: llm_income_high_low_20260608_134253
+- political_liberal_conservative: llm_political_liberal_conservative_20260609_125416
+- green_yellow: llm_green_yellow_20260610_150106
+
+Unused experiments (NOT USED):
+- (none)

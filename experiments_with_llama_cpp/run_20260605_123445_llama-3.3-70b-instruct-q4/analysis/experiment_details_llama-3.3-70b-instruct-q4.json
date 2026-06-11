@@ -1,0 +1,42 @@
+{
+  "llm_model": "llama-3.3-70b-instruct-q4",
+  "manifest": {
+    "created_at": "2026-06-05T13:42:57",
+    "path": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260605_123445_llama-3.3-70b-instruct-q4/manifest/run_20260605_123445_llama-3.3-70b-instruct-q4_run_manifest.json"
+  },
+  "selected_experiments": [
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community  \n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:",
+          "type_a": "red team resident",
+          "type_b": "blue team resident"
+        },
+        "cpu_count": 20,
+        "grid_size": 10,
+        "llm_api_key_last4": "c67a",
+        "llm_model": "llama-3.3-70b-instruct-q4",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "log_prob_summary_file": null,
+        "log_probs_root": null,
+        "max_steps": 200,
+        "n_processes": 1,
+        "n_runs": 5,
+        "no_move_threshold": 5,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "parallel_execution": false,
+        "save_every_steps": 1,
+        "scenario": "baseline",
+        "temperature": 0.3,
+        "timestamp": "20260605_123447",
+        "use_log_probs": false
+      },
+      "experiment_name": "llm_baseline_20260605_123446",
+      "output_dir": "experiments/llm_baseline_20260605_123446",
+      "run_count": 5,
+      "scenario": "llm_baseline",
+      "status": "success"
+    }
+  ]
+}

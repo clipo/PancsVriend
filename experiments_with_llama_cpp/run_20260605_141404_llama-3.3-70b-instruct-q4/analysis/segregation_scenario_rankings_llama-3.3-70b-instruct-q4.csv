@@ -1,0 +1,43 @@
+llm_model,metric,scenario,scenario_label,rank,mean_value,std_value,n_runs,significant_vs_next,p_value_vs_next
+llama-3.3-70b-instruct-q4,dissimilarity_index,llm_baseline,Color (Red/Blue),1,0.26325,0.069309,100,,0.350833
+llama-3.3-70b-instruct-q4,dissimilarity_index,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),2,0.25325,0.067481,100,,0.739127
+llama-3.3-70b-instruct-q4,dissimilarity_index,green_yellow,Color (Green/Yellow),3,0.2505,0.079374,100,,0.792341
+llama-3.3-70b-instruct-q4,dissimilarity_index,race_white_black,Racial (White/Black),4,0.24725,0.068709,100,,0.980457
+llama-3.3-70b-instruct-q4,dissimilarity_index,income_high_low,Economic (High/Low Income),5,0.246,0.058465,100,,0.899524
+llama-3.3-70b-instruct-q4,dissimilarity_index,political_liberal_conservative,Political (Liberal/Conservative),6,0.246,0.06162,100,,
+llama-3.3-70b-instruct-q4,clusters,political_liberal_conservative,Political (Liberal/Conservative),1,27.39,4.718104,100,,0.920979
+llama-3.3-70b-instruct-q4,clusters,green_yellow,Color (Green/Yellow),2,27.17,4.318284,100,,0.933606
+llama-3.3-70b-instruct-q4,clusters,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,27.13,4.277389,100,,0.977511
+llama-3.3-70b-instruct-q4,clusters,race_white_black,Racial (White/Black),4,27.09,4.235719,100,,0.956022
+llama-3.3-70b-instruct-q4,clusters,llm_baseline,Color (Red/Blue),5,27.04,4.465174,100,,0.946274
+llama-3.3-70b-instruct-q4,clusters,income_high_low,Economic (High/Low Income),6,26.93,4.176062,100,,
+llama-3.3-70b-instruct-q4,switch_rate,race_white_black,Racial (White/Black),1,0.512716,0.044148,100,,0.602741
+llama-3.3-70b-instruct-q4,switch_rate,income_high_low,Economic (High/Low Income),2,0.509863,0.039884,100,,0.943508
+llama-3.3-70b-instruct-q4,switch_rate,green_yellow,Color (Green/Yellow),3,0.508037,0.041695,100,,0.351178
+llama-3.3-70b-instruct-q4,switch_rate,political_liberal_conservative,Political (Liberal/Conservative),4,0.503474,0.042997,100,,0.72035
+llama-3.3-70b-instruct-q4,switch_rate,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),5,0.502166,0.043506,100,,0.740576
+llama-3.3-70b-instruct-q4,switch_rate,llm_baseline,Color (Red/Blue),6,0.500189,0.049166,100,,
+llama-3.3-70b-instruct-q4,distance,llm_baseline,Color (Red/Blue),1,1.172875,0.056213,100,,0.861874
+llama-3.3-70b-instruct-q4,distance,green_yellow,Color (Green/Yellow),2,1.170375,0.06058,100,,0.703167
+llama-3.3-70b-instruct-q4,distance,race_white_black,Racial (White/Black),3,1.168,0.060754,100,,0.95992
+llama-3.3-70b-instruct-q4,distance,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),4,1.16775,0.054245,100,,0.619548
+llama-3.3-70b-instruct-q4,distance,income_high_low,Economic (High/Low Income),5,1.16775,0.04728,100,,0.31123
+llama-3.3-70b-instruct-q4,distance,political_liberal_conservative,Political (Liberal/Conservative),6,1.162875,0.053609,100,,
+llama-3.3-70b-instruct-q4,mix_deviation,llm_baseline,Color (Red/Blue),1,0.177233,0.021804,100,,0.257933
+llama-3.3-70b-instruct-q4,mix_deviation,income_high_low,Economic (High/Low Income),2,0.174101,0.018691,100,,0.977583
+llama-3.3-70b-instruct-q4,mix_deviation,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),3,0.173584,0.020152,100,,0.763767
+llama-3.3-70b-instruct-q4,mix_deviation,race_white_black,Racial (White/Black),4,0.173481,0.020307,100,,0.955184
+llama-3.3-70b-instruct-q4,mix_deviation,green_yellow,Color (Green/Yellow),5,0.173028,0.019415,100,,0.933792
+llama-3.3-70b-instruct-q4,mix_deviation,political_liberal_conservative,Political (Liberal/Conservative),6,0.17216,0.018827,100,,
+llama-3.3-70b-instruct-q4,share,llm_baseline,Color (Red/Blue),1,0.497337,0.033325,100,,0.842153
+llama-3.3-70b-instruct-q4,share,green_yellow,Color (Green/Yellow),2,0.495927,0.031236,100,,0.925052
+llama-3.3-70b-instruct-q4,share,income_high_low,Economic (High/Low Income),3,0.495576,0.030181,100,,0.675181
+llama-3.3-70b-instruct-q4,share,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),4,0.493287,0.030351,100,,0.595105
+llama-3.3-70b-instruct-q4,share,political_liberal_conservative,Political (Liberal/Conservative),5,0.491242,0.030122,100,,0.774962
+llama-3.3-70b-instruct-q4,share,race_white_black,Racial (White/Black),6,0.490364,0.032039,100,,
+llama-3.3-70b-instruct-q4,ghetto_rate,green_yellow,Color (Green/Yellow),1,3.38,2.509698,100,,0.665939
+llama-3.3-70b-instruct-q4,ghetto_rate,race_white_black,Racial (White/Black),2,3.34,2.789663,100,,0.56787
+llama-3.3-70b-instruct-q4,ghetto_rate,llm_baseline,Color (Red/Blue),3,3.33,2.265485,100,,0.603325
+llama-3.3-70b-instruct-q4,ghetto_rate,ethnic_asian_hispanic,Ethnic (Asian/Hispanic),4,3.17,2.278822,100,,0.606599
+llama-3.3-70b-instruct-q4,ghetto_rate,income_high_low,Economic (High/Low Income),5,3.02,2.247243,100,,0.603839
+llama-3.3-70b-instruct-q4,ghetto_rate,political_liberal_conservative,Political (Liberal/Conservative),6,2.81,2.053305,100,,
