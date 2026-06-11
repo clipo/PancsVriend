@@ -17,7 +17,7 @@ Run production simulations with both locally-available GGUF models, sequentially
 
 Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
 
-### Current Status (last updated 2026-06-11 14:50 EDT)
+### Current Status (last updated 2026-06-11 15:35 EDT)
 
 **Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
 
@@ -32,21 +32,19 @@ Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiment
 
 Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/`
 
-**Model 2 (`gemma-4-31b-it-q5`): 🔄 SMOKE TEST IN PROGRESS**
+**Model 2 (`gemma-4-31b-it-q5`): 🔄 PRODUCTION IN PROGRESS**
 
-Automated transition fired 2026-06-11 14:03 EDT. Gemma server started on port 8080.
+Smoke test PASSED 15:10 EDT Jun 11. Production launched automatically.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Llama server shutdown | ✅ Done | — |
-| Config swap (server + run yaml) | ✅ Done | — |
-| Gemma server start | ✅ Done | `llama_server` screen |
-| Smoke test (5 runs × 200 steps, baseline) | 🔄 4/5 runs | ~790–900s/run |
-| Production launch | ⏳ Pending | auto-starts when smoke test passes |
+| Smoke test (5 runs × 200 steps) | ✅ PASSED | 15:10 EDT Jun 11 |
+| Production (100 runs × 1000 steps × all scenarios) | 🔄 ~2/100 runs | ~730s/run, ETA ~Jun 12 11:00 EDT |
 
-- Server screen: `llama_server` (started 14:03 Jun 11)
-- Transition screen: `transition` (PID 2008642) — running smoke test, will launch production
-- Log: `logs/run_gemma-4-31b-it-q5.log` (after production starts)
+- Server screen: `llama_server` (port 8080)
+- Run screen: `llama_run` (started 15:10 EDT Jun 11)
+- Log: `logs/run_gemma-4-31b-it-q5.log`
+- Results: `experiments_with_llama_cpp/run_20260611_151002_gemma-4-31b-it-q5/`
 
 ### Automated transition (`transition_to_gemma.sh`)
 
