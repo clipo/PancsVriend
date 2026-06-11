@@ -1,0 +1,11 @@
+# llama.cpp server config — Llama 3.3 70B Q4_K_M, port 8080
+host: "0.0.0.0"
+port: 8082
+
+models:
+  - model: "/srv/shared/schelling/PancsVriend/llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf"
+    model_alias: "llama-3.3-70b-q4"
+    n_gpu_layers: -1
+    flash_attn: true
+    n_ctx: 2048
+    n_batch: 512

@@ -15,7 +15,7 @@ port: 8080
 
 models:
   # EDIT THIS: absolute path to your GGUF file
-  - model: "/absolute/path/to/your-model.gguf"
+  - model: "/srv/shared/schelling/PancsVriend/llms/gemma-4-31B-it-Q5_K_M.gguf"
     model_alias: "local-gguf"
 
     # Speed settings (pre-tuned — leave alone).
