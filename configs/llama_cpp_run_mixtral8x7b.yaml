@@ -1,0 +1,116 @@
+# =============================================================================
+# llama.cpp simulation run config — Mixtral 8x7B Instruct v0.1 Q5_K_M
+# =============================================================================
+# Start server first via run_mixtral8x7b.sh, which resolves the GGUF path
+# from either /srv/shared/schelling/PancsVriend/llms/ or ~/llms/ automatically.
+#
+# Profiles:  smoke_test = 5 runs x 200 steps x baseline
+#            production  = 100 runs x 1000 steps x all scenarios
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+llm_model: "mixtral-8x7b-q5"
+
+manifest_file: null
+token_log_probs_root: null
+
+skip_token_probs: true
+skip_contexts: false
+skip_analysis: false
+
+continue_on_error: false
+dry_run: false
+
+token_args: {}
+
+contexts_args:
+  scenarios: [baseline]
+  runs: 5
+  max_steps: 200
+  use_log_probs: false
+  log_probs_root: null
+  temperature: 0.3
+  save_every_steps: 10
+  llm_url: "http://localhost:8083/v1/chat/completions"
+  llm_api_key: ""
+  processes: 1
+  no_parallel: false
+  new: true
+  llm_model: null
+  manifest_file: null
+
+analysis_args:
+  no_recompute: false
+  movement_only: false
+  include_movement: false
+  output_folder: null
+  llm_model: null
+  manifest_file: null
+  quiet: false
+
+
+profiles:
+
+  smoke_test:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: [baseline]
+      runs: 5
+      max_steps: 200
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 1
+      llm_url: "http://localhost:8083/v1/chat/completions"
+      llm_api_key: ""
+      processes: 1
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: true
+
+  production:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: []
+      runs: 100
+      max_steps: 1000
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 10
+      llm_url: "http://localhost:8083/v1/chat/completions"
+      llm_api_key: ""
+      processes: 1
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: false
