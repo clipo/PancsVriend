@@ -17,28 +17,36 @@ Run production simulations with both locally-available GGUF models, sequentially
 
 Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
 
-### Current Status (last updated 2026-06-08 15:35 EDT)
+### Current Status (last updated 2026-06-11 14:50 EDT)
 
-**Model 1 (`llama-3.3-70b-instruct-q4`): IN PROGRESS**
+**Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
 
 | Scenario | Status | Notes |
 |----------|--------|-------|
 | baseline | ✅ Complete | 100/100 runs |
 | race_white_black | ✅ Complete | 100/100 runs |
-| ethnic_asian_hispanic | ✅ Complete | 100/100 runs, finished ~13:43 Jun 8 |
-| income_high_low | 🔄 In progress | 7/100 runs as of 15:25 Jun 8, ~886s/run |
-| political_liberal_conservative | ⏳ Pending | — |
+| ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
+| income_high_low | ✅ Complete | 100/100 runs |
+| political_liberal_conservative | ✅ Complete | 100/100 runs |
+| green_yellow | ✅ Complete | 100/100 runs |
 
-- Server screen: `llama_server` (PID 2007439, detached) — restarted at 15:22 Jun 8 after crash
-- Run screen: `llama_run` (PID 107775, detached)
-- Transition screen: `transition` (PID 2008642, detached) — **automated, see below**
-- Log: `logs/run_llama-3.3-70b-instruct-q4.log`
-- Estimated completion of income_high_low: ~2026-06-09 14:24 EDT (~93 runs × 886s ≈ 23h)
-- Estimated completion of political_liberal_conservative: ~2026-06-10 15:00 EDT (~24.6h after income_high_low)
+Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/`
 
-**Note (2026-06-08 15:22):** llama_server crashed (cause unclear). Restarted manually; run survived with retries (121/300 used).
+**Model 2 (`gemma-4-31b-it-q5`): 🔄 SMOKE TEST IN PROGRESS**
 
-**Model 2 (`gemma-4-31b-it-q5`): NOT STARTED — transition is automated**
+Automated transition fired 2026-06-11 14:03 EDT. Gemma server started on port 8080.
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Llama server shutdown | ✅ Done | — |
+| Config swap (server + run yaml) | ✅ Done | — |
+| Gemma server start | ✅ Done | `llama_server` screen |
+| Smoke test (5 runs × 200 steps, baseline) | 🔄 4/5 runs | ~790–900s/run |
+| Production launch | ⏳ Pending | auto-starts when smoke test passes |
+
+- Server screen: `llama_server` (started 14:03 Jun 11)
+- Transition screen: `transition` (PID 2008642) — running smoke test, will launch production
+- Log: `logs/run_gemma-4-31b-it-q5.log` (after production starts)
 
 ### Automated transition (`transition_to_gemma.sh`)
 
