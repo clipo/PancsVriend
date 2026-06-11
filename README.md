@@ -6,6 +6,132 @@ A groundbreaking research framework that uncovers how Large Language Models (LLM
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://img.shields.io/badge/DOI-pending-orange.svg)](https://github.com/clipo/PancsVriend)
 
+## Current Task
+
+Run production simulations with both locally-available GGUF models, sequentially.
+
+| # | Model label | GGUF path | Quant |
+|---|-------------|-----------|-------|
+| 1 | `llama-3.3-70b-instruct-q4` | `llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf` | Q4_K_M |
+| 2 | `gemma-4-31b-it-q5` | `llms/gemma-4-31B-it-Q5_K_M.gguf` | Q5_K_M |
+
+Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
+
+### Current Status (last updated 2026-06-11 14:50 EDT)
+
+**Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
+
+| Scenario | Status | Notes |
+|----------|--------|-------|
+| baseline | ✅ Complete | 100/100 runs |
+| race_white_black | ✅ Complete | 100/100 runs |
+| ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
+| income_high_low | ✅ Complete | 100/100 runs |
+| political_liberal_conservative | ✅ Complete | 100/100 runs |
+| green_yellow | ✅ Complete | 100/100 runs |
+
+Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/`
+
+**Model 2 (`gemma-4-31b-it-q5`): 🔄 SMOKE TEST IN PROGRESS**
+
+Automated transition fired 2026-06-11 14:03 EDT. Gemma server started on port 8080.
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Llama server shutdown | ✅ Done | — |
+| Config swap (server + run yaml) | ✅ Done | — |
+| Gemma server start | ✅ Done | `llama_server` screen |
+| Smoke test (5 runs × 200 steps, baseline) | 🔄 4/5 runs | ~790–900s/run |
+| Production launch | ⏳ Pending | auto-starts when smoke test passes |
+
+- Server screen: `llama_server` (started 14:03 Jun 11)
+- Transition screen: `transition` (PID 2008642) — running smoke test, will launch production
+- Log: `logs/run_gemma-4-31b-it-q5.log` (after production starts)
+
+### Automated transition (`transition_to_gemma.sh`)
+
+A script (`transition_to_gemma.sh`) is running in the `transition` screen and will handle the llama→gemma handoff automatically. It polls `logs/run_llama-3.3-70b-instruct-q4.log` every 5 minutes and when `Pipeline completed.` is detected, it will:
+
+1. Send llama completion email
+2. Kill llama server
+3. Swap `configs/llama_cpp_server.yaml` model path to the gemma GGUF
+4. Swap `configs/llama_cpp_simulation_run.yaml` `llm_model:` label to `gemma-4-31b-it-q5`
+5. Start gemma server in a new `llama_server` screen
+6. Wait for server ready (up to 30 min)
+7. Send gemma start email
+8. Run smoke test
+9. If smoke test passes: launch gemma production in `llama_run` screen → send launch email
+10. If smoke test fails: send error email and exit (manual intervention required)
+
+Monitor the transition: `tail -f logs/transition.log`
+
+### When a new Claude session picks up
+
+1. **Check screens are alive:**
+   ```bash
+   screen -list
+   tail -5 logs/transition.log
+   ```
+
+2. **If `transition` screen is still running:** the automated handoff hasn't fired yet — check `tail -20 logs/run_llama-3.3-70b-instruct-q4.log` for progress and wait.
+
+3. **If `transition` screen is gone and gemma run is live:** check `tail -20 logs/run_gemma-4-31b-it-q5.log` for progress. When gemma completes (`Pipeline completed.` in that log), send completion email:
+   ```bash
+   .venv/bin/python notify.py "Schelling run complete: gemma-4-31b-it-q5" "Production run finished. Results in experiments_with_llama_cpp/."
+   ```
+
+4. **If `transition` screen is gone but gemma run never started** (check `screen -list` for `llama_run` and `logs/transition.log` for errors): manual intervention — re-run from the step that failed.
+
+### Step-by-step (for Claude Code to execute on "go")
+
+**For each model in turn:**
+
+1. **Edit `configs/llama_cpp_server.yaml`** — set the `model:` field to the GGUF's absolute path.
+
+2. **Edit `configs/llama_cpp_simulation_run.yaml`** — set top-level `llm_model:` to the model label (e.g. `llama-3.3-70b-instruct-q4`).
+
+3. **Start the server in a screen session:**
+   ```bash
+   screen -dmS llama_server bash -c "cd /srv/shared/schelling/PancsVriend && .venv/bin/python -m llama_cpp.server --config_file configs/llama_cpp_server.yaml 2>&1 | tee logs/server.log"
+   ```
+
+4. **Wait for the server to be ready** (poll until `http://localhost:8080/v1/models` responds).
+
+5. **Send start email:**
+   ```bash
+   python notify.py "Schelling run started: <model label>" "Production run started: 100 runs x 1000 steps x all scenarios."
+   ```
+
+6. **Run smoke test first:**
+   ```bash
+   .venv/bin/python run_llm_probability_simulation_analysis.py \
+     --config-yaml configs/llama_cpp_simulation_run.yaml \
+     --config-profile smoke_test
+   ```
+   If smoke test fails, stop and report. Do not proceed to production.
+
+7. **Run production in a screen session:**
+   ```bash
+   screen -dmS llama_run bash -c "cd /srv/shared/schelling/PancsVriend && .venv/bin/python run_llm_probability_simulation_analysis.py --config-yaml configs/llama_cpp_simulation_run.yaml --config-profile production 2>&1 | tee logs/run_<model_label>.log"
+   ```
+
+8. **Wait for completion**, then **send completion email:**
+   ```bash
+   python notify.py "Schelling run complete: <model label>" "Production run finished. Results in experiments_with_llama_cpp/."
+   ```
+
+9. **Kill the server**, then repeat from step 1 for the next model.
+
+### Email Updates
+
+Progress updates sent via `notify.py` (Gmail SMTP from `dr.duus@gmail.com`):
+
+```bash
+python notify.py "Subject" "Body"
+```
+
+Recipients: `dr.duus@gmail.com`, `siyer5@binghamton.edu`
+
 ## 🔬 The Bias Paradox Revealed
 
 Our research uncovers a fundamental paradox in AI systems:
@@ -184,6 +310,102 @@ python launch_dashboard_menu.py
 # Direct progress monitoring
 streamlit run dashboard_with_progress.py
 ```
+
+## 🖥️ Running with a Local GGUF Model (llama.cpp)
+
+Run the full simulation pipeline against a locally-hosted quantized model — no external API required.
+
+### Overview
+
+You serve a GGUF file via `llama-cpp-python`'s built-in OpenAI-compatible HTTP server, then point the simulation at `localhost:8080`. The pipeline skips the token-probability stage and runs simulation + analysis directly. Two scale profiles are available:
+
+| Profile | Runs | Steps | Scenarios |
+|---------|------|-------|-----------|
+| `smoke_test` | 5 | 200 | baseline only |
+| `production` | 100 | 1000 | all scenarios |
+
+Always run `smoke_test` first to confirm end-to-end connectivity before committing to the long production run.
+
+### Step 1 — Install llama-cpp-python server
+
+```bash
+pip install "llama-cpp-python[server]"
+```
+
+For GPU acceleration, install the CUDA build instead — see the
+[llama-cpp-python installation docs](https://github.com/abetlen/llama-cpp-python#installation).
+CPU-only works (slower) and is fine for `smoke_test`.
+
+### Step 2 — Configure and start the server
+
+Edit **one line** in `configs/llama_cpp_server.yaml` — set `model:` to the absolute path of your GGUF file:
+
+```yaml
+models:
+  - model: "/absolute/path/to/your-model.gguf"
+```
+
+Then start the server (leave it running in a separate terminal or under `screen`/`tmux`):
+
+```bash
+python -m llama_cpp.server --config_file configs/llama_cpp_server.yaml
+```
+
+Ready when the terminal prints `Uvicorn running on http://0.0.0.0:8080`.
+
+> **GPU OOM?** Lower `n_gpu_layers` in `configs/llama_cpp_server.yaml` from `-1` to a positive number (e.g. `28`) until the model loads.
+
+### Step 3 — Label the run
+
+In `configs/llama_cpp_simulation_run.yaml`, set `llm_model:` to a short label for the GGUF you loaded (e.g. `gemma-3-4b-it-q4`). This names the output folders — nothing else needs editing.
+
+### Step 4 — Run the pipeline
+
+```bash
+# Validate setup first (fast — ~5 runs × 200 steps)
+python run_llm_probability_simulation_analysis.py \
+  --config-yaml configs/llama_cpp_simulation_run.yaml \
+  --config-profile smoke_test
+
+# Full production run (slow — run under screen/tmux)
+screen -S schelling
+python run_llm_probability_simulation_analysis.py \
+  --config-yaml configs/llama_cpp_simulation_run.yaml \
+  --config-profile production
+```
+
+### Output
+
+Results land in a timestamped directory under `experiments_with_llama_cpp/`:
+
+```
+experiments_with_llama_cpp/run_<ts>_<model>/
+├── run_config_effective.yaml
+├── experiments/llm_<scenario>_<ts>/
+│   ├── metrics_history.csv        # one row per (run, step)
+│   ├── convergence_summary.csv
+│   └── move_logs/  states/
+├── analysis/                      # ANOVA, rankings, combined metrics
+└── plots/                         # segregation plots (PNG)
+```
+
+Monitor a running job:
+
+```bash
+wc -l experiments_with_llama_cpp/run_*/experiments/*/metrics_history.csv
+tail -f experiments_with_llama_cpp/run_*/experiments/*/convergence_summary.csv
+nvidia-smi -l 5    # GPU utilization
+```
+
+### Throughput note
+
+The llama.cpp server is single-stream (one request at a time). `processes` is pinned to `1` in both profiles — raising it only queues requests. For faster production runs, start several server instances on different ports behind a round-robin proxy, point `llm_url` at the proxy, and raise `processes` accordingly.
+
+### Full guide
+
+See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for troubleshooting and additional notes.
+
+---
 
 ## 📊 Key Features
 

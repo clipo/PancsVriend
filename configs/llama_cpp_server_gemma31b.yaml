@@ -1,0 +1,11 @@
+# llama.cpp server config — Gemma 4 31B Q5_K_M, port 8081
+host: "0.0.0.0"
+port: 8081
+
+models:
+  - model: "/srv/shared/schelling/PancsVriend/llms/gemma-4-31B-it-Q5_K_M.gguf"
+    model_alias: "gemma-4-31b-q5"
+    n_gpu_layers: -1
+    flash_attn: true
+    n_ctx: 2048
+    n_batch: 512
