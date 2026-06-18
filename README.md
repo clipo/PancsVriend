@@ -17,7 +17,7 @@ Run production simulations with both locally-available GGUF models, sequentially
 
 Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
 
-### Current Status (last updated 2026-06-11 15:35 EDT)
+### Current Status (last updated 2026-06-18 13:35 EDT)
 
 **Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
 
@@ -34,17 +34,27 @@ Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instru
 
 **Model 2 (`gemma-4-31b-it-q5`): 🔄 PRODUCTION IN PROGRESS**
 
-Smoke test PASSED 15:10 EDT Jun 11. Production launched automatically.
+Smoke test PASSED 15:10 EDT Jun 11. Production running since then.
 
-| Step | Status | Notes |
-|------|--------|-------|
-| Smoke test (5 runs × 200 steps) | ✅ PASSED | 15:10 EDT Jun 11 |
-| Production (100 runs × 1000 steps × all scenarios) | 🔄 ~2/100 runs | ~730s/run, ETA ~Jun 12 11:00 EDT |
+| Scenario | Status | Notes |
+|----------|--------|-------|
+| baseline | ✅ Complete | 100/100 runs |
+| race_white_black | ✅ Complete | 100/100 runs |
+| ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
+| income_high_low | 🔄 In progress | 23/100 runs (run 22, step ~408 as of 13:31 Jun 18) |
+| political_liberal_conservative | ⏳ Pending | — |
+| green_yellow | ⏳ Pending | — |
 
+- Note: `income_high_low` runs are not converging early — many run near max steps (~2–8h/run vs ~12 min for converging scenarios)
 - Server screen: `llama_server` (port 8080)
-- Run screen: `llama_run` (started 15:10 EDT Jun 11)
+- Run screen: `llama_run` (PID 3990920)
+- Transition screen: `transition` (PID 3993644) — will auto-start Mixtral when gemma completes
 - Log: `logs/run_gemma-4-31b-it-q5.log`
 - Results: `experiments_with_llama_cpp/run_20260611_151002_gemma-4-31b-it-q5/`
+
+**Model 3 (`mixtral-8x7b-q5`): ⏳ PENDING — auto-starts when gemma completes**
+
+GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). `transition_to_mixtral.sh` running in `transition` screen.
 
 ### Automated transition (`transition_to_gemma.sh`)
 
