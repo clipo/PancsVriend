@@ -1,0 +1,8 @@
+metric,n_groups,f_statistic,p_value,significant_p_lt_0_05,status,error
+clusters,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+switch_rate,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+distance,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+mix_deviation,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+share,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+ghetto_rate,1,,,,skipped,Need at least 2 scenario groups for ANOVA
+dissimilarity_index,1,,,,skipped,Need at least 2 scenario groups for ANOVA
