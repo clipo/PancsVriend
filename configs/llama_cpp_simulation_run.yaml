@@ -135,7 +135,7 @@ profiles:
 
     contexts_args:
       scenarios: []               # empty list = all scenarios
-      runs: 100
+      runs: 20
       max_steps: 1000
       use_log_probs: false
       log_probs_root: null
