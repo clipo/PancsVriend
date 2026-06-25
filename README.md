@@ -8,18 +8,25 @@ A groundbreaking research framework that uncovers how Large Language Models (LLM
 
 ## Current Task
 
-Run production simulations with both locally-available GGUF models, sequentially.
+Run production simulations with locally-available GGUF models, sequentially.
 
 | # | Model label | GGUF path | Quant |
 |---|-------------|-----------|-------|
 | 1 | `llama-3.3-70b-instruct-q4` | `llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf` | Q4_K_M |
 | 2 | `gemma-4-31b-it-q5` | `llms/gemma-4-31B-it-Q5_K_M.gguf` | Q5_K_M |
+| 3 | `mixtral-8x7b-q5` | `llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` | Q5_K_M |
 
-Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
+Model 1: 100 runs × 1000 steps × all scenarios. Models 2+: 20 runs × 100 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
+
+### Production config (as of 2026-06-25)
+
+`configs/llama_cpp_simulation_run.yaml` production profile: `runs: 20`, `max_steps: 100`, `processes: 1`.
+
+Note on `processes: 1`: the llama.cpp server is single-stream — it handles one inference request at a time. Raising `processes` only queues requests at the server with no throughput gain. True parallelism requires N independent server instances (one per GPU) behind a round-robin load balancer, with `processes: N`.
 
 ### Current Status (last updated 2026-06-25 12:24 EDT)
 
-**Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
+**Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE** — 100 runs × 1000 steps
 
 | Scenario | Status | Notes |
 |----------|--------|-------|
@@ -34,18 +41,17 @@ Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instru
 
 **Model 2 (`gemma-4-31b-it-q5`): 🔄 PRODUCTION IN PROGRESS**
 
-Smoke test PASSED 15:10 EDT Jun 11. Production running since then.
+Smoke test PASSED 15:10 EDT Jun 11. Production running since then. Note: `income_high_low` scenario runs to max steps without converging because the LLM economic framing makes low-income agents perpetually mobile (~20% move rate) while high-income agents freeze immediately (~0% move rate) — the dense grid prevents low-income agents from escaping high-income adjacency.
 
 | Scenario | Status | Notes |
 |----------|--------|-------|
 | baseline | ✅ Complete | 100/100 runs |
 | race_white_black | ✅ Complete | 100/100 runs |
 | ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
-| income_high_low | 🔄 In progress | 70/100 runs (run 69, step ~710 as of 12:24 Jun 25) |
-| political_liberal_conservative | ⏳ Pending | — |
-| green_yellow | ⏳ Pending | — |
+| income_high_low | 🔄 In progress | ~70/100 runs as of Jun 25 (running to max steps, no early convergence) |
+| political_liberal_conservative | ⏳ Pending | 20 runs × 100 steps |
+| green_yellow | ⏳ Pending | 20 runs × 100 steps |
 
-- Note: `income_high_low` runs are not converging early — many run near max steps (~2–8h/run vs ~12 min for converging scenarios)
 - Server screen: `llama_server` (port 8080)
 - Run screen: `llama_run` (PID 3990920)
 - Transition screen: `transition` (PID 3993644) — will auto-start Mixtral when gemma completes
@@ -54,7 +60,7 @@ Smoke test PASSED 15:10 EDT Jun 11. Production running since then.
 
 **Model 3 (`mixtral-8x7b-q5`): ⏳ PENDING — auto-starts when gemma completes**
 
-GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). `transition_to_mixtral.sh` running in `transition` screen.
+GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). `transition_to_mixtral.sh` running in `transition` screen. Will run 20 runs × 100 steps × all scenarios.
 
 ### Automated transition (`transition_to_gemma.sh`)
 
