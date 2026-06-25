@@ -17,7 +17,7 @@ Run production simulations with both locally-available GGUF models, sequentially
 
 Each model: 100 runs × 1000 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
 
-### Current Status (last updated 2026-06-18 13:35 EDT)
+### Current Status (last updated 2026-06-25 12:24 EDT)
 
 **Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE**
 
@@ -41,7 +41,7 @@ Smoke test PASSED 15:10 EDT Jun 11. Production running since then.
 | baseline | ✅ Complete | 100/100 runs |
 | race_white_black | ✅ Complete | 100/100 runs |
 | ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
-| income_high_low | 🔄 In progress | 23/100 runs (run 22, step ~408 as of 13:31 Jun 18) |
+| income_high_low | 🔄 In progress | 70/100 runs (run 69, step ~710 as of 12:24 Jun 25) |
 | political_liberal_conservative | ⏳ Pending | — |
 | green_yellow | ⏳ Pending | — |
 
