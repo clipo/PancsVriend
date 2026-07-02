@@ -1,6 +1,8 @@
 # llama.cpp server config — Mixtral 8x7B Instruct v0.1 Q5_K_M, port 8083
-# Model path is resolved at startup by run_mixtral8x7b.sh via find_gguf.sh —
-# do NOT edit the model: line here; edit GGUF_FILENAME in run_mixtral8x7b.sh.
+# NOTE: only used by the LEGACY single-stream `python -m llama_cpp.server`.
+# run_mixtral8x7b.sh now launches the native `llama-server` (continuous batching)
+# and does NOT read this file — set slots/ctx/ngl via the vars at the top of that
+# script; the GGUF path is resolved there via find_gguf.sh.
 host: "0.0.0.0"
 port: 8083
 

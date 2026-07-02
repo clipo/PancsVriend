@@ -35,7 +35,7 @@ contexts_args:
   save_every_steps: 10
   llm_url: "http://localhost:8083/v1/chat/completions"
   llm_api_key: ""
-  processes: null
+  processes: 8                  # native llama-server batches; keep ≈ NP (run_mixtral8x7b.sh)
   no_parallel: false
   new: true
   llm_model: null
@@ -70,7 +70,7 @@ profiles:
       save_every_steps: 1
       llm_url: "http://localhost:8083/v1/chat/completions"
       llm_api_key: ""
-      processes: null
+      processes: 2                # smoke test: a couple concurrent runs is plenty
       no_parallel: false
       new: true
       llm_model: null
@@ -101,7 +101,7 @@ profiles:
       save_every_steps: 10
       llm_url: "http://localhost:8083/v1/chat/completions"
       llm_api_key: ""
-      processes: null
+      processes: 8                # production: match server slots ($NP in run_mixtral8x7b.sh)
       no_parallel: false
       new: true
       llm_model: null

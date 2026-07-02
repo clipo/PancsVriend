@@ -16,9 +16,10 @@
 # Profiles:  smoke_test = 5 runs x 200 steps x baseline (validate setup)
 #            production  = 100 runs x 1000 steps x all scenarios
 #
-# The server is single-stream, so `processes` is pinned to 1 (raising it only
-# queues). Profiles are shallow-merged over the top-level keys, so each profile
-# repeats the full contexts_args / analysis_args blocks.
+# The native llama-server (launched by run_llama70b.sh) runs continuous batching
+# with $NP slots, so `processes` should be ≈ NP (keep them in sync). Profiles are
+# shallow-merged over the top-level keys, so each profile repeats the full
+# contexts_args / analysis_args blocks.
 # =============================================================================
 
 
@@ -59,7 +60,7 @@ contexts_args:
   save_every_steps: 10
   llm_url: "http://localhost:8082/v1/chat/completions"
   llm_api_key: ""
-  processes: 1                  # llama_cpp.server is single-stream — keep at 1
+  processes: 8                  # native llama-server batches; keep ≈ NP (run_llama70b.sh)
   no_parallel: false
   new: true
   llm_model: null
@@ -103,7 +104,7 @@ profiles:
       save_every_steps: 1         # save every step
       llm_url: "http://localhost:8082/v1/chat/completions"
       llm_api_key: ""
-      processes: 1                # single-stream server
+      processes: 2                # smoke test: a couple concurrent runs is plenty
       no_parallel: false
       new: true
       llm_model: null
@@ -143,7 +144,7 @@ profiles:
       save_every_steps: 10
       llm_url: "http://localhost:8082/v1/chat/completions"
       llm_api_key: ""
-      processes: 1                # single-stream server (raise only if balanced)
+      processes: 8                # production: match server slots ($NP in run_llama70b.sh)
       no_parallel: false
       new: true
       llm_model: null

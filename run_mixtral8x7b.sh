@@ -9,44 +9,62 @@ source .venv/bin/activate
 MODEL_LABEL="mixtral-8x7b-q5"
 GGUF_FILENAME="mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf"
 RUN_CFG="configs/llama_cpp_run_mixtral8x7b.yaml"
-SERVER_CFG_TEMPLATE="configs/llama_cpp_server_mixtral8x7b.yaml"
-SERVER_CFG_TMP="/tmp/llama_server_mixtral_$$.yaml"
 LOG="logs/run_mixtral8x7b.log"
 mkdir -p logs
+
+# --- Native llama-server (continuous batching) settings ---------------------
+# We launch llama.cpp's native `llama-server` (NOT `python -m llama_cpp.server`,
+# which is single-stream). `-np` slots share ONE loaded model and serve requests
+# concurrently via continuous batching. Keep run YAML `processes` ≈ $NP.
+# The model path is resolved below via find_gguf.sh; configs/llama_cpp_server_mixtral8x7b.yaml
+# is now only for the legacy python server.
+PORT=8083
+NP=8                                  # server slots = max concurrent requests
+CTX=16384                             # TOTAL context, split across slots (16384/8 = 2048/slot)
+NGL=-1                                # GPU layers (-1 = all; lower if VRAM OOMs)
+LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"   # override via env if not on PATH
 
 notify() {
     python notify.py "$1" "$2" 2>/dev/null || echo "[notify] email failed: $1"
 }
 
 # Resolve GGUF path (project llms/ → ~/llms/)
-GGUF_PATH=$(bash find_gguf.sh "$GGUF_FILENAME") || {
+MODEL_PATH=$(bash find_gguf.sh "$GGUF_FILENAME") || {
     echo "[$(date)] ERROR: $GGUF_FILENAME not found. Download it first:" | tee -a "$LOG"
     echo "  wget -O ~/llms/$GGUF_FILENAME \\" | tee -a "$LOG"
     echo "    https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/$GGUF_FILENAME" | tee -a "$LOG"
     exit 1
 }
-echo "[$(date)] Using GGUF: $GGUF_PATH" | tee -a "$LOG"
+echo "[$(date)] Using GGUF: $MODEL_PATH" | tee -a "$LOG"
 
-# Write temp server config with resolved path
-sed "s|__GGUF_PATH__|$GGUF_PATH|g" "$SERVER_CFG_TEMPLATE" > "$SERVER_CFG_TMP"
-trap "rm -f $SERVER_CFG_TMP" EXIT
+# Pre-flight: the native binary may not ship with the pip llama-cpp-python wheel.
+if ! "$LLAMA_SERVER_BIN" --version 2>&1 | grep -qi version; then
+    echo "[$(date)] ERROR: native llama-server not found at '$LLAMA_SERVER_BIN'." | tee -a "$LOG"
+    notify "$MODEL_LABEL launch FAILED" "Native llama-server binary not found at '$LLAMA_SERVER_BIN'. Install it (prebuilt CUDA release / conda-forge llama.cpp / build from source) or set the LLAMA_SERVER_BIN env var to its path."
+    exit 1
+fi
 
-echo "[$(date)] Starting $MODEL_LABEL server on port 8083..." | tee -a "$LOG"
-python -m llama_cpp.server --config_file "$SERVER_CFG_TMP" >> "logs/server_mixtral8x7b.log" 2>&1 &
+echo "[$(date)] Starting $MODEL_LABEL server (native, -np $NP -c $CTX) on port $PORT..." | tee -a "$LOG"
+"$LLAMA_SERVER_BIN" \
+    -m "$MODEL_PATH" --alias "$MODEL_LABEL" \
+    -ngl "$NGL" -fa on \
+    -np "$NP" -c "$CTX" \
+    --host 127.0.0.1 --port "$PORT" \
+    >> "logs/server_mixtral8x7b.log" 2>&1 &
 SERVER_PID=$!
 echo "[$(date)] Server PID $SERVER_PID" | tee -a "$LOG"
 
 # Wait for server to be ready
-echo "[$(date)] Waiting for server on port 8083..." | tee -a "$LOG"
+echo "[$(date)] Waiting for server on port $PORT..." | tee -a "$LOG"
 for i in $(seq 1 120); do
-    if curl -sf http://localhost:8083/v1/models > /dev/null 2>&1; then
+    if curl -sf "http://localhost:$PORT/v1/models" > /dev/null 2>&1; then
         echo "[$(date)] Server ready." | tee -a "$LOG"
         break
     fi
     sleep 5
     if [ $i -eq 120 ]; then
         echo "[$(date)] Server failed to start after 10 minutes." | tee -a "$LOG"
-        notify "$MODEL_LABEL FAILED to start" "The llama.cpp server on port 8083 did not become ready. Check logs/server_mixtral8x7b.log."
+        notify "$MODEL_LABEL FAILED to start" "The llama.cpp server on port $PORT did not become ready. Check logs/server_mixtral8x7b.log."
         kill $SERVER_PID 2>/dev/null
         exit 1
     fi

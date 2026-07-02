@@ -6,31 +6,54 @@ cd /srv/shared/schelling/PancsVriend
 source .venv/bin/activate
 
 MODEL_LABEL="gemma-4-31b-q5"
-SERVER_CFG="configs/llama_cpp_server_gemma31b.yaml"
 RUN_CFG="configs/llama_cpp_run_gemma31b.yaml"
 LOG="logs/run_gemma31b.log"
 mkdir -p logs
+
+# --- Native llama-server (continuous batching) settings ---------------------
+# We launch llama.cpp's native `llama-server` (NOT `python -m llama_cpp.server`,
+# which is single-stream). `-np` slots share ONE loaded model and serve requests
+# concurrently via continuous batching. Keep run YAML `processes` ≈ $NP.
+# configs/llama_cpp_server_gemma31b.yaml is now only for the legacy python server.
+PORT=8081
+MODEL_PATH="/srv/shared/schelling/PancsVriend/llms/gemma-4-31B-it-Q5_K_M.gguf"
+NP=8                                  # server slots = max concurrent requests
+CTX=16384                             # TOTAL context, split across slots (16384/8 = 2048/slot)
+NGL=-1                                # GPU layers (-1 = all; lower if VRAM OOMs)
+LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"   # override via env if not on PATH
 
 notify() {
     python notify.py "$1" "$2" 2>/dev/null || echo "[notify] email failed: $1"
 }
 
-echo "[$(date)] Starting $MODEL_LABEL server..." | tee -a "$LOG"
-python -m llama_cpp.server --config_file "$SERVER_CFG" >> "logs/server_gemma31b.log" 2>&1 &
+# Pre-flight: the native binary may not ship with the pip llama-cpp-python wheel.
+if ! "$LLAMA_SERVER_BIN" --version 2>&1 | grep -qi version; then
+    echo "[$(date)] ERROR: native llama-server not found at '$LLAMA_SERVER_BIN'." | tee -a "$LOG"
+    notify "$MODEL_LABEL launch FAILED" "Native llama-server binary not found at '$LLAMA_SERVER_BIN'. Install it (prebuilt CUDA release / conda-forge llama.cpp / build from source) or set the LLAMA_SERVER_BIN env var to its path."
+    exit 1
+fi
+
+echo "[$(date)] Starting $MODEL_LABEL server (native, -np $NP -c $CTX) on port $PORT..." | tee -a "$LOG"
+"$LLAMA_SERVER_BIN" \
+    -m "$MODEL_PATH" --alias "$MODEL_LABEL" \
+    -ngl "$NGL" -fa on \
+    -np "$NP" -c "$CTX" \
+    --host 127.0.0.1 --port "$PORT" \
+    >> "logs/server_gemma31b.log" 2>&1 &
 SERVER_PID=$!
 echo "[$(date)] Server PID $SERVER_PID" | tee -a "$LOG"
 
 # Wait for server to be ready
-echo "[$(date)] Waiting for server on port 8081..." | tee -a "$LOG"
+echo "[$(date)] Waiting for server on port $PORT..." | tee -a "$LOG"
 for i in $(seq 1 120); do
-    if curl -sf http://localhost:8081/v1/models > /dev/null 2>&1; then
+    if curl -sf "http://localhost:$PORT/v1/models" > /dev/null 2>&1; then
         echo "[$(date)] Server ready." | tee -a "$LOG"
         break
     fi
     sleep 5
     if [ $i -eq 120 ]; then
         echo "[$(date)] Server failed to start after 10 minutes." | tee -a "$LOG"
-        notify "$MODEL_LABEL FAILED to start" "The llama.cpp server on port 8081 did not become ready within 10 minutes. Check logs/server_gemma31b.log."
+        notify "$MODEL_LABEL FAILED to start" "The llama.cpp server on port $PORT did not become ready within 10 minutes. Check logs/server_gemma31b.log."
         kill $SERVER_PID 2>/dev/null
         exit 1
     fi

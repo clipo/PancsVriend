@@ -1,4 +1,7 @@
-# llama.cpp server config — Llama 3.3 70B Q4_K_M, port 8080
+# llama.cpp server config — Llama 3.3 70B Q4_K_M, port 8082
+# NOTE: only used by the LEGACY single-stream `python -m llama_cpp.server`.
+# run_llama70b.sh now launches the native `llama-server` (continuous batching) and
+# does NOT read this file — set slots/ctx/ngl via the vars at the top of that script.
 host: "0.0.0.0"
 port: 8082
 
