@@ -8,6 +8,10 @@
 #            production  = 100 runs x 1000 steps x all scenarios
 # =============================================================================
 
+# Sampler note: live-sampling params (top_k/top_p/min_p/penalties) are pinned to PURE
+# TEMPERATURE in llm_runner.py (SAMPLER_PARAMS), NOT here and NOT left to server defaults
+# (reproducibility), and they match the probability estimator's pure-temperature softmax.
+# Edit SAMPLER_PARAMS in llm_runner.py to change the sampling regime. Temperature stays below.
 run_root: "experiments_with_llama_cpp"
 run_id: null
 
@@ -33,7 +37,7 @@ contexts_args:
   log_probs_root: null
   temperature: 0.3
   save_every_steps: 10
-  llm_url: "http://localhost:8083/v1/chat/completions"
+  llm_url: "http://localhost:8083/v1/completions"
   llm_api_key: ""
   processes: 8                  # native llama-server batches; keep ≈ NP (run_mixtral8x7b.sh)
   no_parallel: false
@@ -68,7 +72,7 @@ profiles:
       log_probs_root: null
       temperature: 0.3
       save_every_steps: 1
-      llm_url: "http://localhost:8083/v1/chat/completions"
+      llm_url: "http://localhost:8083/v1/completions"
       llm_api_key: ""
       processes: 2                # smoke test: a couple concurrent runs is plenty
       no_parallel: false
@@ -99,7 +103,7 @@ profiles:
       log_probs_root: null
       temperature: 0.3
       save_every_steps: 10
-      llm_url: "http://localhost:8083/v1/chat/completions"
+      llm_url: "http://localhost:8083/v1/completions"
       llm_api_key: ""
       processes: 8                # production: match server slots ($NP in run_mixtral8x7b.sh)
       no_parallel: false

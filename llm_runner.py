@@ -28,6 +28,28 @@ import gzip
 from pathlib import Path
 
 
+# Sampler parameters are pinned EXPLICITLY rather than left to the server's defaults.
+# Two reasons:
+#   1. Reproducibility — "temperature only" silently inherits each backend's own
+#      defaults (llama.cpp native server, llama_cpp.server, Ollama, vLLM all differ
+#      in top_k/top_p/min_p/penalties), so results would depend on the backend.
+#   2. The probability estimator computes a pure-temperature softmax. Pinning the
+#      sampler to pure temperature (all truncation + penalties disabled) makes the
+#      live sampler match that assumption, so the estimator has a well-defined target.
+# Pure temperature: top_k<=0 disables top-k (full vocab), top_p=1.0 / min_p=0.0 disable
+# nucleus / min-p truncation, penalties=1.0/0.0 disable repetition shaping.
+# NOTE: these are pinned here (not yet plumbed through the YAML run configs); to change
+# the sampling regime, edit this dict. Temperature is still supplied per-request.
+SAMPLER_PARAMS = {
+    "top_k": 0,
+    "top_p": 1.0,
+    "min_p": 0.0,
+    "repeat_penalty": 1.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+}
+
+
 def _sanitize_model_for_path_component(name: str) -> str:
     """Return filesystem-safe model slug used by llm_token_probabilities outputs."""
     sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', str(name).strip())
@@ -148,6 +170,28 @@ def load_log_prob_policy(
 
     return policy, summary_path
 
+
+def query_server_slots(llm_url, timeout=5):
+    """Ask a llama.cpp server how many continuous-batching slots it actually has.
+
+    Returns the server's `total_slots` (from GET /props) or None if it can't be
+    determined (non-llama.cpp backend, server down, old build). Used to cap the
+    client Pool so we never launch more concurrent runs than there are slots —
+    the authoritative counterpart to gpu_autoslots.py sizing `-np` server-side.
+    """
+    if not llm_url:
+        return None
+    # /props lives at the server root, not under the /v1/... OpenAI path.
+    base = re.split(r"/v1(?:/|$)", llm_url, maxsplit=1)[0].rstrip("/")
+    try:
+        resp = requests.get(f"{base}/props", timeout=timeout)
+        resp.raise_for_status()
+        slots = resp.json().get("total_slots")
+        return int(slots) if slots else None
+    except Exception:
+        return None
+
+
 def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10, max_retries=5):
     """
     Check if LLM connection is active and working
@@ -171,11 +215,16 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
     print(f"URL: {url}")
     print(f"Model: {model}")
     
+    # Raw completion (NOT chat): the chat template collapses the forced MOVE/STAY
+    # binary to a position-based constant on local models, so we prompt raw and
+    # the estimator does the same. Endpoint is /v1/completions (expects "prompt").
     test_payload = {
         "model": model,
-        "messages": [{"role": "user", "content": "Respond with only the word 'OK' and nothing else."}],
+        "prompt": "Respond with only the word 'OK' and nothing else.",
         "stream": False,
-        "temperature": 0
+        "temperature": 0,
+        "max_tokens": 10,
+        **SAMPLER_PARAMS,
     }
     
     headers = {
@@ -207,7 +256,9 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
                 print(f"Response: {data}")
                 return False
 
-            content = data["choices"][0]["message"]["content"].strip()
+            choice0 = data["choices"][0]
+            content = (choice0.get("text")
+                       or (choice0.get("message") or {}).get("content", "")).strip()
             print(f"✅ LLM connection successful (response time: {elapsed:.2f}s)")
             print(f"Test response: '{content}'")
             return True
@@ -433,13 +484,17 @@ class LLMAgent(Agent):
         
         for attempt in range(max_retries + 1):
             try:
+                # Raw completion (/v1/completions, "prompt"): bypasses the chat
+                # template, which otherwise collapses MOVE/STAY to the last-listed
+                # option regardless of neighborhood. Estimator uses the same raw path.
                 payload = {
                     "model": self.llm_model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "prompt": prompt,
                     "stream": False,
                     "temperature": self.temperature,
                     "max_tokens": 50,    # Limit response length
-                    "timeout": 10000     # 10 second timeout in milliseconds
+                    "timeout": 10000,    # 10 second timeout in milliseconds
+                    **SAMPLER_PARAMS,    # pinned pure-temperature sampler (see module top)
                 }
                 
                 headers = {
@@ -470,7 +525,10 @@ class LLMAgent(Agent):
                 
                 response.raise_for_status()
                 data = response.json()
-                text = data["choices"][0]["message"]["content"]
+                choice0 = data["choices"][0]
+                text = choice0.get("text")
+                if text is None:
+                    text = (choice0.get("message") or {}).get("content", "")
                 if self.store_llm_responses:
                     self.last_llm_response_raw = text
                 
@@ -1272,7 +1330,19 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         print(f"⚠️  Warning: Invalid number of processes ({n_processes}). Using 1 process (sequential).")
         n_processes = 1
         parallel = False
-    
+
+    # Cap client concurrency to the server's actual slot count. gpu_autoslots.py
+    # may have sized the server's `-np` below `processes` to fit VRAM; sending
+    # more concurrent runs than there are slots just queues them. Querying /props
+    # keeps the two authoritatively in sync (fail-open: skip if unavailable).
+    server_slots = query_server_slots(llm_url)
+    if server_slots and n_processes and n_processes > server_slots:
+        print(f"⚠️  Server exposes {server_slots} slot(s) (/props) but {n_processes} processes "
+              f"requested — capping to {server_slots} to match.")
+        n_processes = server_slots
+        if n_processes <= 1:
+            parallel = False
+
     if parallel and n_processes > 1:
         print(f"Running {runs_to_execute} simulations using {n_processes} parallel processes...")
         with Pool(n_processes) as pool:
