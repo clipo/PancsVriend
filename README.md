@@ -20,11 +20,11 @@ Model 1: 100 runs × 1000 steps × all scenarios. Models 2+: 20 runs × 100 step
 
 ### Production config (as of 2026-06-25)
 
-`configs/llama_cpp_simulation_run.yaml` production profile: `runs: 20`, `max_steps: 100`, `processes: 1`.
+`configs/llama_cpp_simulation_run.yaml` production profile: `runs: 20`, `max_steps: 100`, `processes: null`.
 
-Note on `processes: 1`: the llama.cpp server is single-stream — it handles one inference request at a time. Raising `processes` only queues requests at the server with no throughput gain. True parallelism requires N independent server instances (one per GPU) behind a round-robin load balancer, with `processes: N`.
+Note on `processes`: the llama.cpp server is single-stream — it handles one inference request at a time. Raising `processes` only queues requests at the server with no throughput gain. True parallelism requires N independent server instances (one per GPU) behind a round-robin load balancer, with `processes: N`. `processes: null` lets the code choose (defaults to number of runs).
 
-### Current Status (last updated 2026-06-25 12:24 EDT)
+### Current Status (last updated 2026-07-02)
 
 **Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE** — 100 runs × 1000 steps
 
@@ -39,28 +39,24 @@ Note on `processes: 1`: the llama.cpp server is single-stream — it handles one
 
 Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/`
 
-**Model 2 (`gemma-4-31b-it-q5`): 🔄 PRODUCTION IN PROGRESS**
+**Model 2 (`gemma-4-31b-it-q5`): ✅ COMPLETE** — 20 runs × 100 steps
 
-Smoke test PASSED 15:10 EDT Jun 11. Production running since then. Note: `income_high_low` scenario runs to max steps without converging because the LLM economic framing makes low-income agents perpetually mobile (~20% move rate) while high-income agents freeze immediately (~0% move rate) — the dense grid prevents low-income agents from escaping high-income adjacency.
+Two production runs completed:
+- `run_20260611_151002_gemma-4-31b-it-q5`: original run (100 runs × 1000 steps), stopped mid-stream at income_high_low run 69. Note: income_high_low did not converge — LLM economic framing makes low-income agents perpetually mobile (~20% move rate) while high-income agents freeze (~0%), causing endless churn on the dense grid.
+- `run_20260625_165818_gemma-4-31b-it-q5`: full production run (20 runs × 100 steps, all 6 scenarios, Jun 25–29)
 
-| Scenario | Status | Notes |
-|----------|--------|-------|
-| baseline | ✅ Complete | 100/100 runs |
-| race_white_black | ✅ Complete | 100/100 runs |
-| ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
-| income_high_low | 🔄 In progress | ~70/100 runs as of Jun 25 (running to max steps, no early convergence) |
-| political_liberal_conservative | ⏳ Pending | 20 runs × 100 steps |
-| green_yellow | ⏳ Pending | 20 runs × 100 steps |
+| Scenario | Status |
+|----------|--------|
+| baseline | ✅ Complete |
+| race_white_black | ✅ Complete |
+| ethnic_asian_hispanic | ✅ Complete |
+| income_high_low | ✅ Complete |
+| political_liberal_conservative | ✅ Complete |
+| green_yellow | ✅ Complete |
 
-- Server screen: `llama_server` (port 8080)
-- Run screen: `llama_run` (PID 3990920)
-- Transition screen: `transition` (PID 3993644) — will auto-start Mixtral when gemma completes
-- Log: `logs/run_gemma-4-31b-it-q5.log`
-- Results: `experiments_with_llama_cpp/run_20260611_151002_gemma-4-31b-it-q5/`
+**Model 3 (`mixtral-8x7b-q5`): ⏸ STOPPED**
 
-**Model 3 (`mixtral-8x7b-q5`): ⏳ PENDING — auto-starts when gemma completes**
-
-GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). `transition_to_mixtral.sh` running in `transition` screen. Will run 20 runs × 100 steps × all scenarios.
+Run was triggered automatically on Jul 2 but halted before smoke test completed. GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). Config: `configs/llama_cpp_run_mixtral8x7b.yaml` (20 runs × 100 steps × all scenarios). Server runs on port 8083 via `run_mixtral8x7b.sh`.
 
 ### Automated transition (`transition_to_gemma.sh`)
 
