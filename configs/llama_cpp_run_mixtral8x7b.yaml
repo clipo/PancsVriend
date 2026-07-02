@@ -35,7 +35,7 @@ contexts_args:
   save_every_steps: 10
   llm_url: "http://localhost:8083/v1/chat/completions"
   llm_api_key: ""
-  processes: 1
+  processes: null
   no_parallel: false
   new: true
   llm_model: null
@@ -70,7 +70,7 @@ profiles:
       save_every_steps: 1
       llm_url: "http://localhost:8083/v1/chat/completions"
       llm_api_key: ""
-      processes: 1
+      processes: null
       no_parallel: false
       new: true
       llm_model: null
@@ -93,15 +93,15 @@ profiles:
     token_args: {}
     contexts_args:
       scenarios: []
-      runs: 100
-      max_steps: 1000
+      runs: 20
+      max_steps: 100
       use_log_probs: false
       log_probs_root: null
       temperature: 0.3
       save_every_steps: 10
       llm_url: "http://localhost:8083/v1/chat/completions"
       llm_api_key: ""
-      processes: 1
+      processes: null
       no_parallel: false
       new: true
       llm_model: null
