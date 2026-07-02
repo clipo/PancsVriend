@@ -1,8 +1,0 @@
-llm_model,metric,scenario,scenario_label,rank,mean_value,std_value,n_runs,significant_vs_next,p_value_vs_next
-gemma-4-31b-it-q5,dissimilarity_index,llm_baseline,Color (Red/Blue),1,0.305,0.108109,5,,
-gemma-4-31b-it-q5,clusters,llm_baseline,Color (Red/Blue),1,17.8,3.420526,5,,
-gemma-4-31b-it-q5,switch_rate,llm_baseline,Color (Red/Blue),1,0.464276,0.031518,5,,
-gemma-4-31b-it-q5,distance,llm_baseline,Color (Red/Blue),1,1.355,0.101011,5,,
-gemma-4-31b-it-q5,mix_deviation,llm_baseline,Color (Red/Blue),1,0.21447,0.018549,5,,
-gemma-4-31b-it-q5,share,llm_baseline,Color (Red/Blue),1,0.575523,0.041538,5,,
-gemma-4-31b-it-q5,ghetto_rate,llm_baseline,Color (Red/Blue),1,11.2,4.32435,5,,
