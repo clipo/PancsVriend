@@ -1,0 +1,38 @@
+config_yaml: /srv/shared/schelling/PancsVriend/configs/llama_cpp_simulation_run.yaml
+config_profile: production
+run_root: experiments_with_llama_cpp
+run_id: null
+llm_model: gemma-4-31b-it-q5
+token_args: ''
+contexts_args: --runs 20 --max-steps 100 --temperature 0.3 --save-every-steps 10 --llm-url
+  http://localhost:8080/v1/chat/completions --llm-api-key '' --new
+analysis_args: ''
+manifest_file: null
+token_log_probs_root: null
+token_output_root: null
+token_args_token_output_root: null
+skip_token_probs: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+resolved:
+  manifest_path: /srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260625_165818_gemma-4-31b-it-q5/manifest/run_20260625_165818_gemma-4-31b-it-q5_run_manifest.json
+  default_token_output_root: /srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260625_165818_gemma-4-31b-it-q5/log_probs
+  default_token_output_dir: /srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260625_165818_gemma-4-31b-it-q5/log_probs/gemma-4-31b-it-q5
+  token_base_args_list: []
+  contexts_base_args_list:
+  - --runs
+  - '20'
+  - --max-steps
+  - '100'
+  - --temperature
+  - '0.3'
+  - --save-every-steps
+  - '10'
+  - --llm-url
+  - http://localhost:8080/v1/chat/completions
+  - --llm-api-key
+  - ''
+  - --new
+  analysis_base_args_list: []

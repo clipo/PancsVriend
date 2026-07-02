@@ -1,0 +1,20 @@
+LLM model: gemma-4-31b-it-q5
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260625_165819
+- race_white_black: llm_race_white_black_20260626_022110
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260626_103805
+- income_high_low: llm_income_high_low_20260626_173840
+- political_liberal_conservative: llm_political_liberal_conservative_20260628_115804
+- green_yellow: llm_green_yellow_20260629_095021
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260625_165819
+- race_white_black: llm_race_white_black_20260626_022110
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260626_103805
+- income_high_low: llm_income_high_low_20260626_173840
+- political_liberal_conservative: llm_political_liberal_conservative_20260628_115804
+- green_yellow: llm_green_yellow_20260629_095021
+
+Unused experiments (NOT USED):
+- (none)

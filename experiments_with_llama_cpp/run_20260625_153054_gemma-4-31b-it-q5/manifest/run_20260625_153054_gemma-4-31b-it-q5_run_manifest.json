@@ -1,0 +1,66 @@
+{
+  "manifest_version": 1,
+  "created_at": "2026-06-25T16:57:48",
+  "llm_model": "gemma-4-31b-it-q5",
+  "scenarios_requested": [
+    "baseline"
+  ],
+  "effective_args": {
+    "runs": 5,
+    "max_steps": 200,
+    "llm_model": "gemma-4-31b-it-q5",
+    "llm_url": "http://localhost:8080/v1/chat/completions",
+    "llm_api_key": "",
+    "temperature": 0.3,
+    "processes": null,
+    "save_every_steps": 1,
+    "no_parallel": false,
+    "use_log_probs": false,
+    "log_probs_root": null,
+    "new": true,
+    "scenarios": [
+      "baseline"
+    ],
+    "manifest_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260625_153054_gemma-4-31b-it-q5/manifest/run_20260625_153054_gemma-4-31b-it-q5_run_manifest.json",
+    "llm_api_key_last4": "c67a",
+    "parallel": true
+  },
+  "experiments": [
+    {
+      "scenario": "baseline",
+      "status": "success",
+      "output_dir": "experiments/llm_baseline_20260625_153056",
+      "experiment_name": "llm_baseline_20260625_153056",
+      "run_count": 5,
+      "effective_config": {
+        "n_runs": 5,
+        "max_steps": 200,
+        "grid_size": 10,
+        "num_type_a": 40,
+        "num_type_b": 40,
+        "scenario": "baseline",
+        "llm_model": "gemma-4-31b-it-q5",
+        "llm_url": "http://localhost:8080/v1/chat/completions",
+        "temperature": 0.3,
+        "llm_api_key_last4": "c67a",
+        "no_move_threshold": 5,
+        "timestamp": "20260625_153056",
+        "context_info": {
+          "type_a": "red team resident",
+          "type_b": "blue team resident",
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\n{context}\n\nWhere:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community  \n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nBased on this neighborhood, do you want to move to a different position or stay where you are?\n\nIMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.\n\nYour response:"
+        },
+        "parallel_execution": true,
+        "n_processes": null,
+        "cpu_count": 20,
+        "use_log_probs": false,
+        "log_probs_root": null,
+        "log_prob_summary_file": null,
+        "save_every_steps": 1
+      }
+    }
+  ],
+  "selected_experiments": {
+    "baseline": "llm_baseline_20260625_153056"
+  }
+}
