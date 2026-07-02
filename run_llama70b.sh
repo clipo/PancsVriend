@@ -13,13 +13,15 @@ mkdir -p logs
 # --- Native llama-server (continuous batching) settings ---------------------
 # We launch llama.cpp's native `llama-server` (NOT `python -m llama_cpp.server`,
 # which is single-stream). `-np` slots share ONE loaded model and serve requests
-# concurrently via continuous batching. Keep run YAML `processes` ≈ $NP.
+# concurrently via continuous batching. The slot count is NOT hardcoded here:
+# gpu_autoslots.py derives it from the run YAML `processes` and caps it to what
+# fits in VRAM (see the sizing step below). $NP and $CTX are set from its output.
 # configs/llama_cpp_server_llama70b.yaml is now only for the legacy python server.
 PORT=8082
+PROBE_PORT=9082                       # temp port gpu_autoslots.py uses to probe VRAM
 MODEL_PATH="/srv/shared/schelling/PancsVriend/llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf"
-NP=8                                  # server slots = max concurrent requests
-CTX=16384                             # TOTAL context, split across slots (16384/8 = 2048/slot)
 NGL=-1                                # GPU layers (-1 = all; lower if VRAM OOMs)
+CTX_PER_SLOT=2048                     # usable context window each slot gets
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"   # override via env if not on PATH
 
 notify() {
@@ -32,6 +34,15 @@ if ! "$LLAMA_SERVER_BIN" --version 2>&1 | grep -qi version; then
     notify "$MODEL_LABEL launch FAILED" "Native llama-server binary not found at '$LLAMA_SERVER_BIN'. Install it (prebuilt CUDA release / conda-forge llama.cpp / build from source) or set the LLAMA_SERVER_BIN env var to its path."
     exit 1
 fi
+
+# Decide the slot count in ONE place: sync to `processes` in $RUN_CFG, then cap to
+# VRAM by probing real usage. Emits `NP=..; CTX=..` on stdout (diagnostics -> log).
+echo "[$(date)] Sizing slots to VRAM (gpu_autoslots.py) ..." | tee -a "$LOG"
+eval "$(python gpu_autoslots.py \
+    --config "$RUN_CFG" --profile production \
+    --model "$MODEL_PATH" --ngl "$NGL" --ctx-per-slot "$CTX_PER_SLOT" \
+    --llama-server-bin "$LLAMA_SERVER_BIN" --probe-port "$PROBE_PORT" 2>>"$LOG")"
+: "${NP:=1}"; : "${CTX:=$CTX_PER_SLOT}"    # fallback if the helper emitted nothing
 
 echo "[$(date)] Starting $MODEL_LABEL server (native, -np $NP -c $CTX) on port $PORT..." | tee -a "$LOG"
 "$LLAMA_SERVER_BIN" \
