@@ -2,6 +2,9 @@
 # Runner for Llama 3.3 70B Q4_K_M — port 8082
 set -e
 
+: "${GMAIL_APP_PW:?Error: set GMAIL_APP_PW before running this script}"
+export GMAIL_APP_PW
+
 cd /srv/shared/schelling/PancsVriend
 source .venv/bin/activate
 

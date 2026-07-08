@@ -3,6 +3,9 @@
 # GGUF is resolved automatically: checks PancsVriend/llms/ first, then ~/llms/.
 set -e
 
+: "${GMAIL_APP_PW:?Error: set GMAIL_APP_PW before running this script}"
+export GMAIL_APP_PW
+
 cd /srv/shared/schelling/PancsVriend
 source .venv/bin/activate
 
