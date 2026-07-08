@@ -5,12 +5,13 @@ Project notifier for PancsVriend / Schelling LLM runs.
 Usage:
     ./notify.py "Subject" "Body"
 """
+import os
 import smtplib
 import sys
 from email.message import EmailMessage
 
 GMAIL_USER   = "dr.duus@gmail.com"
-GMAIL_APP_PW = "fdyuuyxvgzpvgnbu"
+GMAIL_APP_PW = os.environ["GMAIL_APP_PW"]
 
 RECIPIENTS = [
     "dr.duus@gmail.com",
