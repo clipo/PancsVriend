@@ -23,7 +23,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
     
@@ -48,7 +49,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
 
@@ -73,7 +75,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
 
@@ -98,7 +101,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
 
@@ -123,7 +127,8 @@ Your response:"""
 
 # IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-# Your response:"""
+# Your response:
+#"""
 #     },
 
 
@@ -148,7 +153,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
 
@@ -193,7 +199,8 @@ Your response:"""
 
 # IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-# Your response:"""
+# Your response:
+#"""
 #     },
 
     'green_yellow': {
@@ -216,7 +223,8 @@ Based on this neighborhood, do you want to move to a different position or stay 
 
 IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-Your response:"""
+Your response:
+"""
     },
 
 #     'gender_man_woman': {
@@ -240,6 +248,7 @@ Your response:"""
 
 # IMPORTANT: Respond with ONLY one word: MOVE or STAY. Do not provide any explanation, reasoning, or additional text.
 
-# Your response:"""
+# Your response:
+#"""
 #     },
 }
