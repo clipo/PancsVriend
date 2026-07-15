@@ -177,7 +177,8 @@ def query_server_slots(llm_url, timeout=5):
     Returns the server's `total_slots` (from GET /props) or None if it can't be
     determined (non-llama.cpp backend, server down, old build). Used to cap the
     client Pool so we never launch more concurrent runs than there are slots —
-    the authoritative counterpart to gpu_autoslots.py sizing `-np` server-side.
+    the server's `-np` (set from `processes` by the run_*.sh launcher) is the
+    authoritative slot count, and this keeps the client in sync with it.
     """
     if not llm_url:
         return None
@@ -492,7 +493,15 @@ class LLMAgent(Agent):
                     "prompt": prompt,
                     "stream": False,
                     "temperature": self.temperature,
-                    "max_tokens": 50,    # Limit response length
+                    # The raw endpoint applies no chat template, so nothing emits an EOS
+                    # after the answer: the model runs on past "STAY" into commentary/code
+                    # until max_tokens. Generation dominates cost here (~2 tok/s on a 70B),
+                    # so max_tokens alone is the cost control -- do NOT add "stop": ["\n"].
+                    # A leading newline is a plausible first token on a raw completion, and
+                    # a newline stop would truncate to an empty string and burn a retry.
+                    # "MOVE" = 1 token, "STAY" = 'ST'+'AY' = 2; the slack absorbs leading
+                    # whitespace tokens, and the parser only looks for MOVE/STAY anyway.
+                    "max_tokens": 5,
                     "timeout": 10000,    # 10 second timeout in milliseconds
                     **SAMPLER_PARAMS,    # pinned pure-temperature sampler (see module top)
                 }
@@ -1331,10 +1340,10 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         n_processes = 1
         parallel = False
 
-    # Cap client concurrency to the server's actual slot count. gpu_autoslots.py
-    # may have sized the server's `-np` below `processes` to fit VRAM; sending
-    # more concurrent runs than there are slots just queues them. Querying /props
-    # keeps the two authoritatively in sync (fail-open: skip if unavailable).
+    # Cap client concurrency to the server's actual slot count. The server's `-np`
+    # is set from `processes` by the run_*.sh launcher; if for any reason it is
+    # below `processes`, sending more concurrent runs than there are slots just
+    # queues them. Querying /props keeps the two in sync (fail-open: skip if unavailable).
     server_slots = query_server_slots(llm_url)
     if server_slots and n_processes and n_processes > server_slots:
         print(f"⚠️  Server exposes {server_slots} slot(s) (/props) but {n_processes} processes "
