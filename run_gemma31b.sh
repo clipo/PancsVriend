@@ -16,12 +16,11 @@ mkdir -p logs
 # --- Native llama-server (continuous batching) settings ---------------------
 # We launch llama.cpp's native `llama-server` (NOT `python -m llama_cpp.server`,
 # which is single-stream). `-np` slots share ONE loaded model and serve requests
-# concurrently via continuous batching. The slot count is NOT hardcoded here:
-# gpu_autoslots.py derives it from the run YAML `processes` and caps it to what
-# fits in VRAM (see the sizing step below). $NP and $CTX are set from its output.
+# concurrently via continuous batching. The slot count is NOT hardcoded here: it is
+# `processes` from the run YAML (production profile), read below into $NP/$CTX. Pin
+# that value from a slot_sweep/ throughput benchmark, not a memory-fit guess.
 # configs/llama_cpp_server_gemma31b.yaml is now only for the legacy python server.
 PORT=8081
-PROBE_PORT=9081                       # temp port gpu_autoslots.py uses to probe VRAM
 MODEL_PATH="/srv/shared/schelling/PancsVriend/llms/gemma-4-31B-it-Q5_K_M.gguf"
 NGL=-1                                # GPU layers (-1 = all; lower if VRAM OOMs)
 CTX_PER_SLOT=2048                     # usable context window each slot gets
@@ -38,14 +37,31 @@ if ! "$LLAMA_SERVER_BIN" --version 2>&1 | grep -qi version; then
     exit 1
 fi
 
-# Decide the slot count in ONE place: sync to `processes` in $RUN_CFG, then cap to
-# VRAM by probing real usage. Emits `NP=..; CTX=..` on stdout (diagnostics -> log).
-echo "[$(date)] Sizing slots to VRAM (gpu_autoslots.py) ..." | tee -a "$LOG"
-eval "$(python gpu_autoslots.py \
-    --config "$RUN_CFG" --profile production \
-    --model "$MODEL_PATH" --ngl "$NGL" --ctx-per-slot "$CTX_PER_SLOT" \
-    --llama-server-bin "$LLAMA_SERVER_BIN" --probe-port "$PROBE_PORT" 2>>"$LOG")"
-: "${NP:=1}"; : "${CTX:=$CTX_PER_SLOT}"    # fallback if the helper emitted nothing
+# Slot count comes straight from `processes` in the run YAML (production profile):
+# the server's -np is kept equal to the client concurrency from ONE value. No probe,
+# no auto-cap -- pin the number from a slot_sweep/ throughput benchmark
+# (slot_sweep/sweep_slots.py). llama.cpp -c is the TOTAL context split across slots,
+# so -c = per-slot context * slots.
+NP="$(python - "$RUN_CFG" <<'PY'
+import sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1]))
+def procs(block):
+    ca = (block or {}).get("contexts_args", block) if isinstance(block, dict) else None
+    return ca.get("processes") if isinstance(ca, dict) else None
+p = procs((cfg.get("profiles") or {}).get("production"))
+if p is None:
+    p = procs(cfg)                       # inherit top-level default
+if p is None or str(p).lower() == "auto":
+    sys.exit(1)                          # no explicit integer to launch with
+print(int(p))
+PY
+)"
+if ! [[ "$NP" =~ ^[0-9]+$ ]]; then
+    echo "[$(date)] ERROR: no explicit integer \`processes\` in $RUN_CFG (production profile); pin one from a slot_sweep benchmark." | tee -a "$LOG"
+    exit 1
+fi
+CTX=$(( NP * CTX_PER_SLOT ))
+echo "[$(date)] Slots from $RUN_CFG processes: -np $NP  -c $CTX" | tee -a "$LOG"
 
 echo "[$(date)] Starting $MODEL_LABEL server (native, -np $NP -c $CTX) on port $PORT..." | tee -a "$LOG"
 "$LLAMA_SERVER_BIN" \

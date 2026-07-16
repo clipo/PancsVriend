@@ -66,8 +66,8 @@ profiles:
     token_args: {}
     contexts_args:
       scenarios: [baseline]
-      runs: 5
-      max_steps: 200
+      runs: 2
+      max_steps: 2
       use_log_probs: false
       log_probs_root: null
       temperature: 0.3

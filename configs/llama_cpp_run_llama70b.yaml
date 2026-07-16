@@ -37,7 +37,9 @@ run_id: null                    # auto: run_<timestamp>_<model_slug>
 # REQUIRED (run aborts if null). Does NOT pick the model (the server does) —
 # it only labels the output run dir + analysis files. Set it to identify the
 # GGUF you loaded, e.g. "gemma-3-4b-it-q4".
-llm_model: "llama-3.3-70b-q4" # this will be the label of the model. use either the same name as the model loaded or a custom name of your choice.
+llm_model: "Llama-3.3-70B-Instruct-Q4_K_M" # label for the run dir + analysis files. Keep it identical to the
+                                           # GGUF filename stem (llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf) so the
+                                           # experiment name alone pins the exact model version + quantisation.
 
 manifest_file: null
 token_log_probs_root: null
@@ -64,7 +66,7 @@ contexts_args:
   save_every_steps: 10
   llm_url: "http://localhost:8082/v1/completions"
   llm_api_key: ""
-  processes: 8                  # native llama-server batches; keep ≈ NP (run_llama70b.sh)
+  processes: 4                  # native llama-server batches; keep ≈ NP (run_llama70b.sh)
   no_parallel: false
   new: true
   llm_model: null
@@ -100,15 +102,15 @@ profiles:
 
     contexts_args:
       scenarios: [baseline]       # one scenario only
-      runs: 5
-      max_steps: 200
+      runs: 2                     # smoke = minimal: just prove the pipeline works
+      max_steps: 2
       use_log_probs: false        # CRITICAL: do not load Stage 1 outputs
       log_probs_root: null
       temperature: 0.3
       save_every_steps: 1         # save every step
       llm_url: "http://localhost:8082/v1/completions"
       llm_api_key: ""
-      processes: 2                # smoke test: a couple concurrent runs is plenty
+      processes: 4                # max: llm_runner caps this to the server's /props total_slots (-np)
       no_parallel: false
       new: true
       llm_model: null
@@ -140,15 +142,15 @@ profiles:
 
     contexts_args:
       scenarios: []               # empty list = all scenarios
-      runs: 100
-      max_steps: 1000
+      runs: 20
+      max_steps: 100
       use_log_probs: false
       log_probs_root: null
       temperature: 0.3
       save_every_steps: 10
       llm_url: "http://localhost:8082/v1/completions"
       llm_api_key: ""
-      processes: 8                # production: match server slots ($NP in run_llama70b.sh)
+      processes: 4                # production: match server slots ($NP in run_llama70b.sh)
       no_parallel: false
       new: true
       llm_model: null

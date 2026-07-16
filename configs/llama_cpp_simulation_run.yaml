@@ -95,8 +95,8 @@ profiles:
 
     contexts_args:
       scenarios: [baseline]       # one scenario only
-      runs: 5
-      max_steps: 200
+      runs: 2
+      max_steps: 2
       use_log_probs: false        # CRITICAL: do not load Stage 1 outputs
       log_probs_root: null
       temperature: 0.3
