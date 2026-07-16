@@ -276,6 +276,40 @@ class TestAgentEndToEnd(unittest.TestCase):
         self.assertEqual(cap["payload"]["grammar"], MOVE_STAY_GRAMMAR)
 
 
+class TestRunProgressLine(unittest.TestCase):
+    """format_run_progress emits the structured line watch_progress.sh parses.
+
+    The watcher splits '[run-progress] k=v k=v ...' on whitespace and reads
+    key=value pairs — this test enforces that contract from the Python side.
+    """
+
+    def _parse(self, line):
+        self.assertTrue(line.startswith("[run-progress] "))
+        return dict(kv.split("=", 1) for kv in line.split()[1:])
+
+    def test_basic_fields(self):
+        line = llm_runner.format_run_progress("baseline", 9, 20, 1234.56, 4)
+        kv = self._parse(line)
+        self.assertEqual(kv["scenario"], "baseline")
+        self.assertEqual(kv["done"], "9")
+        self.assertEqual(kv["total"], "20")
+        self.assertEqual(kv["elapsed_s"], "1234.6")
+        self.assertEqual(kv["procs"], "4")
+        self.assertNotIn("overall_done", kv)
+
+    def test_overall_fields_with_campaign_totals(self):
+        line = llm_runner.format_run_progress("race_white_black", 3, 20, 60.0, 4,
+                                              progress_offset=20, progress_total=120)
+        kv = self._parse(line)
+        self.assertEqual(kv["overall_done"], "23")
+        self.assertEqual(kv["overall_total"], "120")
+
+    def test_scenario_names_contain_no_spaces(self):
+        # the k=v whitespace contract requires scenario slugs without spaces
+        for name in CONTEXT_SCENARIOS:
+            self.assertNotIn(" ", name)
+
+
 class TestRunAllContextsThreading(unittest.TestCase):
     """--llm-style / --scenario-file given to run_all_contexts must arrive in
     run_llm_experiment's kwargs; an invalid style must be rejected at argument

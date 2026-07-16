@@ -152,6 +152,23 @@ def apply_scenario_file(scenario_file):
     return path
 
 
+def format_run_progress(scenario, done, total, elapsed_s, n_processes,
+                        progress_offset=0, progress_total=None):
+    """One structured, machine-readable log line per completed run.
+
+    This is part of the experimental record (per-run wall timing) and doubles as
+    the contract consumed by watch_progress.sh, which tails the run log and turns
+    these lines into ntfy pings with avg runtime + ETA. Notification transport
+    deliberately lives OUTSIDE the experiment code so a replication run has zero
+    notification side-effects — see watch_progress.sh / ntfy.sh.
+    """
+    line = (f"[run-progress] scenario={scenario} done={done} total={total} "
+            f"elapsed_s={elapsed_s:.1f} procs={n_processes}")
+    if progress_total:
+        line += f" overall_done={progress_offset + done} overall_total={progress_total}"
+    return line
+
+
 def _sanitize_model_for_path_component(name: str) -> str:
     """Return filesystem-safe model slug used by llm_token_probabilities outputs."""
     sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', str(name).strip())
@@ -1479,11 +1496,17 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             for _res in tqdm(pool.imap(run_single_simulation, args_list),
                              total=runs_to_execute, desc="Running LLM simulations", ncols=80):
                 results.append(_res)
+                print(format_run_progress(scenario, len(results), runs_to_execute,
+                                          time.time() - _run_started_at, n_processes,
+                                          progress_offset, progress_total), flush=True)
     else:
         print(f"Running {runs_to_execute} simulations sequentially...")
         results = []
         for args in tqdm(args_list, desc="Running LLM simulations", ncols=80):
             results.append(run_single_simulation(args))
+            print(format_run_progress(scenario, len(results), runs_to_execute,
+                                      time.time() - _run_started_at, 1,
+                                      progress_offset, progress_total), flush=True)
 
     # Load existing results if resuming
     if resume_experiment and completed_runs > 0:
