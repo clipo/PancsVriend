@@ -127,3 +127,7 @@ assign_runs.txt
 llm_log_probs/**
 llms/**
 llm_utility_approximation/llama_cpp_neighborhood_trials/**
+
+prompt_refinement/results/
+slot_sweep/results/
+experiments_with_llama_cpp/
