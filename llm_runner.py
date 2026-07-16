@@ -49,6 +49,108 @@ SAMPLER_PARAMS = {
     "presence_penalty": 0.0,
 }
 
+# Request styles selectable via --llm-style (CLI) / contexts_args.llm_style (YAML).
+LLM_STYLES = ("completions", "completions+grammar", "chat", "chat+grammar")
+
+# Permissive MOVE/STAY GBNF grammar: optional leading whitespace + any casing of
+# exactly one of the two words, nothing else. Byte-identical to the version
+# validated in prompt_refinement/ (2026-07: 0 bad parses on Llama/Gemma/Qwen;
+# move-rate curves unchanged vs unconstrained sampling). Generation halts at the
+# word boundary, so max_tokens=5 becomes a never-binding safety ceiling.
+MOVE_STAY_GRAMMAR = r"""
+root   ::= ws answer
+ws     ::= [ \t\n]*
+answer ::= move | stay
+move   ::= [Mm] [Oo] [Vv] [Ee]
+stay   ::= [Ss] [Tt] [Aa] [Yy]
+"""
+
+
+def resolve_llm_style(llm_style):
+    """Normalise/validate an llm_style value. None/'' -> None (legacy behaviour)."""
+    if llm_style is None or str(llm_style).strip() == "":
+        return None
+    style = str(llm_style).strip().lower().replace(" ", "+").replace("_", "+")
+    while "++" in style:
+        style = style.replace("++", "+")
+    if style not in LLM_STYLES:
+        raise ValueError(f"Unknown llm_style '{llm_style}'. Valid: {', '.join(LLM_STYLES)}")
+    return style
+
+
+def resolve_llm_request_url(llm_url, llm_style):
+    """Rewrite llm_url's path to the style's endpoint. style None: URL unchanged."""
+    style = resolve_llm_style(llm_style)
+    if style is None:
+        return llm_url
+    base = llm_url.split("/v1/")[0].rstrip("/")
+    endpoint = "chat/completions" if style.startswith("chat") else "completions"
+    return f"{base}/v1/{endpoint}"
+
+
+def build_llm_request(llm_url, llm_style, llm_model, prompt, temperature, max_tokens=5):
+    """Return (request_url, payload) for the given style.
+
+    completions[+grammar]  raw /v1/completions "prompt" payload (no chat template)
+    chat[+grammar]         /v1/chat/completions single-user-turn "messages" payload
+    +grammar variants add the MOVE/STAY GBNF grammar (llama.cpp).
+    style=None keeps legacy behaviour: raw payload against the unmodified llm_url,
+    switching to a chat payload only if that URL already targets /chat/completions.
+    """
+    style = resolve_llm_style(llm_style)
+    url = resolve_llm_request_url(llm_url, style)
+    payload = {
+        "model": llm_model,
+        "stream": False,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "timeout": 10000,    # 10 second timeout in milliseconds
+        **SAMPLER_PARAMS,    # pinned pure-temperature sampler (see module top)
+    }
+    is_chat = (style or "").startswith("chat") or "/chat/completions" in url
+    if is_chat:
+        payload["messages"] = [{"role": "user", "content": prompt}]
+    else:
+        payload["prompt"] = prompt
+    if style is not None and style.endswith("+grammar"):
+        payload["grammar"] = MOVE_STAY_GRAMMAR
+    return url, payload
+
+
+def apply_scenario_file(scenario_file):
+    """Load CONTEXT_SCENARIOS from a python module path and swap them in, IN PLACE.
+
+    In-place mutation is the point: every module that did `from context_scenarios
+    import CONTEXT_SCENARIOS` shares this dict object, so clear()+update() re-points
+    them all (validation in run_all_contexts included) at the file's scenarios.
+    Workers re-apply this (see run_single_simulation), so it is fork/spawn safe.
+    """
+    import importlib.util
+    path = str(scenario_file)
+    # A bare/relative path must survive callers that chdir (the YAML pipeline runs
+    # run_all_contexts with cwd=<run_dir>): fall back to resolving it against the
+    # repo root (this file's directory) before giving up.
+    if not os.path.isabs(path) and not os.path.exists(path):
+        candidate = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+        if os.path.exists(candidate):
+            path = candidate
+    path = os.path.abspath(path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"scenario file not found: {path}")
+    spec = importlib.util.spec_from_file_location("_scenario_file_module", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    loaded = getattr(module, "CONTEXT_SCENARIOS", None)
+    if not isinstance(loaded, dict) or not loaded:
+        raise ValueError(f"{path} must define a non-empty CONTEXT_SCENARIOS dict")
+    for name, entry in loaded.items():
+        for field in ("type_a", "type_b", "prompt_template"):
+            if field not in entry:
+                raise ValueError(f"scenario '{name}' in {path} is missing '{field}'")
+    CONTEXT_SCENARIOS.clear()
+    CONTEXT_SCENARIOS.update(loaded)
+    return path
+
 
 def _sanitize_model_for_path_component(name: str) -> str:
     """Return filesystem-safe model slug used by llm_token_probabilities outputs."""
@@ -297,7 +399,7 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
                  run_id=None, step=None, use_log_prob_policy=False, log_prob_policy=None,
-                 log_prob_summary_path=None, temperature=None):
+                 log_prob_summary_path=None, temperature=None, llm_style=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -306,6 +408,8 @@ class LLMAgent(Agent):
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        self.llm_style = resolve_llm_style(llm_style)
+        self.llm_request_url = resolve_llm_request_url(self.llm_url, self.llm_style)
         if temperature is None:
             raise ValueError("temperature must be provided to LLMAgent")
         self.temperature = float(temperature)
@@ -485,26 +589,20 @@ class LLMAgent(Agent):
         
         for attempt in range(max_retries + 1):
             try:
-                # Raw completion (/v1/completions, "prompt"): bypasses the chat
-                # template, which otherwise collapses MOVE/STAY to the last-listed
-                # option regardless of neighborhood. Estimator uses the same raw path.
-                payload = {
-                    "model": self.llm_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "temperature": self.temperature,
-                    # The raw endpoint applies no chat template, so nothing emits an EOS
-                    # after the answer: the model runs on past "STAY" into commentary/code
-                    # until max_tokens. Generation dominates cost here (~2 tok/s on a 70B),
-                    # so max_tokens alone is the cost control -- do NOT add "stop": ["\n"].
-                    # A leading newline is a plausible first token on a raw completion, and
-                    # a newline stop would truncate to an empty string and burn a retry.
-                    # "MOVE" = 1 token, "STAY" = 'ST'+'AY' = 2; the slack absorbs leading
-                    # whitespace tokens, and the parser only looks for MOVE/STAY anyway.
-                    "max_tokens": 5,
-                    "timeout": 10000,    # 10 second timeout in milliseconds
-                    **SAMPLER_PARAMS,    # pinned pure-temperature sampler (see module top)
-                }
+                # Endpoint + payload follow llm_style (build_llm_request):
+                #   completions[+grammar]  raw /v1/completions "prompt" payload -- no chat
+                #       template, nothing emits EOS, so max_tokens=5 caps run-on (do NOT
+                #       add a "\n" stop: a leading newline is a plausible first token and
+                #       would truncate to an empty string and burn a retry).
+                #   chat[+grammar]         /v1/chat/completions messages payload -- the
+                #       server applies the model's chat template.
+                # +grammar constrains output to (whitespace + MOVE/STAY in any casing):
+                # zero unparseable replies and generation halts at the word boundary.
+                # style=None preserves the legacy raw behaviour against llm_url as given.
+                request_url, payload = build_llm_request(
+                    self.llm_request_url, self.llm_style, self.llm_model,
+                    prompt, self.temperature,
+                )
                 
                 headers = {
                     "Authorization": f"Bearer {self.llm_api_key}",
@@ -513,13 +611,13 @@ class LLMAgent(Agent):
                 
                 if debug:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"[{timestamp}] [DEBUG] Sending LLM request to: {self.llm_url}")
+                    print(f"[{timestamp}] [DEBUG] Sending LLM request to: {request_url} (style={self.llm_style or 'legacy'})")
                     print(f"[DEBUG] Model: {self.llm_model}")
                     print(f"[DEBUG] Context grid:\n{context_str}")
                 
                 # Track timing and calls
                 start_time = time.time()
-                response = requests.post(self.llm_url, headers=headers, json=payload, timeout=20)
+                response = requests.post(request_url, headers=headers, json=payload, timeout=20)
                 response_time = time.time() - start_time
                 
                 # Update agent's LLM metrics
@@ -642,12 +740,13 @@ class LLMSimulation(Simulation):
     def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
                  initial_int_grid=None, initial_step=None, initial_no_move_steps=None,
                  use_log_prob_policy=False, log_prob_policy=None, log_prob_summary_path=None,
-                 temperature=None):
+                 temperature=None, llm_style=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
         self.llm_url = llm_url or cfg.OLLAMA_URL
         self.llm_api_key = llm_api_key or cfg.OLLAMA_API_KEY
+        self.llm_style = resolve_llm_style(llm_style)
         if temperature is None:
             raise ValueError("temperature must be provided to LLMSimulation")
         self.temperature = float(temperature)
@@ -684,6 +783,7 @@ class LLMSimulation(Simulation):
             log_prob_policy=self.log_prob_policy,
             log_prob_summary_path=self.log_prob_summary_path,
             temperature=self.temperature,
+            llm_style=self.llm_style,
         )
 
     def run_step(self, verbose_move_log: bool = False):
@@ -771,6 +871,12 @@ def run_single_simulation(args):
     temperature = args[14]
     if temperature is None:
         raise ValueError("temperature argument missing in run_single_simulation worker args")
+    llm_style = args[15] if len(args) >= 16 else None
+    scenario_file = args[16] if len(args) >= 17 else None
+    if scenario_file:
+        # Re-apply in the worker: idempotent, and required under spawn start methods
+        # (under fork the parent's apply already covers it).
+        apply_scenario_file(scenario_file)
 
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
                         initial_int_grid=initial_int_grid, initial_step=initial_step,
@@ -778,7 +884,7 @@ def run_single_simulation(args):
                         use_log_prob_policy=use_log_prob_policy,
                         log_prob_policy=log_prob_policy,
                         log_prob_summary_path=log_prob_summary_path,
-                        temperature=temperature)
+                        temperature=temperature, llm_style=llm_style)
     result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps, save_every_steps=save_every_steps)
     
     # Add LLM-specific metrics to the result
@@ -961,7 +1067,9 @@ def check_existing_experiment(experiment_name):
 
 def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None,
                        parallel=True, n_processes=None, resume_experiment=None,
-                       use_log_probs=None, log_probs_root=None, save_every_steps=None, temperature=None):
+                       use_log_probs=None, log_probs_root=None, save_every_steps=None, temperature=None,
+                       llm_style=None, scenario_file=None,
+                       progress_offset=0, progress_total=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
@@ -1004,6 +1112,13 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         (output_dir, results) where results contains simulation outcomes
     """
     
+    llm_style = resolve_llm_style(llm_style)   # fail fast on typos
+    resolved_scenario_file = None
+    if scenario_file:
+        # keep the RESOLVED path: callers may pass a bare name and run from a
+        # different cwd, so abspath() here would record a file that isn't there.
+        resolved_scenario_file = apply_scenario_file(scenario_file)
+
     # Handle experiment resumption
     if resume_experiment:
         print(f"Checking for existing experiment: {resume_experiment}")
@@ -1289,6 +1404,8 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             log_prob_summary_path,
             save_every_steps,
             temperature,
+            llm_style,
+            scenario_file,
         )
         for rid, seed_grid, next_step, no_move_streak in pending_run_specs
     ]
@@ -1296,6 +1413,8 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
     # Create or update config (for new experiments only)
     if not resume_experiment:
         config_dict = {
+            'llm_style': llm_style,
+            'scenario_file': resolved_scenario_file,
             'n_runs': n_runs,
             'max_steps': max_steps,
             'grid_size': cfg.GRID_SIZE,
@@ -1352,15 +1471,14 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         if n_processes <= 1:
             parallel = False
 
+    _run_started_at = time.time()
     if parallel and n_processes > 1:
         print(f"Running {runs_to_execute} simulations using {n_processes} parallel processes...")
+        results = []
         with Pool(n_processes) as pool:
-            results = list(tqdm(
-                pool.imap(run_single_simulation, args_list),
-                total=runs_to_execute,
-                desc="Running LLM simulations",
-                ncols=80,
-            ))
+            for _res in tqdm(pool.imap(run_single_simulation, args_list),
+                             total=runs_to_execute, desc="Running LLM simulations", ncols=80):
+                results.append(_res)
     else:
         print(f"Running {runs_to_execute} simulations sequentially...")
         results = []
@@ -1474,6 +1592,20 @@ if __name__ == "__main__":
         default=None,
         help='Persist states/move logs every N steps (default: 1). Keeps all detail; only write frequency changes.',
     )
+    parser.add_argument(
+        '--llm-style',
+        type=str,
+        default=None,
+        choices=list(LLM_STYLES),
+        help='Request style: completions / completions+grammar / chat / chat+grammar '
+             '(default: legacy raw behaviour against --llm-url as given)',
+    )
+    parser.add_argument(
+        '--scenario-file',
+        type=str,
+        default=None,
+        help='Python module defining CONTEXT_SCENARIOS; replaces context_scenarios.py definitions',
+    )
     args = parser.parse_args()
 
     # Handle listing experiments
@@ -1508,5 +1640,7 @@ if __name__ == "__main__":
         resume_experiment=args.resume,
         use_log_probs=args.use_log_probs,
         log_probs_root=args.log_probs_root,
+        llm_style=args.llm_style,
+        scenario_file=args.scenario_file,
         save_every_steps=args.save_every_steps,
     )

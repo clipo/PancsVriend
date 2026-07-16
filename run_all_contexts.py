@@ -294,6 +294,20 @@ def main() -> None:
 		help="Subset of scenarios to run; defaults to all",
 	)
 	parser.add_argument(
+		"--llm-style",
+		type=str,
+		default=None,
+		help="Request style: completions / completions+grammar / chat / chat+grammar "
+		"(default: legacy raw behaviour against --llm-url as given)",
+	)
+	parser.add_argument(
+		"--scenario-file",
+		type=str,
+		default=None,
+		help="Python module defining CONTEXT_SCENARIOS; replaces context_scenarios.py "
+		"definitions for validation, defaults and prompts",
+	)
+	parser.add_argument(
 		"--manifest-file",
 		type=str,
 		default=None,
@@ -301,6 +315,21 @@ def main() -> None:
 	)
 
 	args = parser.parse_args()
+
+	from llm_runner import apply_scenario_file, resolve_llm_style
+	try:
+		resolve_llm_style(args.llm_style)
+	except ValueError as exc:
+		parser.error(str(exc))
+	if args.scenario_file:
+		# In-place swap of the shared CONTEXT_SCENARIOS dict: validation below and
+		# the default all-scenarios list now reflect the file's scenarios only.
+		try:
+			apply_scenario_file(args.scenario_file)
+		except (OSError, ValueError) as exc:
+			parser.error(f"--scenario-file: {exc}")
+		print(f"Scenario definitions loaded from {args.scenario_file}: "
+			f"{', '.join(CONTEXT_SCENARIOS.keys())}")
 
 	try:
 		scenarios = _validate_scenarios(args.scenarios)
@@ -317,7 +346,7 @@ def main() -> None:
 
 	summary: List[Tuple[str, Optional[str], int]] = []
 
-	for scenario in scenarios:
+	for scenario_index, scenario in enumerate(scenarios):
 		print("=" * 80)
 		print(f"Scenario: {scenario}")
 
@@ -348,6 +377,10 @@ def main() -> None:
 			use_log_probs=args.use_log_probs,
 			log_probs_root=args.log_probs_root,
 			save_every_steps=args.save_every_steps,
+			llm_style=args.llm_style,
+			scenario_file=args.scenario_file,
+			progress_offset=scenario_index * (args.runs or 0),
+			progress_total=(len(scenarios) * args.runs) if args.runs else None,
 		)
 
 		run_count = len(results) if results is not None else 0
