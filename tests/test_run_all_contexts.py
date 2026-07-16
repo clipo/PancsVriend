@@ -42,7 +42,7 @@ def test_find_resume_candidate_detects_incomplete(tmp_path, monkeypatch):
     monkeypatch.setattr(rac, "check_existing_experiment", fake_check)
     monkeypatch.setattr(rac, "_analyze_run_status", fake_status)
 
-    found_name, complete = rac._find_resume_candidate("baseline", "phi4:latest")
+    found_name, complete = rac._find_resume_candidate("baseline", "phi4:latest", 0.3)
     assert found_name == "exp_one"
     assert not complete
 
@@ -69,7 +69,7 @@ def test_find_resume_candidate_returns_complete_when_done(tmp_path, monkeypatch)
     monkeypatch.setattr(rac, "check_existing_experiment", fake_check)
     monkeypatch.setattr(rac, "_analyze_run_status", fake_status)
 
-    found_name, complete = rac._find_resume_candidate("baseline", "phi4:latest")
+    found_name, complete = rac._find_resume_candidate("baseline", "phi4:latest", 0.3)
     assert found_name == "exp_two"
     assert complete
 
@@ -78,7 +78,7 @@ def test_main_invokes_run_llm_experiment(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     scenarios_seen = []
 
-    def fake_find(scenario, llm_model, target_runs):
+    def fake_find(scenario, llm_model, temperature, target_runs=None):
         if scenario == "baseline":
             return "resume-exp", False
         return None, False

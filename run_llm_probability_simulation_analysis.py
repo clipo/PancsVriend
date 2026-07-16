@@ -154,6 +154,43 @@ def _contains_cli_flag(argv: list[str], flag: str) -> bool:
     return False
 
 
+def _extract_flag_value(argv: list[str], flag: str) -> str | None:
+    """Return the value passed for `flag` in a shlex-split arg list.
+
+    Supports both `--flag value` and `--flag=value`. Returns None if absent.
+    """
+    prefix = f"{flag}="
+    for i, token in enumerate(argv):
+        if token == flag:
+            return argv[i + 1] if i + 1 < len(argv) else None
+        if token.startswith(prefix):
+            return token[len(prefix):]
+    return None
+
+
+def _freeze_scenario_file(contexts_base_args: list[str], run_dir: str | Path) -> Path | None:
+    """Copy the run's --scenario-file into run_dir for self-contained provenance.
+
+    The repo copy of scenarios_*.py is mutable and (currently) untracked, so a later
+    edit would silently change the prompts a resumed run sends vs. the runs already on
+    disk. A frozen copy makes that class of drift impossible and also matches the
+    scenario_file path config.json records at the run-dir level. Returns the frozen
+    path, or None if no --scenario-file was passed. Prints a warning (and returns
+    None) if the argument resolves to a missing file.
+    """
+    scenario_file_arg = _extract_flag_value(contexts_base_args, "--scenario-file")
+    if not scenario_file_arg:
+        return None
+    resolved = _resolve_cli_path(scenario_file_arg)
+    if not os.path.exists(resolved):
+        print(f"WARNING: --scenario-file '{scenario_file_arg}' resolved to "
+              f"'{resolved}' which does not exist; not frozen.")
+        return None
+    frozen = Path(run_dir) / Path(resolved).name
+    shutil.copy2(resolved, frozen)
+    return frozen
+
+
 def _passthrough_map_to_cli_args(arg_map: dict[str, Any]) -> list[str]:
     cli_args: list[str] = []
     for key, value in arg_map.items():
@@ -496,6 +533,8 @@ def main() -> None:
         if source_config_path:
             copied_source_config = Path(run_layout["run_dir"]) / "run_config_source.yaml"
             shutil.copy2(source_config_path, copied_source_config)
+
+        _freeze_scenario_file(contexts_base_args, run_layout["run_dir"])
 
         effective_config_payload = {
             "config_yaml": source_config_path,

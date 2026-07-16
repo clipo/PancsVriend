@@ -25,14 +25,15 @@ def test_check_llm_connection_success(monkeypatch):
     payload_captured = {}
     def fake_post(url, headers, json, timeout):
         payload_captured.update(dict(url=url, headers=headers, json=json, timeout=timeout))
-        data = {"choices":[{"message":{"content":"OK"}}]}
+        data = {"choices":[{"text":"OK"}]}
         return DummyResponse(200, data)
     monkeypatch.setattr(requests, "post", fake_post)
     ok = llm_runner.check_llm_connection("m", "u", "k", timeout=3)
     assert ok is True
     # ensure we invoked requests.post
     assert payload_captured["timeout"] == 3
-    assert payload_captured["json"]["messages"][0]["content"].startswith("Respond")
+    # check_llm_connection sends a raw completion (NOT chat): "prompt", not "messages"
+    assert payload_captured["json"]["prompt"].startswith("Respond")
 
 
 def test_check_llm_connection_http_error(monkeypatch):
@@ -97,7 +98,7 @@ def test_get_context_grid(monkeypatch):
         [None, A(type_id=0), A(type_id=1)],
         [None, None, None]
     ]
-    agent = llm_runner.LLMAgent(0, scenario='baseline')
+    agent = llm_runner.LLMAgent(0, scenario='baseline', temperature=0.3)
     # override context_scenarios so .prompt_template isn't used here
     agent.context_info = CONTEXT_SCENARIOS['baseline']
     s = agent.get_context_grid(1,1, grid)
@@ -120,7 +121,7 @@ def test_get_context_grid_out_of_bounds(monkeypatch):
     monkeypatch.setattr(cfg, "GRID_SIZE", 2)
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline')
+    agent = llm_runner.LLMAgent(0, scenario='baseline', temperature=0.3)
     context_str = agent.get_context_grid(0, 0, grid)  # Corner position
     
     rows = context_str.splitlines()
@@ -131,8 +132,9 @@ def test_get_context_grid_out_of_bounds(monkeypatch):
 
 def test_llm_agent_initialization():
     """Test LLMAgent initialization"""
-    agent = llm_runner.LLMAgent(0, scenario='baseline', llm_model='test-model', 
-                               llm_url='test-url', llm_api_key='test-key', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', llm_model='test-model',
+                               llm_url='test-url', llm_api_key='test-key', run_id=1, step=2,
+                               temperature=0.3)
     
     assert agent.type_id == 0
     assert agent.scenario == 'baseline'
@@ -170,7 +172,7 @@ def test_get_llm_decision_move_response(monkeypatch):
     # Create grid with some empty spaces
     grid = [[None, None, None], [None, None, None], [None, None, None]]
     
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     # Mock random.choice to return predictable position
     import random
@@ -198,7 +200,7 @@ def test_get_llm_decision_stay_response(monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 1.0)
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     result = agent.get_llm_decision(1, 1, grid)
     assert result is None  # STAY should return None
@@ -217,7 +219,7 @@ def test_get_llm_decision_unparseable_response(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda x: None)  # Skip sleep
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
 
     with pytest.raises(Exception) as excinfo:
         agent.get_llm_decision(1, 1, grid, max_retries=2)
@@ -244,7 +246,7 @@ def test_get_llm_decision_timeout_retry(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda x: None)  # Skip sleep
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     result = agent.get_llm_decision(1, 1, grid, max_retries=5)
     assert result is None
@@ -262,7 +264,7 @@ def test_get_llm_decision_max_retries_exceeded(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda x: None)  # Skip sleep
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     with pytest.raises(Exception) as excinfo:
         agent.get_llm_decision(1, 1, grid, max_retries=2)
@@ -273,8 +275,9 @@ def test_get_llm_decision_max_retries_exceeded(monkeypatch):
 def test_llm_simulation_initialization():
     """Test LLMSimulation initialization"""
     # Use a valid scenario from CONTEXT_SCENARIOS instead of 'test'
-    sim = llm_runner.LLMSimulation(run_id=5, scenario='baseline', llm_model='model', 
-                                  llm_url='url', llm_api_key='key', random_seed=42)
+    sim = llm_runner.LLMSimulation(run_id=5, scenario='baseline', llm_model='model',
+                                  llm_url='url', llm_api_key='key', random_seed=42,
+                                  temperature=0.3)
     
     assert sim.run_id == 5
     assert sim.scenario == 'baseline'
@@ -287,7 +290,7 @@ def test_llm_simulation_initialization():
 
 def test_llm_simulation_create_llm_agent():
     """Test _create_llm_agent method"""
-    sim = llm_runner.LLMSimulation(run_id=1, scenario='baseline')
+    sim = llm_runner.LLMSimulation(run_id=1, scenario='baseline', temperature=0.3)
     agent = sim._create_llm_agent(0)
     
     assert isinstance(agent, llm_runner.LLMAgent)
@@ -301,7 +304,8 @@ def test_llm_simulation_initial_no_move_steps(monkeypatch):
     monkeypatch.setattr(cfg, "NUM_TYPE_A", 2)
     monkeypatch.setattr(cfg, "NUM_TYPE_B", 2)
 
-    sim = llm_runner.LLMSimulation(run_id=1, scenario='baseline', initial_no_move_steps=3)
+    sim = llm_runner.LLMSimulation(run_id=1, scenario='baseline', initial_no_move_steps=3,
+                                   temperature=0.3)
 
     assert sim.no_move_steps == 3
 
@@ -326,8 +330,13 @@ def test_run_single_simulation_augment(monkeypatch):
         return {"foo": "bar"}
     monkeypatch.setattr(llm_runner.LLMSimulation, "run_single_simulation", fake_run)
     
-    # Use valid scenario name from CONTEXT_SCENARIOS
-    args = (5, "baseline", "m", "u", "k", "outdir")
+    # Use valid scenario name from CONTEXT_SCENARIOS. Worker args are the full
+    # 15-tuple: (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir,
+    # max_steps, initial_int_grid, initial_step, initial_no_move_steps,
+    # use_log_prob_policy, log_prob_policy, log_prob_summary_path,
+    # save_every_steps, temperature)
+    args = (5, "baseline", "m", "u", "k", "outdir",
+            None, None, None, None, False, None, None, 1, 0.3)
     res = llm_runner.run_single_simulation(args)
     # base result plus added keys
     assert res["foo"] == "bar"
@@ -397,7 +406,7 @@ def test_get_llm_decision_no_empty_spaces(monkeypatch):
     
     # Grid with no empty spaces
     grid = [[DummyAgent(0), DummyAgent(1)], [DummyAgent(0), DummyAgent(1)]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     result = agent.get_llm_decision(0, 0, grid)
     assert result is None  # Should stay when no empty spaces
@@ -421,7 +430,7 @@ def test_get_llm_decision_http_error_retry(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda x: None)  # Skip sleep
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     result = agent.get_llm_decision(1, 1, grid, max_retries=3)
     assert result is None
@@ -443,7 +452,7 @@ def test_get_llm_decision_malformed_json_response(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda x: None)
     
     grid = [[None, None], [None, None]]
-    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2)
+    agent = llm_runner.LLMAgent(0, scenario='baseline', run_id=1, step=2, temperature=0.3)
     
     with pytest.raises(Exception) as excinfo:
         agent.get_llm_decision(1, 1, grid, max_retries=2)
@@ -493,12 +502,12 @@ def test_list_available_experiments_missing_config(tmp_path, monkeypatch):
 def test_llm_agent_type_assignment():
     """Test that agent types are assigned correctly based on type_id"""
     # Test type_id = 0 (should get type_a)
-    agent_0 = llm_runner.LLMAgent(0, scenario='baseline')
+    agent_0 = llm_runner.LLMAgent(0, scenario='baseline', temperature=0.3)
     assert agent_0.agent_type == CONTEXT_SCENARIOS['baseline']['type_a']
     assert agent_0.opposite_type == CONTEXT_SCENARIOS['baseline']['type_b']
     
     # Test type_id = 1 (should get type_b)
-    agent_1 = llm_runner.LLMAgent(1, scenario='baseline')
+    agent_1 = llm_runner.LLMAgent(1, scenario='baseline', temperature=0.3)
     assert agent_1.agent_type == CONTEXT_SCENARIOS['baseline']['type_b']
     assert agent_1.opposite_type == CONTEXT_SCENARIOS['baseline']['type_a']
 
@@ -510,7 +519,7 @@ def test_llm_agent_with_config_defaults(monkeypatch):
     monkeypatch.setattr(cfg, "OLLAMA_URL", "default-url")
     monkeypatch.setattr(cfg, "OLLAMA_API_KEY", "default-key")
     
-    agent = llm_runner.LLMAgent(0, scenario='baseline')
+    agent = llm_runner.LLMAgent(0, scenario='baseline', temperature=0.3)
     
     assert agent.llm_model == "default-model"
     assert agent.llm_url == "default-url"
@@ -529,7 +538,7 @@ def test_context_grid_boundary_conditions(monkeypatch):
             [None, DummyAgent(1), None], 
             [None, None, DummyAgent(0)]]
     
-    agent = llm_runner.LLMAgent(0, scenario='baseline')
+    agent = llm_runner.LLMAgent(0, scenario='baseline', temperature=0.3)
     
     # Test all corner and edge positions
     positions_to_test = [(0, 0), (0, 2), (2, 0), (2, 2), (1, 0), (0, 1)]
@@ -566,6 +575,7 @@ def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
         "llm_model": "gemma3:27b",
         "llm_url": "https://llm.example/api",
         "llm_api_key_last4": "9999",
+        "temperature": 0.7,
         "no_move_threshold": 12,
         "timestamp": "20250101_000000",
         "context_info": CONTEXT_SCENARIOS["ethnic_asian_hispanic"],
@@ -660,6 +670,8 @@ def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
         assert args[2] == config_data["llm_model"]
         assert args[3] == config_data["llm_url"]
         assert args[6] == config_data["max_steps"]
+        # temperature must be resumed from the stored config, not defaulted
+        assert args[14] == config_data["temperature"]
 
     # First arg corresponds to resumed (aborted) run
     resumed_args = captured_args[0]
