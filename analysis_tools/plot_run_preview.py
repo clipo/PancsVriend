@@ -116,24 +116,29 @@ def mean_ci(matrix):
     return mean, hw
 
 
-def plot_metrics(scenario, runs, out_path, title_suffix=""):
-    n_steps = max(len(v[0]) for v in runs.values())
-    series = {k: np.full((len(runs), n_steps), np.nan) for k in METRIC_KEYS}
-    move = np.full((len(runs), n_steps), np.nan)
-    pfail = np.full((len(runs), n_steps), np.nan)
+PANEL_KEYS = METRIC_KEYS + ["move_rate", "parse_fail_rate"]
+SCENARIO_PALETTE = plt.get_cmap("tab10")
 
+
+def compute_series(runs):
+    """runs -> {panel_key: (n_runs, n_steps) matrix} of per-step values."""
+    n_steps = max(len(v[0]) for v in runs.values())
+    series = {k: np.full((len(runs), n_steps), np.nan) for k in PANEL_KEYS}
     for row, (rid, (steps, grids, mrate, pf)) in enumerate(sorted(runs.items())):
         for col, g in enumerate(grids):
             m = calculate_all_metrics(int_grid_to_object_grid(g))
             for k in METRIC_KEYS:
                 series[k][row, col] = m[k]
-        move[row, :len(mrate)] = mrate
-        pfail[row, :len(pf)] = pf
+        series["move_rate"][row, :len(mrate)] = mrate
+        series["parse_fail_rate"][row, :len(pf)] = pf
+    return series
 
-    panels = METRIC_KEYS + ["move_rate", "parse_fail_rate"]
-    data = {**series, "move_rate": move, "parse_fail_rate": pfail}
+
+def plot_metrics(scenario, runs, out_path, title_suffix="", series=None):
+    data = series if series is not None else compute_series(runs)
+    n_steps = next(iter(data.values())).shape[1]
     fig, axes = plt.subplots(2, 4, figsize=(18, 8), sharex=True)
-    for ax, key in zip(axes.flat, panels):
+    for ax, key in zip(axes.flat, PANEL_KEYS):
         mat = data[key]
         for row in range(mat.shape[0]):
             ax.plot(mat[row], color="gray", alpha=0.25, lw=0.7)
@@ -146,6 +151,28 @@ def plot_metrics(scenario, runs, out_path, title_suffix=""):
         ax.grid(alpha=0.3)
     axes.flat[0].legend(fontsize=8)
     fig.suptitle(f"{scenario} — {len(runs)} completed runs{title_suffix}", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=140)
+    plt.close(fig)
+
+
+def plot_comparison(series_by_scenario, run_counts, out_path):
+    """Overlay all scenarios' mean +/- 95% CI in one 8-panel figure."""
+    fig, axes = plt.subplots(2, 4, figsize=(18, 8), sharex=True)
+    for ax, key in zip(axes.flat, PANEL_KEYS):
+        for i, (scenario, data) in enumerate(series_by_scenario.items()):
+            mat = data[key]
+            mean, hw = mean_ci(mat)
+            x = np.arange(mat.shape[1])
+            color = SCENARIO_PALETTE(i % 10)
+            ax.plot(x, mean, color=color, lw=1.8,
+                    label=f"{scenario} (n={run_counts[scenario]})")
+            ax.fill_between(x, mean - hw, mean + hw, color=color, alpha=0.15)
+        ax.set_title(key)
+        ax.set_xlabel("step")
+        ax.grid(alpha=0.3)
+    axes.flat[0].legend(fontsize=8)
+    fig.suptitle("Scenario comparison — mean ± 95% CI per step", fontsize=14)
     fig.tight_layout()
     fig.savefig(out_path, dpi=140)
     plt.close(fig)
@@ -183,17 +210,26 @@ def main():
     if not exp_dirs:
         sys.exit(f"no experiments/llm_* dirs under {args.run_dir}")
 
+    series_by_scenario, run_counts = {}, {}
     for exp_dir in exp_dirs:
         scenario = os.path.basename(exp_dir).replace("llm_", "").rsplit("_", 2)[0]
         runs = collect_experiment(exp_dir)
         if not runs:
             print(f"[skip] {scenario}: no completed runs yet")
             continue
+        series = compute_series(runs)
+        series_by_scenario[scenario] = series
+        run_counts[scenario] = len(runs)
         m_path = os.path.join(out_dir, f"preview_metrics_{scenario}.png")
         g_path = os.path.join(out_dir, f"preview_grids_{scenario}.png")
-        plot_metrics(scenario, runs, m_path)
+        plot_metrics(scenario, runs, m_path, series=series)
         plot_grids(scenario, runs, g_path)
         print(f"[done] {scenario}: {len(runs)} runs -> {m_path}, {g_path}")
+
+    if len(series_by_scenario) >= 2:
+        c_path = os.path.join(out_dir, "preview_metrics_comparison.png")
+        plot_comparison(series_by_scenario, run_counts, c_path)
+        print(f"[done] comparison ({', '.join(series_by_scenario)}) -> {c_path}")
 
 
 if __name__ == "__main__":
