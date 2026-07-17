@@ -39,6 +39,7 @@ from analysis_tools.analyze_agent_movement import (  # noqa: E402
     load_move_log_json,
     load_states_for_run,
 )
+from analysis_tools.experiment_list_for_analysis import SCENARIO_COLORS  # noqa: E402
 
 METRIC_KEYS = ["clusters", "switch_rate", "distance", "mix_deviation", "share", "ghetto_rate"]
 GRID_CMAP = ListedColormap(["#f2f2f2", "#d62728", "#1f77b4"])  # empty, type 0, type 1
@@ -156,6 +157,60 @@ def plot_metrics(scenario, runs, out_path, title_suffix="", series=None):
     plt.close(fig)
 
 
+def _scenario_color(scenario, index):
+    """House color from experiment_list_for_analysis; tab10 fallback."""
+    return (SCENARIO_COLORS.get(scenario)
+            or SCENARIO_COLORS.get(f"llm_{scenario}")
+            or SCENARIO_PALETTE(index % 10))
+
+
+def _final_values(matrix):
+    """Last non-nan per run row -> 1D array of final-step values."""
+    vals = []
+    for row in matrix:
+        ok = row[~np.isnan(row)]
+        if len(ok):
+            vals.append(ok[-1])
+    return np.asarray(vals)
+
+
+def plot_final_boxplots(series_by_scenario, run_counts, out_path):
+    """Final-step value distributions per scenario — violin + box overlay,
+    matching the house style of segregation_metrics_comparison.py."""
+    scenarios = list(series_by_scenario)
+    positions = np.arange(1, len(scenarios) + 1)
+    fig, axes = plt.subplots(2, 4, figsize=(18, 8))
+    for ax, key in zip(axes.flat, PANEL_KEYS):
+        plot_data = [_final_values(series_by_scenario[s][key]) for s in scenarios]
+        parts = ax.violinplot(plot_data, positions=positions,
+                              showmeans=False, showmedians=False, showextrema=False)
+        for i, pc in enumerate(parts["bodies"]):
+            col = _scenario_color(scenarios[i], i)
+            pc.set_facecolor(col); pc.set_edgecolor(col)
+            pc.set_alpha(0.35); pc.set_linewidth(1.0)
+        bp = ax.boxplot(plot_data, positions=positions,
+                        widths=0.18, patch_artist=True, showfliers=False)
+        for i, patch in enumerate(bp["boxes"]):
+            col = _scenario_color(scenarios[i], i)
+            patch.set_facecolor(col); patch.set_edgecolor(col)
+            patch.set_alpha(0.65); patch.set_linewidth(1.0)
+        for med in bp["medians"]:
+            med.set_color("black"); med.set_linewidth(1.2)
+        for wl in bp["whiskers"]:
+            wl.set_color("#777777"); wl.set_linewidth(1.0)
+        for cap in bp["caps"]:
+            cap.set_color("#777777"); cap.set_linewidth(1.0)
+        ax.set_xticks(positions)
+        ax.set_xticklabels([f"{s}\n(n={run_counts[s]})" for s in scenarios],
+                           fontsize=8, rotation=20, ha="right")
+        ax.set_title(key)
+        ax.grid(alpha=0.3, axis="y")
+    fig.suptitle("Final-step metric distributions per scenario", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=140)
+    plt.close(fig)
+
+
 def plot_comparison(series_by_scenario, run_counts, out_path):
     """Overlay all scenarios' mean +/- 95% CI in one 8-panel figure."""
     fig, axes = plt.subplots(2, 4, figsize=(18, 8), sharex=True)
@@ -230,6 +285,9 @@ def main():
         c_path = os.path.join(out_dir, "preview_metrics_comparison.png")
         plot_comparison(series_by_scenario, run_counts, c_path)
         print(f"[done] comparison ({', '.join(series_by_scenario)}) -> {c_path}")
+        b_path = os.path.join(out_dir, "preview_metrics_boxplot.png")
+        plot_final_boxplots(series_by_scenario, run_counts, b_path)
+        print(f"[done] boxplots -> {b_path}")
 
 
 if __name__ == "__main__":
