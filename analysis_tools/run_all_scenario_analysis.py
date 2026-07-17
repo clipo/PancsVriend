@@ -128,6 +128,15 @@ def run_all_analyses(
 
     steps.append(("combined_final_metrics", _run_combined_final_metrics, {}))
 
+    # 1b. Normality tests + normality-gated significance tests (consumes
+    #     combined_final_metrics.csv; justifies parametric vs non-parametric
+    #     between-scenario comparisons and plots Q-Q/histograms per metric)
+    def _run_normality_tests():
+        mod = importlib.import_module('analysis_tools.normality_tests')
+        mod.run_from_combined_csv()
+
+    steps.append(("normality_tests", _run_normality_tests, {}))
+
     # 2. Scenario ranking + significance table for the selected model run
     def _run_scenario_ranking_significance_table():
         _write_single_model_scenario_ranking_table(
