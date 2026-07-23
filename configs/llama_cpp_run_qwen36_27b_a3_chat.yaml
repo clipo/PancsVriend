@@ -1,0 +1,130 @@
+# =============================================================================
+# llama.cpp simulation run config — Qwen3.6-27B Q5_K_M, A3 prompt style, CHAT+grammar
+# =============================================================================
+# New model (Alibaba, current dense generation; apache-2.0), A3 prompt structure
+# (scenarios_a3.py) through the /v1/chat/completions endpoint with the MOVE/STAY
+# GBNF grammar (llm_style: chat+grammar). Lab-diversity axis vs Llama-3.3-70B and
+# Gemma-4-31B.
+#
+# NOTE: Qwen3.6 is a reasoning-hybrid model. On the chat endpoint it can emit a
+# thinking channel, so start llama-server with `--jinja --reasoning off` to
+# suppress it (per the models plan; a stray thinking preamble shows up as
+# bad_parses). The MOVE/STAY grammar also hard-constrains the final answer.
+#
+# processes: 4 is a conservative default (no Qwen slot sweep yet; Qwen-27B is
+# small so the GB10 can likely do more — pin a higher value from a slot_sweep
+# benchmark if throughput matters). Kept at 4 to match the other A3 runs.
+#
+#   python run_llm_probability_simulation_analysis.py \
+#     --config-yaml configs/llama_cpp_run_qwen36_27b_a3_chat.yaml \
+#     --config-profile smoke_test     # or: production
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+llm_model: "Qwen3.6-27B-Q5_K_M-a3-chat"
+
+manifest_file: null
+token_log_probs_root: null
+skip_token_probs: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+token_args: {}
+
+contexts_args:
+  scenarios: []                 # empty = ALL scenarios in scenario_file (6)
+  runs: 10
+  max_steps: 100
+  use_log_probs: false
+  log_probs_root: null
+  temperature: 0.3
+  save_every_steps: 10
+  llm_url: "http://localhost:8084/v1/chat/completions"
+  llm_style: "chat+grammar"
+  scenario_file: "scenarios_a3.py"
+  llm_api_key: ""
+  processes: 4
+  no_parallel: false
+  new: true
+  llm_model: null
+  manifest_file: null
+
+analysis_args:
+  no_recompute: false
+  movement_only: false
+  include_movement: false
+  output_folder: null
+  llm_model: null
+  manifest_file: null
+  quiet: false
+
+profiles:
+
+  smoke_test:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: [baseline]
+      runs: 2                   # smoke = minimal: just prove the pipeline works
+      max_steps: 2
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 1
+      llm_url: "http://localhost:8084/v1/chat/completions"
+      llm_style: "chat+grammar"
+      scenario_file: "scenarios_a3.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: true
+
+  production:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: []             # all 6 scenarios from scenarios_a3.py
+      runs: 10
+      max_steps: 100
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 10
+      llm_url: "http://localhost:8084/v1/chat/completions"
+      llm_style: "chat+grammar"
+      scenario_file: "scenarios_a3.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: false

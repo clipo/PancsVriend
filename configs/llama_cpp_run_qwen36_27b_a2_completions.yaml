@@ -1,0 +1,121 @@
+# =============================================================================
+# llama.cpp run config — Qwen3.6-27B-Q5_K_M, A2 prompt style, COMPLETIONS+GRAMMAR
+# =============================================================================
+# A2 prompt structure (scenarios_a2.py; question fully above the grid) on the
+# completions endpoint with the MOVE/STAY GBNF grammar. Part of the A2
+# endpoint-comparison batch (completions vs chat) across all three models.
+# Reduced replication: runs=5. raw completions endpoint (no chat template).
+#
+#   python run_llm_probability_simulation_analysis.py \
+#     --config-yaml configs/llama_cpp_run_qwen36_27b_a2_completions.yaml \
+#     --config-profile smoke_test     # or: production
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+llm_model: "Qwen3.6-27B-Q5_K_M-a2"
+
+manifest_file: null
+token_log_probs_root: null
+skip_token_probs: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+token_args: {}
+
+contexts_args:
+  scenarios: []
+  runs: 5
+  max_steps: 100
+  use_log_probs: false
+  log_probs_root: null
+  temperature: 0.3
+  save_every_steps: 10
+  llm_url: "http://localhost:8084/v1/completions"
+  llm_style: "completions+grammar"
+  scenario_file: "scenarios_a2.py"
+  llm_api_key: ""
+  processes: 4
+  no_parallel: false
+  new: true
+  llm_model: null
+  manifest_file: null
+
+analysis_args:
+  no_recompute: false
+  movement_only: false
+  include_movement: false
+  output_folder: null
+  llm_model: null
+  manifest_file: null
+  quiet: false
+
+profiles:
+
+  smoke_test:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: [baseline]
+      runs: 2
+      max_steps: 2
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 1
+      llm_url: "http://localhost:8084/v1/completions"
+      llm_style: "completions+grammar"
+      scenario_file: "scenarios_a2.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: true
+
+  production:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: []
+      runs: 5
+      max_steps: 100
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 10
+      llm_url: "http://localhost:8084/v1/completions"
+      llm_style: "completions+grammar"
+      scenario_file: "scenarios_a2.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: false

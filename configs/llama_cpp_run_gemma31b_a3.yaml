@@ -1,0 +1,132 @@
+# =============================================================================
+# llama.cpp simulation run config — Gemma-4-31B-it Q5_K_M, A3 prompt style
+# =============================================================================
+# Same methodology as configs/llama_cpp_run_llama70b_a3.yaml (the completed
+# Llama-3.3-70B A3 production run), applied to Gemma-4-31B: the A3 prompt
+# structure (scenarios_a3.py) on the raw /v1/completions endpoint with the
+# MOVE/STAY GBNF grammar (llm_style: completions+grammar). Results are directly
+# comparable, scenario-for-scenario, with the Llama-3.3-70B-Instruct-Q4_K_M-a3
+# run.
+#
+# Server: native llama-server on port 8081 (Gemma convention), Gemma GGUF at
+# llms/gemma-4-31B-it-Q5_K_M.gguf. processes: 4 pinned from the Gemma slot
+# sweep (slot_sweep/results/gemma-4-31b-q5: peak throughput at 8 slots, but 4
+# reaches 95% of it at lower latency).
+#
+#   python run_llm_probability_simulation_analysis.py \
+#     --config-yaml configs/llama_cpp_run_gemma31b_a3.yaml \
+#     --config-profile smoke_test     # or: production
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+# Distinct label: same GGUF as earlier Gemma-4-31B runs, but the A3 prompt
+# style makes results non-comparable token-for-token with those earlier runs —
+# the "-a3" suffix keeps the experiment namespaces separate (mirrors the
+# Llama-3.3-70B-Instruct-Q4_K_M-a3 label).
+llm_model: "gemma-4-31B-it-Q5_K_M-a3"
+
+manifest_file: null
+token_log_probs_root: null
+skip_token_probs: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+token_args: {}
+
+contexts_args:
+  scenarios: []                 # empty = ALL scenarios in scenario_file (6)
+  runs: 10
+  max_steps: 100
+  use_log_probs: false
+  log_probs_root: null
+  temperature: 0.3
+  save_every_steps: 10
+  llm_url: "http://localhost:8081/v1/completions"
+  llm_style: "completions+grammar"
+  scenario_file: "scenarios_a3.py"
+  llm_api_key: ""
+  processes: 4
+  no_parallel: false
+  new: true
+  llm_model: null
+  manifest_file: null
+
+analysis_args:
+  no_recompute: false
+  movement_only: false
+  include_movement: false
+  output_folder: null
+  llm_model: null
+  manifest_file: null
+  quiet: false
+
+profiles:
+
+  smoke_test:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: [baseline]
+      runs: 2                   # smoke = minimal: just prove the pipeline works
+      max_steps: 2              # just enough to prove the pipeline works end-to-end
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 1
+      llm_url: "http://localhost:8081/v1/completions"
+      llm_style: "completions+grammar"
+      scenario_file: "scenarios_a3.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: true
+
+  production:
+    skip_token_probs: true
+    skip_contexts: false
+    skip_analysis: false
+    continue_on_error: false
+    dry_run: false
+    token_args: {}
+    contexts_args:
+      scenarios: []             # all 6 scenarios from scenarios_a3.py
+      runs: 10
+      max_steps: 100
+      use_log_probs: false
+      log_probs_root: null
+      temperature: 0.3
+      save_every_steps: 10
+      llm_url: "http://localhost:8081/v1/completions"
+      llm_style: "completions+grammar"
+      scenario_file: "scenarios_a3.py"
+      llm_api_key: ""
+      processes: 4
+      no_parallel: false
+      new: true
+      llm_model: null
+      manifest_file: null
+    analysis_args:
+      no_recompute: false
+      movement_only: false
+      include_movement: false
+      output_folder: null
+      llm_model: null
+      manifest_file: null
+      quiet: false
