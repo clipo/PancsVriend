@@ -18,7 +18,8 @@ Standalone mode against an (in-progress) llama.cpp production run:
 
 Outputs (into the reports dir, or <run_dir>/plots in --run-dir mode):
     normality_tests.csv            metric x scenario Shapiro-Wilk table
-    normality_<metric>.png         per-scenario Q-Q plot + histogram w/ fit
+    normality/normality_<metric>.png   per-scenario Q-Q plot + histogram w/ fit
+                                   (in a dedicated normality/ subfolder)
     significance_tests.csv         omnibus test per metric (test chosen by
                                    normality) + Holm-corrected pairwise tests
 """
@@ -183,12 +184,14 @@ def plot_metric_normality(metric, values_by_scenario, shapiro_rows, out_path):
 def analyze(values_by_metric, out_dir, csv_prefix=""):
     """values_by_metric: {metric: {scenario: 1D array of per-run final values}}."""
     os.makedirs(out_dir, exist_ok=True)
+    plots_dir = os.path.join(out_dir, "normality")
+    os.makedirs(plots_dir, exist_ok=True)
     normality_rows, significance_rows = [], []
     for metric, values_by_scenario in values_by_metric.items():
         rows = shapiro_table(values_by_scenario, metric)
         normality_rows.extend(rows)
         plot_metric_normality(metric, values_by_scenario, rows,
-                              os.path.join(out_dir, f"normality_{metric}.png"))
+                              os.path.join(plots_dir, f"normality_{metric}.png"))
         decided = [r["normal_at_0.05"] for r in rows if r["normal_at_0.05"] is not None]
         all_normal = bool(decided) and all(decided)
         significance_rows.extend(

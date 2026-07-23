@@ -5,7 +5,7 @@ Regenerate any time — works on partial data (only completed runs are read):
     .venv/bin/python analysis_tools/plot_run_preview.py \
         --run-dir experiments_with_llama_cpp/run_20260716_045616_Llama-3.3-70B-Instruct-Q4_K_M-a3
 
-Outputs into <run_dir>/plots/:
+Outputs into <run_dir>/plots/preview/:
     preview_metrics_<scenario>.png   6 segregation metrics + move rate + parse
                                      failures vs step (mean +/- 95% CI, faint
                                      per-run traces)
@@ -259,7 +259,8 @@ def main():
     args = ap.parse_args()
 
     out_dir = args.out or os.path.join(args.run_dir, "plots")
-    os.makedirs(out_dir, exist_ok=True)
+    preview_dir = os.path.join(out_dir, "preview")
+    os.makedirs(preview_dir, exist_ok=True)
 
     exp_dirs = sorted(glob.glob(os.path.join(args.run_dir, "experiments", "llm_*")))
     if not exp_dirs:
@@ -275,17 +276,17 @@ def main():
         series = compute_series(runs)
         series_by_scenario[scenario] = series
         run_counts[scenario] = len(runs)
-        m_path = os.path.join(out_dir, f"preview_metrics_{scenario}.png")
-        g_path = os.path.join(out_dir, f"preview_grids_{scenario}.png")
+        m_path = os.path.join(preview_dir, f"preview_metrics_{scenario}.png")
+        g_path = os.path.join(preview_dir, f"preview_grids_{scenario}.png")
         plot_metrics(scenario, runs, m_path, series=series)
         plot_grids(scenario, runs, g_path)
         print(f"[done] {scenario}: {len(runs)} runs -> {m_path}, {g_path}")
 
     if len(series_by_scenario) >= 2:
-        c_path = os.path.join(out_dir, "preview_metrics_comparison.png")
+        c_path = os.path.join(preview_dir, "preview_metrics_comparison.png")
         plot_comparison(series_by_scenario, run_counts, c_path)
         print(f"[done] comparison ({', '.join(series_by_scenario)}) -> {c_path}")
-        b_path = os.path.join(out_dir, "preview_metrics_boxplot.png")
+        b_path = os.path.join(preview_dir, "preview_metrics_boxplot.png")
         plot_final_boxplots(series_by_scenario, run_counts, b_path)
         print(f"[done] boxplots -> {b_path}")
 
