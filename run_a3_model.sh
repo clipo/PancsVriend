@@ -167,6 +167,7 @@ if "$PYBIN" run_llm_probability_simulation_analysis.py \
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>" >> "$LOG" 2>&1 || true
     git push >> "$LOG" 2>&1 || true
     echo "[$(date)] Git push done." | tee -a "$LOG"
+    notify_evt results_pushed
 
     notify_evt production_complete --set "elapsed_min=$ELAPSED"
 else

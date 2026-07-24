@@ -64,16 +64,17 @@ TEMPLATES = {
         tags="rotating_light", priority="high"),
     "production_started": dict(
         title="{label} production STARTED",
-        body="{desc}. Per-scenario pings follow.",
+        body="{desc} @ T={temperature}. Per-scenario pings follow.",
         tags="checkered_flag", priority="default"),
     "production_complete": dict(
-        title="{label} production COMPLETE",
-        body=("Model: {label}\n"
-              "{desc}\n"
-              "Duration: {elapsed_min} minutes\n"
-              "Results: experiments_with_llama_cpp/\n"
-              "Git pushed to master."),
-        tags="white_check_mark", priority="high"),
+        title="✅ {label} DONE in {elapsed_min} min",
+        body=("{desc}\n"
+              "Results: experiments_with_llama_cpp/"),
+        tags="tada", priority="max"),
+    "results_pushed": dict(
+        title="{label} results pushed",
+        body="{desc} — commit on master.",
+        tags="package", priority="low"),
     "production_failed": dict(
         title="{label} production FAILED",
         body="Production run failed after smoke passed. Check {log}.",
