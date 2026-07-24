@@ -312,17 +312,22 @@ def query_server_slots(llm_url, timeout=5):
         return None
 
 
-def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10, max_retries=5):
+def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout=10,
+                         max_retries=5, llm_style=None):
     """
     Check if LLM connection is active and working
-    
+
     Parameters:
     - llm_model: Model to use (overrides config.py)
     - llm_url: API URL (overrides config.py)
     - llm_api_key: API key (overrides config.py)
     - timeout: Connection timeout in seconds
     - max_retries: Max retry attempts on transient failures (timeouts/connection errors)
-    
+    - llm_style: request style the run will actually use (completions[+grammar] /
+      chat[+grammar]). The check MUST mirror it: a chat endpoint rejects a raw
+      "prompt" payload with HTTP 400 ('messages' is required), which would abort
+      the whole run before a single simulation step.
+
     Returns:
     - True if connection successful
     - False if connection failed
@@ -330,23 +335,21 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
     model = llm_model or cfg.OLLAMA_MODEL
     url = llm_url or cfg.OLLAMA_URL
     api_key = llm_api_key or cfg.OLLAMA_API_KEY
-    
+
+    # Same builder the simulation uses, so the probe hits the same endpoint with
+    # the same payload shape. The grammar is dropped: it constrains output to
+    # MOVE/STAY, and here we just want the server to echo something back.
+    url, test_payload = build_llm_request(
+        url, llm_style, model,
+        "Respond with only the word 'OK' and nothing else.",
+        temperature=0, max_tokens=10,
+    )
+    test_payload.pop("grammar", None)
+
     print("\nChecking LLM connection...")
     print(f"URL: {url}")
     print(f"Model: {model}")
-    
-    # Raw completion (NOT chat): the chat template collapses the forced MOVE/STAY
-    # binary to a position-based constant on local models, so we prompt raw and
-    # the estimator does the same. Endpoint is /v1/completions (expects "prompt").
-    test_payload = {
-        "model": model,
-        "prompt": "Respond with only the word 'OK' and nothing else.",
-        "stream": False,
-        "temperature": 0,
-        "max_tokens": 10,
-        **SAMPLER_PARAMS,
-    }
-    
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
@@ -1398,7 +1401,7 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         print(f"   Policy entries: {len(log_prob_policy)}")
     else:
         # Check LLM connection first with potentially custom parameters
-        if not check_llm_connection(llm_model, llm_url, llm_api_key):
+        if not check_llm_connection(llm_model, llm_url, llm_api_key, llm_style=llm_style):
             print("\n⚠️  Cannot proceed with LLM experiments - connection check failed!")
             print("Please ensure the LLM server is running and accessible.")
             return None, []

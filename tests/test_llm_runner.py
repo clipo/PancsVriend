@@ -36,6 +36,28 @@ def test_check_llm_connection_success(monkeypatch):
     assert payload_captured["json"]["prompt"].startswith("Respond")
 
 
+def test_check_llm_connection_chat_style_sends_messages(monkeypatch):
+    """A chat run must be probed with a chat payload.
+
+    Regression: the probe used to hardcode a "prompt" payload, so every
+    chat/chat+grammar run died on HTTP 400 ('messages' is required) before
+    running a single simulation step.
+    """
+    payload_captured = {}
+    def fake_post(url, headers, json, timeout):
+        payload_captured.update(dict(url=url, json=json))
+        return DummyResponse(200, {"choices": [{"message": {"content": "OK"}}]})
+    monkeypatch.setattr(requests, "post", fake_post)
+    ok = llm_runner.check_llm_connection(
+        "m", "http://localhost:8081/v1/completions", "k", llm_style="chat+grammar")
+    assert ok is True
+    assert payload_captured["url"].endswith("/v1/chat/completions")
+    assert "prompt" not in payload_captured["json"]
+    assert payload_captured["json"]["messages"][0]["content"].startswith("Respond")
+    # the MOVE/STAY grammar would constrain the probe's reply; it must be dropped
+    assert "grammar" not in payload_captured["json"]
+
+
 def test_check_llm_connection_http_error(monkeypatch):
     def fake_post(url, headers, json, timeout):
         return DummyResponse(404, {}, text="not found")
