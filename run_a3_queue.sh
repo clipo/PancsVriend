@@ -16,8 +16,11 @@ set -u
 cd /srv/shared/schelling/PancsVriend
 QLOG="logs/run_a3_queue.log"
 mkdir -p logs
+PYBIN=".venv/bin/python"
 
 ntfy() { ./ntfy.sh "$1" "$2" "${3:-test_tube}" "${4:-default}"; }
+# One-line experiment summary derived from the run YAML (never hardcode counts).
+describe() { "$PYBIN" notifications.py describe --config "$1" 2>/dev/null || echo "?"; }
 
 # label | run_cfg | port | model_path | extra llama-server args
 QUEUE=(
@@ -27,8 +30,15 @@ QUEUE=(
 )
 
 TOTAL=${#QUEUE[@]}
+LINEUP=""
+for entry in "${QUEUE[@]}"; do
+    IFS='|' read -r label cfg _ _ _ <<< "$entry"
+    LINEUP+="$label: $(describe "$cfg")"$'\n'
+done
 echo "[$(date)] === A3 queue starting: $TOTAL models ===" | tee -a "$QLOG"
-ntfy "A3 queue STARTED" "$TOTAL models lined up: gemma-4-31b (completions), llama-3.3-70b (chat), qwen3.6-27b (chat). Runs one after another." "arrow_forward" "default"
+printf '%s' "$LINEUP" | tee -a "$QLOG"
+ntfy "A3 queue STARTED" "$TOTAL models lined up:
+$LINEUP" "arrow_forward" "default"
 
 declare -a RESULTS
 idx=0
@@ -36,7 +46,7 @@ for entry in "${QUEUE[@]}"; do
     idx=$((idx + 1))
     IFS='|' read -r label cfg port mpath extra <<< "$entry"
     echo "[$(date)] --- [$idx/$TOTAL] $label ---" | tee -a "$QLOG"
-    ntfy "A3 queue [$idx/$TOTAL]" "Starting $label" "hourglass" "low"
+    ntfy "A3 queue [$idx/$TOTAL]" "Starting $label — $(describe "$cfg")" "hourglass" "low"
 
     # shellcheck disable=SC2086  # $extra is intentionally word-split into args
     if bash run_a3_model.sh "$label" "$cfg" "$port" "$mpath" $extra >> "$QLOG" 2>&1; then

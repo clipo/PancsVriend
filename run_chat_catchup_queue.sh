@@ -26,8 +26,11 @@ set -u
 cd /srv/shared/schelling/PancsVriend
 QLOG="logs/run_chat_catchup_queue.log"
 mkdir -p logs
+PYBIN=".venv/bin/python"
 
 ntfy() { ./ntfy.sh "$1" "$2" "${3:-test_tube}" "${4:-default}"; }
+# One-line experiment summary derived from the run YAML (never hardcode counts).
+describe() { "$PYBIN" notifications.py describe --config "$1" 2>/dev/null || echo "?"; }
 
 # label | run_cfg | port | model_path | extra llama-server args
 QUEUE=(
@@ -38,8 +41,15 @@ QUEUE=(
 )
 
 TOTAL=${#QUEUE[@]}
+LINEUP=""
+for entry in "${QUEUE[@]}"; do
+    IFS='|' read -r label cfg _ _ _ <<< "$entry"
+    LINEUP+="$label: $(describe "$cfg")"$'\n'
+done
 echo "[$(date)] === chat catch-up queue starting: $TOTAL runs ===" | tee -a "$QLOG"
-ntfy "Chat catch-up STARTED" "$TOTAL re-runs of the chat+grammar runs that died on the old HTTP 400 probe." "arrow_forward" "default"
+printf '%s' "$LINEUP" | tee -a "$QLOG"
+ntfy "Chat catch-up STARTED" "$TOTAL re-runs of the chat+grammar runs that died on the old HTTP 400 probe:
+$LINEUP" "arrow_forward" "default"
 
 declare -a RESULTS
 idx=0
@@ -47,7 +57,7 @@ for entry in "${QUEUE[@]}"; do
     idx=$((idx + 1))
     IFS='|' read -r label cfg port mpath extra <<< "$entry"
     echo "[$(date)] --- [$idx/$TOTAL] $label ---" | tee -a "$QLOG"
-    ntfy "Catch-up [$idx/$TOTAL]" "Starting $label" "hourglass" "low"
+    ntfy "Catch-up [$idx/$TOTAL]" "Starting $label — $(describe "$cfg")" "hourglass" "low"
 
     # shellcheck disable=SC2086  # $extra is intentionally word-split into args
     if bash run_a3_model.sh "$label" "$cfg" "$port" "$mpath" $extra >> "$QLOG" 2>&1; then

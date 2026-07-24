@@ -25,7 +25,7 @@ while pgrep -f "[r]un_a3_queue.sh" >/dev/null 2>&1; do
 done
 
 echo "[$(date)] A3 queue done → added Gemma A3 chat+grammar run" | tee -a "$LOG"
-./ntfy.sh "A3 done → Gemma a3-chat" "Running the added Gemma A3 chat+grammar run (10 runs), then the A2 batch." "arrow_forward" "default"
+./ntfy.sh "A3 done → Gemma a3-chat" "Running the added Gemma A3 chat+grammar run ($(.venv/bin/python notifications.py describe --config configs/llama_cpp_run_gemma31b_a3_chat.yaml 2>/dev/null || echo '?')), then the A2 batch." "arrow_forward" "default"
 if bash run_a3_model.sh gemma-4-31b-a3-chat \
         configs/llama_cpp_run_gemma31b_a3_chat.yaml \
         8081 llms/gemma-4-31B-it-Q5_K_M.gguf \

@@ -18,6 +18,17 @@
 #          [overall_done=<od> overall_total=<ot>]
 #    turned into avg-runtime + ETA pings.
 #
+#    NOTE: [run-progress] is matched ANYWHERE in the line, not only at line
+#    start. tqdm redraws its bar with \r and no trailing newline (stderr), so
+#    in the combined log a progress print often lands glued onto the end of a
+#    bar fragment:
+#        Running LLM simulations:  20%|###  [run-progress] scenario=... done=2 ...
+#    An anchored ^ match silently dropped exactly those pings (the "skipped
+#    run 3/5" bug); instead the glued prefix is stripped before parsing. The
+#    run-progress case must stay FIRST in the case statement: a glued line can
+#    also start with tqdm's "Running LLM simulations:" text, which would
+#    otherwise false-match the "Running ... simulations" stage pattern.
+#
 # The experiment code only LOGS; all notification transport lives here + ntfy.sh.
 # Don't start this watcher (or delete it) and experiments run with zero
 # notification side-effects — nothing in the runners changes.
@@ -27,9 +38,13 @@ cd "$(dirname "$0")"
 SCENARIO=""
 
 tail -n 0 -F "$LOG" 2>/dev/null \
-| grep -E --line-buffered '^\[run-progress\]|^Scenario: |^Running [0-9]+ simulations|^Found (incomplete|completed) experiment|^Completed workflow summary' \
+| grep -E --line-buffered '\[run-progress\]|^Scenario: |^Running [0-9]+ simulations|^Found (incomplete|completed) experiment|^Completed workflow summary' \
 | while IFS= read -r line; do
     case "$line" in
+
+      # Keep this case first — see NOTE above about glued tqdm prefixes.
+      *"[run-progress] "*)
+        rest="${line#*\[run-progress\] }" ;;
 
       "Scenario: "*)
         SCENARIO="${line#Scenario: }"
@@ -50,10 +65,12 @@ tail -n 0 -F "$LOG" 2>/dev/null \
       "Completed workflow summary"*)
         ./ntfy.sh "All scenarios finished" "Simulation stage done; analysis stage next." "checkered_flag" "default"
         continue ;;
+
+      *)
+        continue ;;
     esac
 
     # [run-progress] k=v lines
-    rest="${line#\[run-progress\] }"
     scenario=""; d=""; t=""; e=""; p="1"; od=""; ot=""
     for kv in $rest; do
       k=${kv%%=*}; v=${kv#*=}
