@@ -1,20 +1,44 @@
 import numpy as np
+from scipy.ndimage import distance_transform_cdt
+
+# The dissimilarity index is the paper's headline metric and lives in its own
+# module together with its tract partition, its frozen 10x10 reference
+# implementation and its reference values; the six metrics below are carried
+# for comparability with the earlier literature. Re-exported here so
+# `from Metrics import compute_dissimilarity_from_int_grid` keeps working.
+from DissimilarityIndex import (  # noqa: F401
+    compute_dissimilarity,
+    compute_dissimilarity_from_int_grid,
+    tract_map,
+)
+
 
 def calculate_all_metrics(grid):
+    """All seven segregation metrics for one grid of Agent objects / None.
+
+    The dissimilarity index used to be computed only downstream, from the
+    saved states (analysis_tools/dissimilarity_index_over_time.py), so every
+    consumer had to recompute it and the per-step series was reconstructed by
+    mapping move-frames back onto steps. It is a per-grid statistic like the
+    other six, so it is computed here with them (2026-08-25, batch C).
+    """
     clusters = count_clusters(grid)
     switch_rate = compute_switch_rate(grid)
     distance = compute_distance(grid)
     mix_dev = compute_mix_deviation(grid)
     share = compute_share(grid)
     ghetto_rate = compute_ghetto_rate(grid)
+    dissimilarity = compute_dissimilarity(grid)
     return {
         "clusters": clusters,
         "switch_rate": switch_rate,
         "distance": distance,
         "mix_deviation": mix_dev,
         "share": share,
-        "ghetto_rate": ghetto_rate
+        "ghetto_rate": ghetto_rate,
+        "dissimilarity_index": dissimilarity
     }
+
 
 def count_clusters(grid):
     visited = np.zeros(grid.shape, dtype=bool)
@@ -61,23 +85,29 @@ def compute_switch_rate(grid):
     return switches / total if total > 0 else 0
 
 def compute_distance(grid):
+    """Mean, over agents, of the taxicab distance to the nearest agent of the
+    other type. Agents with no other-type agent on the grid are skipped; 0
+    when nobody has one.
+
+    distance_transform_cdt gives every cell its taxicab distance to the nearest
+    zero of its input, so with "not other-type" as the input, agent cells read
+    off exactly what the old O(n^2) pairwise scan computed (checked equal in
+    tests/test_metrics.py).
+    """
+    types = np.full(grid.shape, -1, dtype=np.int8)
+    for r in range(grid.shape[0]):
+        for c in range(grid.shape[1]):
+            if grid[r][c]:
+                types[r, c] = grid[r][c].type_id
     dists = []
-    height, width = grid.shape
-    for r in range(height):
-        for c in range(width):
-            agent = grid[r][c]
-            if agent:
-                min_dist = float('inf')
-                for r2 in range(height):
-                    for c2 in range(width):
-                        target = grid[r2][c2]
-                        if target and target.type_id != agent.type_id:
-                            dist = abs(r - r2) + abs(c - c2)
-                            if dist < min_dist:
-                                min_dist = dist
-                if min_dist != float('inf'):
-                    dists.append(min_dist)
-    return np.mean(dists) if dists else 0
+    for type_id in np.unique(types[types >= 0]):
+        other = (types >= 0) & (types != type_id)
+        if not other.any():
+            continue
+        to_other = distance_transform_cdt(~other, metric="taxicab")
+        dists.extend(to_other[types == type_id].tolist())
+    return float(np.mean(dists)) if dists else 0
+
 
 def compute_mix_deviation(grid):
     deviations = []
