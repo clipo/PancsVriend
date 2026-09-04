@@ -49,13 +49,9 @@ NOTE ON SAMPLING vs LOGPROBS
 """
 import argparse
 import csv
-import gzip
-import json
-import math
 import random
 import sys
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -64,12 +60,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from prompt_templates import CANDIDATES          # noqa: E402
-from llm_runner import SAMPLER_PARAMS            # noqa: E402  (the pinned pure-temperature sampler)
 
-RESULTS_DIR = Path(__file__).resolve().parent / "results"
-
-# Roles held fixed across candidates so only the TEMPLATE varies.
-KW = dict(agent_type="red team resident", opposite_type="blue team resident")
+# Shared harness plumbing (sampler, parse rule, role keywords, slice pings, raw
+# writer) lives in sampling_common since the 2026-08-21 dedup; the names are
+# re-exported here so long-standing importers (analyze_ratio_consistency, ad-hoc
+# notebooks) keep working. Roles are held fixed across candidates so only the
+# TEMPLATE varies; the original sweep (fig1/fig2) ran red only.
+from sampling_common import (  # noqa: E402
+    KW,
+    KW_BY_ROLE,
+    REPO_ROOT,
+    RESULTS_DIR,
+    init_slice_state,
+    parse,
+    sample_batch,
+    sample_once,
+    slice_ping,
+    spearman,
+    write_raw_gz,
+)
 
 # Permissive GBNF grammar (--grammar): admits exactly what the MOVE/STAY parser accepts --
 # optional leading whitespace/newlines + any casing of one of the two words -- and nothing
@@ -114,74 +123,6 @@ def n_tokens(base: str, text: str) -> int:
     return len(r.json()["tokens"])
 
 
-def sample_once(url: str, model: str, prompt: str, temperature: float,
-                grammar: str | None = None) -> dict:
-    """One decision, using the SAME payload llm_runner.py sends (see LLMAgent).
-
-    Endpoint is inferred from the URL: `/chat/completions` sends the prompt as a single
-    user `messages` turn (so the server applies the model's chat template -- special tokens,
-    role framing), while `/completions` sends the raw `prompt` string unwrapped. Everything
-    else (sampler, stop, max_tokens) is identical, so the two runs isolate the effect of the
-    chat interface itself. Response parsing handles both `text` and `message.content`.
-    """
-    # Mirror llm_runner.py's production payload exactly: NO "stop" (a leading newline is a
-    # plausible first token on a raw completion; a "\n" stop would truncate it to an empty
-    # string and burn a retry) and max_tokens=5 (slack absorbs leading whitespace; the
-    # parser only looks for MOVE/STAY anyway).
-    payload = {
-        "model": model,
-        "stream": False,
-        "temperature": temperature,
-        "max_tokens": 5,
-        **SAMPLER_PARAMS,
-    }
-    if grammar is not None:
-        payload["grammar"] = grammar
-    if "/chat/completions" in url:
-        payload["messages"] = [{"role": "user", "content": prompt}]
-    else:
-        payload["prompt"] = prompt
-    r = requests.post(url, timeout=600, json=payload)
-    r.raise_for_status()
-    j = r.json()
-    c = j["choices"][0]
-    text = c.get("text") or (c.get("message") or {}).get("content", "") or ""
-    return {
-        "text": text,
-        "finish_reason": c.get("finish_reason"),
-        "completion_tokens": (j.get("usage") or {}).get("completion_tokens"),
-    }
-
-
-def parse(text: str) -> str:
-    """The exact MOVE/STAY rule llm_runner.py uses (substring match, ambiguity = bad)."""
-    u = text.strip().upper()
-    has_move, has_stay = "MOVE" in u, "STAY" in u
-    if has_move and has_stay:
-        return "AMBIGUOUS"
-    if has_move:
-        return "MOVE"
-    if has_stay:
-        return "STAY"
-    return "UNPARSEABLE"
-
-
-def spearman(xs, ys) -> float:
-    """Rank correlation, no scipy dependency. +1 = perfectly increasing."""
-    def rank(v):
-        order = sorted(range(len(v)), key=lambda i: v[i])
-        r = [0.0] * len(v)
-        for pos, i in enumerate(order):
-            r[i] = pos
-        return r
-    rx, ry = rank(xs), rank(ys)
-    n = len(xs)
-    mx, my = sum(rx) / n, sum(ry) / n
-    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
-    den = math.sqrt(sum((a - mx) ** 2 for a in rx) * sum((b - my) ** 2 for b in ry))
-    return num / den if den else 0.0
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -201,6 +142,12 @@ def main() -> int:
                          "(optional leading whitespace + any casing); llama.cpp only")
     ap.add_argument("--seed", type=int, default=0,
                     help="RNG seed for the per-sample random neighbourhood layouts (paired across candidates)")
+    ap.add_argument("--roles", choices=["red", "blue", "both"], default="red",
+                    help="agent identity in the prompt (default red = the original sweep). "
+                         "'both' samples red AND blue in one run and writes them to ONE "
+                         "CSV, distinguished by the agent_role column — same interface and "
+                         "same schema as evaluate_ratio_prompts.py --roles. No -blue label "
+                         "suffix is needed or wanted any more (see unify_role_csvs.py).")
     ap.add_argument("--prompt-eval-tps", type=float, default=60.0,
                     help="measured prompt-eval tokens/sec, used to convert tokens -> seconds")
     args = ap.parse_args()
@@ -214,6 +161,7 @@ def main() -> int:
     else:
         candidates = CANDIDATES
 
+    roles = ["red", "blue"] if args.roles == "both" else [args.roles]
     base = args.llm_url.split("/v1/")[0].rstrip("/")
     gradient = list(range(9))                       # 0..8 out-group neighbours
     # Paired design: build ONE set of `samples` random layouts per density, SHARED across
@@ -225,36 +173,38 @@ def main() -> int:
     cost_grid = grid_with(4)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    rows = []
-    raw_records = []   # every (candidate, neighbourhood, sample) reply, dumped to results/raw/
+    rows = []          # per-(role, candidate) summary -> the .md tables
+    cells = []         # per-(role, candidate, n_out) counts -> the long-format CSV
+    raw_records = []   # every (role, candidate, neighbourhood, sample) reply, to results/raw/
 
-    total = len(candidates) * len(gradient) * args.samples
+    total = len(roles) * len(candidates) * len(gradient) * args.samples
     print(f"model   : {args.model}")
     print(f"url     : {args.llm_url}")
     print(f"temp    : {args.temperature}   samples/cell: {args.samples}   grammar: {'ON' if args.grammar else 'off'}")
-    print(f"requests: {total}\n")
+    print(f"requests: {total}\n", flush=True)
+    init_slice_state(len(roles) * len(candidates))
 
-    for name, tpl in candidates.items():
-        prefix = tpl.split("{context}")[0].format(**KW)
-        full = tpl.format(context=cost_grid, **KW)
+    for role in roles:
+      kw = KW_BY_ROLE[role]
+      for name, tpl in candidates.items():
+        prefix = tpl.split("{context}")[0].format(**kw)
+        full = tpl.format(context=cost_grid, **kw)
         cached = n_tokens(base, prefix)
         recomputed = n_tokens(base, full) - cached
 
-        move_rates, bad_counts, examples = [], [], Counter()
+        move_rates, eff_rates, bad_counts, examples = [], [], [], Counter()
         for n in gradient:
-            prompts = [tpl.format(context=g, **KW) for g in layouts[n]]
-            with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
-                replies = list(ex.map(          # ex.map preserves input order -> replies[i] pairs with layouts[n][i]
-                    lambda p: sample_once(args.llm_url, args.model, p, args.temperature,
-                                          GRAMMAR if args.grammar else None),
-                    prompts))
+            prompts = [tpl.format(context=g, **kw) for g in layouts[n]]
+            # sample_batch preserves input order -> replies[i] pairs with layouts[n][i]
+            replies = sample_batch(args.llm_url, args.model, prompts, args.temperature,
+                                   GRAMMAR if args.grammar else None, args.concurrency)
             texts = [r["text"] for r in replies]
             # RAW LOG: every reply, verbatim, for post-experiment analysis (e.g. was a
             # bad parse a refusal or a max_tokens truncation? did truncation of an
             # echoed question create a spurious MOVE/STAY?). One JSON object per line.
             for i, (r, g) in enumerate(zip(replies, layouts[n])):
                 raw_records.append({
-                    "candidate": name, "n_out": n, "sample": i, "grid": g,
+                    "candidate": name, "agent_role": role, "n_out": n, "sample": i, "grid": g,
                     "text": r["text"], "finish_reason": r["finish_reason"],
                     "completion_tokens": r["completion_tokens"],
                     "parse": parse(r["text"]),
@@ -263,11 +213,23 @@ def main() -> int:
             examples.update(repr(t.strip()) for t in texts)
             bad = d["AMBIGUOUS"] + d["UNPARSEABLE"]
             move_rates.append(d["MOVE"] / args.samples)
+            nv = d["MOVE"] + d["STAY"]
+            eff_rates.append(d["MOVE"] / nv if nv else float("nan"))
             bad_counts.append(bad)
+            cells.append({
+                "candidate": name, "agent_role": role, "n_out": n,
+                "n_samples": args.samples, "n_move": d["MOVE"], "n_stay": d["STAY"],
+                "n_bad": bad,
+                "move_rate_raw": round(d["MOVE"] / args.samples, 6),
+                # Blank, never 0, when nothing parsed: production retries there, so
+                # "no measurement" must not read as "never moves".
+                "move_rate_effective": round(d["MOVE"] / nv, 6) if nv else "",
+            })
 
         rho = spearman(gradient, move_rates)
         rows.append({
             "candidate": name,
+            "agent_role": role,
             "cached_prefix_tokens": cached,
             "recomputed_tokens": recomputed,
             "est_prompt_eval_s": round(recomputed / args.prompt_eval_tps, 2),
@@ -279,33 +241,47 @@ def main() -> int:
             "spearman_monotonic": round(rho, 3),
             "bad_parses_total": sum(bad_counts),
             "top_replies": "; ".join(f"{t}x{c}" for t, c in examples.most_common(3)),
+            # move_rate_{k}of8 = RAW single-shot rate (bad parses in denominator,
+            # kept under its historical name for legacy loaders).
+            # move_rate_eff_{k}of8 = EFFECTIVE retry-equivalent rate
+            # n_move/(n_move+n_stay) — what production does; prefer this.
             **{f"move_rate_{n}of8": round(p, 3) for n, p in zip(gradient, move_rates)},
+            **{f"move_rate_eff_{n}of8": (round(p, 3) if p == p else "")
+               for n, p in zip(gradient, eff_rates)},
         })
         print(f"  {name:26s} recomp={recomputed:4d}tok  range={max(move_rates)-min(move_rates):.2f}  "
-              f"rho={rho:+.2f}  bad={sum(bad_counts):3d}  move@8/8={move_rates[-1]:.2f}")
+              f"rho={rho:+.2f}  bad={sum(bad_counts):3d}  move@8/8={move_rates[-1]:.2f}",
+              flush=True)
+        slice_ping(args.label, name)
 
-    raw_dir = RESULTS_DIR / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = raw_dir / f"prompt_comparison_{args.label}_raw.jsonl.gz"
-    with gzip.open(raw_path, "wt", encoding="utf-8") as f:
-        meta = {"_meta": True, "label": args.label, "model": args.model, "url": args.llm_url,
-                "temperature": args.temperature, "samples": args.samples, "seed": args.seed,
-                "grammar": bool(args.grammar)}
-        f.write(json.dumps(meta) + "\n")
-        for rec in raw_records:
-            f.write(json.dumps(rec) + "\n")
+    raw_path = RESULTS_DIR / "raw" / f"prompt_comparison_{args.label}_raw.jsonl.gz"
+    write_raw_gz(raw_path,
+                 {"label": args.label, "model": args.model, "url": args.llm_url,
+                  "temperature": args.temperature, "samples": args.samples,
+                  "seed": args.seed, "grammar": bool(args.grammar), "roles": roles,
+                  # 'role' kept for readers that predate multi-role runs; it is only
+                  # meaningful for a single-role run, so it is None when both ran.
+                  "role": roles[0] if len(roles) == 1 else None},
+                 raw_records)
 
+    # LONG format, one row per (candidate, agent_role, n_out), both roles in the
+    # SAME file — identical shape to ratio_comparison_*.csv. Role is a column, not
+    # a filename suffix, so a red-vs-blue comparison is a groupby and can never
+    # silently pair two different runs. Per-CANDIDATE metadata (token cost,
+    # Spearman rho) is not per-cell and so is not denormalised in here; it lives
+    # in the .md beside this file.
     csv_path = RESULTS_DIR / f"prompt_comparison_{args.label}.csv"
     with csv_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=list(cells[0].keys()))
         w.writeheader()
-        w.writerows(rows)
+        w.writerows(cells)
 
     md = [
         f"# Prompt comparison — `{args.model}`",
         "",
         f"- endpoint: `{args.llm_url}` (queried live)",
         f"- grammar-constrained: **{'YES -- permissive MOVE/STAY GBNF' if args.grammar else 'no'}**",
+        f"- roles sampled: **{', '.join(roles)}** (one row per role in the CSV's `agent_role` column)",
         f"- **{args.samples} samples per cell at T={args.temperature}**, using the exact payload "
         f"`llm_runner.py` sends (same `SAMPLER_PARAMS`, `max_tokens=5`, no `stop`) and the same "
         f"MOVE/STAY parse rule. So `move_rate` is what the agents literally do in the simulation.",
@@ -317,12 +293,13 @@ def main() -> int:
         "",
         "## Summary",
         "",
-        "| candidate | recomputed tok/call | est. prompt-eval | MOVE rate range | monotonic (rho) | bad parses |",
-        "|---|---|---|---|---|---|",
+        "| candidate | role | recomputed tok/call | est. prompt-eval | MOVE rate range | monotonic (rho) | bad parses |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         md.append(
-            f"| `{r['candidate']}` | {r['recomputed_tokens']} | {r['est_prompt_eval_s']}s | "
+            f"| `{r['candidate']}` | {r['agent_role']} | {r['recomputed_tokens']} | "
+            f"{r['est_prompt_eval_s']}s | "
             f"{r['move_rate_min']:.2f} – {r['move_rate_max']:.2f} ({r['move_range']:.2f}) | "
             f"{r['spearman_monotonic']:+.2f} | {r['bad_parses_total']} |"
         )
@@ -332,14 +309,17 @@ def main() -> int:
         "`monotonic (rho)` — Spearman of MOVE rate vs out-group count. **Negative or ~0 means the agent does not want to leave a hostile neighbourhood** — incoherent, and unusable regardless of speed.",
         "`bad parses` — ambiguous/unparseable replies; each one costs a retry in the real runner.",
         "",
-        f"## MOVE rate across the out-group gradient ({args.samples} samples, T={args.temperature})",
+        f"## EFFECTIVE MOVE rate (n_move/(n_move+n_stay), retry-equivalent = production "
+        f"behaviour) across the out-group gradient ({args.samples} samples, T={args.temperature})",
         "",
-        "| candidate | " + " | ".join(f"{n}/8" for n in gradient) + " |",
-        "|---|" + "---|" * len(gradient),
+        "| candidate | role | " + " | ".join(f"{n}/8" for n in gradient) + " |",
+        "|---|---|" + "---|" * len(gradient),
     ]
     for r in rows:
-        md.append(f"| `{r['candidate']}` | "
-                  + " | ".join(f"{r[f'move_rate_{n}of8']:.2f}" for n in gradient) + " |")
+        md.append(f"| `{r['candidate']}` | {r['agent_role']} | "
+                  + " | ".join((f"{r[f'move_rate_eff_{n}of8']:.2f}"
+                                if r[f"move_rate_eff_{n}of8"] != "" else "—")
+                               for n in gradient) + " |")
     md.append("")
 
     md_path = RESULTS_DIR / f"prompt_comparison_{args.label}.md"
