@@ -1,4 +1,5 @@
 import pandas as pd
+import run_files
 from pathlib import Path
 from scipy import stats
 import argparse
@@ -38,7 +39,7 @@ def process_scenarios(recompute: bool = True):
     results = {}
     for scenario_name, folder in scenarios.items():
         exp_dir = Path('experiments') / folder
-        metrics_path = exp_dir / 'metrics_history.csv'
+        metrics_path = Path(run_files.metrics_history_path(exp_dir))
         step_stats_path = exp_dir / 'step_statistics.csv'
         convergence_path = exp_dir / 'convergence_summary.csv'
 
@@ -71,7 +72,15 @@ def process_scenarios(recompute: bool = True):
                     raise ValueError("metrics_history.csv missing required columns 'run_id' or 'step'")
                 final_metrics = get_final_metrics(df)
 
-                if dissim_final is not None:
+                # Metrics.py now computes the dissimilarity index PER STEP, so
+                # metrics_history.csv already carries the column for runs made
+                # after that change. Merging the downstream finals on top would
+                # collide into dissimilarity_index_x/_y and leave no plain
+                # 'dissimilarity_index' — which is exactly what broke
+                # segregation_metrics_comparison with KeyError on every run
+                # from 2026-08-26 onward. Prefer the in-simulation column: it
+                # is row-aligned with the other metrics by construction.
+                if dissim_final is not None and 'dissimilarity_index' not in final_metrics.columns:
                     try:
                         # Align on run_id for the current scenario
                         subset = dissim_final[dissim_final['scenario'] == scenario_name].copy()

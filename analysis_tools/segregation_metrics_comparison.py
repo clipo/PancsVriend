@@ -8,6 +8,10 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS,
 )
 from analysis_tools.output_paths import get_reports_dir
+try:  # works whether the repo root or analysis_tools/ is the one on sys.path
+    from analysis_tools.plot_style import overlay_run_points
+except ImportError:
+    from plot_style import overlay_run_points
 
 # Publication-ready style
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
@@ -105,12 +109,16 @@ for idx, metric in enumerate(metrics):
     for i, med in enumerate(bp['medians']):
         med.set_color('black')
         med.set_linewidth(1.2)
+        med.set_zorder(4)  # above the run points so the median stays readable
     for wl in bp['whiskers']:
         wl.set_color('#777777')
         wl.set_linewidth(1.0)
     for cap in bp['caps']:
         cap.set_color('#777777')
         cap.set_linewidth(1.0)
+
+    # Individual runs on top of the box
+    overlay_run_points(ax, plot_data, positions)
 
     # Axes formatting
     ax.set_xticks(positions)
@@ -175,12 +183,16 @@ for i, patch in enumerate(di_bp['boxes']):
 for med in di_bp['medians']:
     med.set_color('black')
     med.set_linewidth(1.2)
+    med.set_zorder(4)  # above the run points so the median stays readable
 for wl in di_bp['whiskers']:
     wl.set_color('#777777')
     wl.set_linewidth(1.0)
 for cap in di_bp['caps']:
     cap.set_color('#777777')
     cap.set_linewidth(1.0)
+
+# Individual runs on top of the box
+overlay_run_points(ax_di, di_plot_data, di_positions)
 
 ax_di.set_xticks(di_positions)
 ax_di.set_xticklabels(di_labels, rotation=30, ha='right')

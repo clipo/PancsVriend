@@ -1,4 +1,5 @@
 import pandas as pd
+import run_files
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -6,10 +7,21 @@ from pathlib import Path
 from typing import cast
 # from scipy import stats  # unused
 # import matplotlib.patches as mpatches  # unused
-from analysis_tools.experiment_list_for_analysis import (
-    SCENARIOS as scenarios,
-    SCENARIO_LABELS as scenario_labels,
-)
+# Import the SAME module object run_all_scenario_analysis mutates. It does a
+# bare `import experiment_list_for_analysis`, and a package-style
+# `from analysis_tools.experiment_list_for_analysis import ...` creates a
+# SECOND, independent module with its own SCENARIOS dict. This step therefore
+# used to read the stale hardcoded 2025 mixtral folder list, find no
+# metrics_history.csv anywhere, and die on an empty pivot with
+# `KeyError: 'Scenario'` in EVERY run (2026-08-27). Bare first, package
+# fallback for direct invocation. Binding the dicts is safe: the orchestrator
+# updates them in place (clear + update), so these names stay live.
+try:
+    import experiment_list_for_analysis as _experiment_list
+except ImportError:  # invoked as a package without analysis_tools/ on sys.path
+    from analysis_tools import experiment_list_for_analysis as _experiment_list
+scenarios = _experiment_list.SCENARIOS
+scenario_labels = _experiment_list.SCENARIO_LABELS
 from analysis_tools.output_paths import get_reports_dir
 
 # Set style
@@ -50,7 +62,7 @@ def analyze_stability():
         stability_data = []
         
         for scenario_name, folder in scenarios.items():
-            filepath = Path(f'experiments/{folder}/metrics_history.csv')
+            filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
             if filepath.exists():
                 df = pd.read_csv(filepath)
                 
@@ -89,7 +101,7 @@ def analyze_stability():
     fig2, ax = plt.subplots(figsize=(12, 8))
     
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
+        filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
             df = pd.read_csv(filepath)
             
@@ -125,7 +137,7 @@ def analyze_stability():
     overall_stability = []
     
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
+        filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
             df = pd.read_csv(filepath)
             
@@ -149,7 +161,7 @@ def analyze_stability():
     print("\nQuick vs Slow Stabilizers:")
     
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
+        filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
             df = pd.read_csv(filepath)
             

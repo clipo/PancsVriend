@@ -1,4 +1,5 @@
 import pandas as pd
+import run_files
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -11,6 +12,11 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS as scenario_colors,
 )
 from analysis_tools.output_paths import get_reports_dir
+
+try:                                   # bare import matches the orchestrator's sys.path
+    from plot_style import step_stats_forward_filled
+except ImportError:                    # package form, for direct invocation
+    from analysis_tools.plot_style import step_stats_forward_filled
 
 # Set style
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -48,7 +54,7 @@ def analyze_dynamics():
     all_data = {}
     
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
+        filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
             df = pd.read_csv(filepath)
             all_data[scenario_name] = df
@@ -70,8 +76,11 @@ def analyze_dynamics():
             roc_row = []
             
             for metric in metrics:
-                # Get mean trajectory
-                mean_trajectory = df.groupby('step')[metric].mean()
+                # Forward-filled (2026-08-28): a bare groupby('step') averages
+                # only the runs still alive at that step, so a rate-of-change
+                # computed from it measures attrition as well as dynamics. See
+                # plot_style.step_stats_forward_filled.
+                mean_trajectory = step_stats_forward_filled(df, metric)[0]
                 
                 # Calculate rate of change
                 roc = calculate_rate_of_change(mean_trajectory.values)
@@ -121,7 +130,8 @@ def analyze_dynamics():
             
             for metric in ['share', 'ghetto_rate']:  # Focus on key segregation metrics
                 # Early stage
-                early_data = df[df['step'] <= early_cutoff].groupby('step')[metric].mean()
+                early_data = step_stats_forward_filled(
+                    df[df['step'] <= early_cutoff], metric)[0]
                 if len(early_data) > 5:
                     early_roc = calculate_rate_of_change(early_data.values)
                     early_volatility = np.std(early_roc)
@@ -129,7 +139,8 @@ def analyze_dynamics():
                     early_volatility = 0
                 
                 # Late stage
-                late_data = df[df['step'] >= late_cutoff].groupby('step')[metric].mean()
+                late_data = step_stats_forward_filled(
+                    df[df['step'] >= late_cutoff], metric)[0]
                 if len(late_data) > 5:
                     late_roc = calculate_rate_of_change(late_data.values)
                     late_volatility = np.std(late_roc)
@@ -174,7 +185,8 @@ def analyze_dynamics():
                 df = all_data[scenario]
                 
                 # Get mean trajectory
-                mean_trajectory = df[df['step'] <= max_step].groupby('step')[metric].mean()
+                mean_trajectory = step_stats_forward_filled(
+                    df[df['step'] <= max_step], metric)[0]
                 
                 # Calculate rate of change
                 roc = calculate_rate_of_change(mean_trajectory.values, window=3)
@@ -222,7 +234,7 @@ def analyze_dynamics():
                 df = all_data[scenario]
                 
                 # Get mean trajectory
-                mean_trajectory = df.groupby('step')[metric].mean()
+                mean_trajectory = step_stats_forward_filled(df, metric)[0]
                 
                 # Calculate acceleration (second derivative)
                 roc = calculate_rate_of_change(mean_trajectory.values)

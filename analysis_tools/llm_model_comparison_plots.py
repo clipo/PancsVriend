@@ -11,8 +11,14 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import run_files
 import seaborn as sns
 from scipy import stats
+
+try:                                   # bare import matches the orchestrator's sys.path
+    from plot_style import step_stats_forward_filled
+except ImportError:                    # package form, for direct invocation
+    from analysis_tools.plot_style import step_stats_forward_filled
 
 from experiment_list_for_analysis import (
     SCENARIO_LABELS,
@@ -20,6 +26,10 @@ from experiment_list_for_analysis import (
     SCENARIOS_TO_PLOT,
     LLM_MODELS_TO_PLOT,
 )
+try:  # works whether the repo root or analysis_tools/ is the one on sys.path
+    from analysis_tools.plot_style import overlay_run_points
+except ImportError:
+    from plot_style import overlay_run_points
 
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.15)
 plt.rcParams.update({
@@ -222,7 +232,7 @@ def _plot_convergence_patterns(
             if model_key in metrics_cache:
                 df = metrics_cache[model_key]
             else:
-                metrics_path = Path("experiments") / folder / "metrics_history.csv"
+                metrics_path = Path(run_files.metrics_history_path(Path("experiments") / folder))
                 if not metrics_path.exists():
                     continue
                 df = pd.read_csv(metrics_path)
@@ -231,11 +241,14 @@ def _plot_convergence_patterns(
             if df.empty or metric not in df.columns:
                 continue
 
-            grouped = df.groupby("step")[metric]
-            mean_values = grouped.mean()
-            std_values = grouped.std()
-            count_values = grouped.count().replace(0, np.nan)
-            ci = 1.96 * std_values / np.sqrt(count_values)
+            # Forward-filled: a bare groupby("step") averages only the runs
+            # still alive at that step, so the trace drifts from attrition
+            # rather than dynamics. This matters MORE here than anywhere else —
+            # models converge at very different rates (mistral is done by step
+            # 5, deepseek still has ~70 of 100 runs active at step 1000), so
+            # the bias differed per model and was being read as a between-model
+            # difference. See plot_style.step_stats_forward_filled.
+            mean_values, ci, _n_active = step_stats_forward_filled(df, metric)
 
             max_step = min(1000, mean_values.index.max())
             steps = mean_values.index[mean_values.index <= max_step]
@@ -315,7 +328,7 @@ def _plot_metrics_comparison(
     final_metrics_by_model: Dict[str, pd.DataFrame] = {}
     for model_key in model_keys:
         folder = model_map[model_key]["folder"]
-        metrics_path = Path("experiments") / folder / "metrics_history.csv"
+        metrics_path = Path(run_files.metrics_history_path(Path("experiments") / folder))
         if not metrics_path.exists():
             continue
         df = pd.read_csv(metrics_path)
@@ -384,12 +397,16 @@ def _plot_metrics_comparison(
         for med in bp["medians"]:
             med.set_color("black")
             med.set_linewidth(1.2)
+            med.set_zorder(4)  # above the run points so the median stays readable
         for wl in bp["whiskers"]:
             wl.set_color("#777777")
             wl.set_linewidth(1.0)
         for cap in bp["caps"]:
             cap.set_color("#777777")
             cap.set_linewidth(1.0)
+
+        # Individual runs on top of the box
+        overlay_run_points(ax, plot_data, positions)
 
         ax.set_xticks(positions)
         row_index = idx // n_cols
@@ -454,7 +471,7 @@ def _build_segregation_ranking_table(
             model_payload = scenario_map.get(model_key)
             if not model_payload:
                 continue
-            metrics_path = Path("experiments") / model_payload["folder"] / "metrics_history.csv"
+            metrics_path = Path(run_files.metrics_history_path(Path("experiments") / model_payload["folder"]))
             if not metrics_path.exists():
                 continue
             df = pd.read_csv(metrics_path)

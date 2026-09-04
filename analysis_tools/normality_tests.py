@@ -41,6 +41,15 @@ sys.path.insert(0, REPO_ROOT)
 from analysis_tools.experiment_list_for_analysis import SCENARIO_COLORS  # noqa: E402
 
 ALPHA = 0.05
+
+
+def sig_stars(p):
+    """Conventional significance levels: *** p<0.001, ** p<0.01, * p<0.05."""
+    if p is None or np.isnan(p):
+        return ""
+    return "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else ""
+
+
 METRICS_DEFAULT = ["clusters", "switch_rate", "distance", "mix_deviation",
                    "share", "ghetto_rate"]
 
@@ -107,7 +116,8 @@ def significance_tests(values_by_scenario, metric, all_normal):
         pair = lambda a, b: stats.mannwhitneyu(a, b, alternative="two-sided")
     rows.append({"metric": metric, "comparison": "omnibus", "test": omni_name,
                  "statistic": stat, "p_raw": p, "p_holm": p,
-                 "significant_at_0.05": bool(p < ALPHA)})
+                 "significant_at_0.05": bool(p < ALPHA),
+                 "sig_level": sig_stars(p)})
     pairs = list(itertools.combinations(names, 2))
     if pairs:
         raw = []
@@ -118,7 +128,8 @@ def significance_tests(values_by_scenario, metric, all_normal):
         for (a, b, s, pv), ph in zip(raw, adj):
             rows.append({"metric": metric, "comparison": f"{a} vs {b}",
                          "test": pair_name, "statistic": s, "p_raw": pv,
-                         "p_holm": ph, "significant_at_0.05": bool(ph < ALPHA)})
+                         "p_holm": ph, "significant_at_0.05": bool(ph < ALPHA),
+                         "sig_level": sig_stars(ph)})
     return rows
 
 

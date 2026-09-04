@@ -1,4 +1,5 @@
 import pandas as pd
+import run_files
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,6 +13,11 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS as scenario_colors,
 )
 from analysis_tools.output_paths import get_reports_dir
+
+try:                                   # bare import matches the orchestrator's sys.path
+    from plot_style import step_stats_forward_filled
+except ImportError:                    # package form, for direct invocation
+    from analysis_tools.plot_style import step_stats_forward_filled
 
 # Set style for clarity
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -38,7 +44,7 @@ def create_clear_dynamics_visualization():
     # Load data
     all_data = {}
     for scenario_name, folder in scenarios.items():
-        filepath = Path(f'experiments/{folder}/metrics_history.csv')
+        filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
             df = pd.read_csv(filepath)
             all_data[scenario_name] = df
@@ -56,7 +62,7 @@ def create_clear_dynamics_visualization():
                      'baseline', 'income_high_low']:
         if scenario in all_data:
             df = all_data[scenario]
-            mean_share = df.groupby('step')['share'].mean()
+            mean_share = step_stats_forward_filled(df, 'share')[0]
             
             # Plot only first 150 steps for clarity
             steps = mean_share.index[:150]
@@ -88,7 +94,7 @@ def create_clear_dynamics_visualization():
     for scenario in ['political_liberal_conservative', 'income_high_low', 'race_white_black']:
         if scenario in all_data:
             df = all_data[scenario]
-            mean_share = df.groupby('step')['share'].mean()
+            mean_share = step_stats_forward_filled(df, 'share')[0]
             
             # Calculate rate of change
             roc = calculate_rate_of_change(mean_share.values[:150])
@@ -129,12 +135,13 @@ def create_clear_dynamics_visualization():
             df = all_data[scenario]
             
             # Calculate volatility in early stage (0-20 steps)
-            early_data = df[df['step'] <= 20].groupby('step')['share'].mean()
+            early_data = step_stats_forward_filled(df[df['step'] <= 20], 'share')[0]
             early_roc = calculate_rate_of_change(early_data.values)
             early_volatility = np.std(np.abs(early_roc))
             
             # Calculate volatility in late stage (80-150 steps)
-            late_data = df[(df['step'] >= 80) & (df['step'] <= 150)].groupby('step')['share'].mean()
+            late_data = step_stats_forward_filled(
+                df[(df['step'] >= 80) & (df['step'] <= 150)], 'share')[0]
             late_roc = calculate_rate_of_change(late_data.values)
             late_volatility = np.std(np.abs(late_roc))
             
@@ -202,7 +209,7 @@ def create_clear_dynamics_visualization():
     for scenario in ['political_liberal_conservative', 'race_white_black', 'income_high_low']:
         if scenario in all_data:
             df = all_data[scenario]
-            mean_ghetto = df.groupby('step')['ghetto_rate'].mean()
+            mean_ghetto = step_stats_forward_filled(df, 'ghetto_rate')[0]
             
             # Calculate acceleration (second derivative)
             roc = calculate_rate_of_change(mean_ghetto.values[:100])

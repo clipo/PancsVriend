@@ -1,5 +1,6 @@
 import math
 import pandas as pd
+import run_files
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,6 +13,11 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS as scenario_colors,
 )
 from analysis_tools.output_paths import get_reports_dir
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+try:                                   # bare import matches the orchestrator's sys.path
+    from plot_style import step_stats_forward_filled
+except ImportError:                    # package form, for direct invocation
+    from analysis_tools.plot_style import step_stats_forward_filled
 
 # Publication-ready seaborn theme
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.25)
@@ -73,10 +79,50 @@ if dissim_ts is not None:
 else:
     dissim_by_scenario = {}
 
+
+def _draw_active_strip(host_ax, active_by_scenario, colors, labels_map, max_step=None):
+    """Hang an active-run strip under host_ax (shared x).
+
+    Forward-filling makes the mean unbiased, but it cannot show how much of the
+    curve is new information versus frozen runs persisting. Measured spread is
+    wide: gemma falls under 10 active runs by step 48 while its axis runs to
+    999, whereas deepseek still has ~70 active at 999 so its late drift is real.
+    """
+    if not active_by_scenario:
+        return None
+    strip = make_axes_locatable(host_ax).append_axes(
+        "bottom", size="22%", pad=0.08, sharex=host_ax)
+    n_runs = 0
+    for name, series in active_by_scenario.items():
+        s2 = series if max_step is None else series[series.index <= max_step]
+        strip.step(s2.index, s2.values, where='post', linewidth=1.3, alpha=0.85,
+                   color=colors.get(name, '#999999'))
+        n_runs = max(n_runs, int(series.max()) if len(series) else 0)
+    strip.set_ylim(0, max(n_runs, 1) * 1.08)
+    strip.set_ylabel('active\nruns', fontsize=8)
+    strip.grid(True, alpha=0.25)
+    strip.tick_params(axis='y', labelsize=7)
+    if n_runs:
+        strip.set_yticks([0, n_runs // 2, n_runs])
+        strip.axhline(n_runs * 0.1, color='#999999', lw=0.8, ls=':')
+    host_ax.tick_params(axis='x', labelbottom=False)
+    return strip
+
+
 n_cols = 3
 n_rows = math.ceil(len(metrics) / n_cols)
-fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
-axes = axes.flatten()
+# Active-run count is metric-INDEPENDENT (it depends only on how long each run
+# lived), so the grid needs ONE strip for the whole figure. It gets its own
+# full-width gridspec row rather than being hung off a subplot with
+# make_axes_locatable, which would steal that subplot's space and overlap its
+# axis labels.
+fig = plt.figure(figsize=(5 * n_cols, 4.5 * n_rows + 1.3))
+_gs = fig.add_gridspec(n_rows + 1, n_cols,
+                       height_ratios=[*([4.5] * n_rows), 1.0], hspace=0.55)
+axes = np.array([fig.add_subplot(_gs[r, c])
+                 for r in range(n_rows) for c in range(n_cols)])
+ax_grid_active = fig.add_subplot(_gs[n_rows, :])
+active_by_scenario = {}
 
 # For each metric, plot convergence patterns
 for idx, metric in enumerate(metrics):
@@ -86,7 +132,7 @@ for idx, metric in enumerate(metrics):
         if metric == 'dissimilarity_index':
             df = dissim_by_scenario.get(scenario_name)
         else:
-            filepath = Path(f'experiments/{folder}/metrics_history.csv')
+            filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
             df = None
             if filepath.exists():
                 if scenario_name in metrics_history_cache:
@@ -98,14 +144,11 @@ for idx, metric in enumerate(metrics):
         if df is None or df.empty:
             continue
 
-        # Calculate mean and confidence interval at each step
-        grouped = df.groupby('step')[metric]
-        mean_values = grouped.mean()
-        std_values = grouped.std()
-        count_values = grouped.count().replace(0, np.nan)
-
-        # Calculate 95% confidence interval
-        ci = 1.96 * std_values / np.sqrt(count_values)
+        # Forward-filled: a bare groupby('step') averages only the runs still
+        # alive at that step, so the trace drifts upward from attrition rather
+        # than from dynamics (see plot_style.step_stats_forward_filled).
+        mean_values, ci, n_active_series = step_stats_forward_filled(df, metric)
+        active_by_scenario[scenario_name] = n_active_series
 
         # Limit steps for visual clarity
         max_step = min(1000, mean_values.index.max())
@@ -151,6 +194,21 @@ if uhandles:
                frameon=False, bbox_to_anchor=(0.5, -0.04),
                labelspacing=0.8, borderaxespad=1.0, columnspacing=1.6, handlelength=2.0)
 
+for _sc, _series in active_by_scenario.items():
+    ax_grid_active.step(_series.index, _series.values, where='post',
+                        linewidth=1.3, alpha=0.85,
+                        color=scenario_colors.get(_sc, '#999999'))
+_nr = max((int(v.max()) for v in active_by_scenario.values() if len(v)), default=0)
+ax_grid_active.set_ylim(0, max(_nr, 1) * 1.08)
+ax_grid_active.set_ylabel('active runs', fontsize=9)
+# No x-label: all six subplots above already carry 'Simulation Step', and a
+# seventh would collide with the figure legend beneath.
+ax_grid_active.set_title('Runs still evolving (shared by all metrics above)',
+                         fontsize=10, pad=4)
+ax_grid_active.grid(True, alpha=0.25)
+if _nr:
+    ax_grid_active.set_yticks([0, _nr // 2, _nr])
+    ax_grid_active.axhline(_nr * 0.1, color='#999999', lw=0.8, ls=':')
 plt.suptitle('Convergence Patterns of Segregation Metrics Across Scenarios', y=0.98)
 sns.despine(fig=fig)
 plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
@@ -162,16 +220,17 @@ plt.close(fig)
 if include_dissimilarity:
     # Dedicated dissimilarity index convergence figure for detailed inserts
     fig_di, ax_di = plt.subplots(figsize=(10, 4.5))
+    ax_di_active = make_axes_locatable(ax_di).append_axes(
+        "bottom", size="22%", pad=0.08, sharex=ax_di)
+    di_active_by_scenario = {}
     for scenario_name in SCENARIO_ORDER:
         df = dissim_by_scenario.get(scenario_name)
         if df is None or df.empty:
             continue
 
-        grouped = df.groupby('step')['dissimilarity_index']
-        mean_values = grouped.mean()
-        std_values = grouped.std()
-        count_values = grouped.count().replace(0, np.nan)
-        ci = 1.96 * std_values / np.sqrt(count_values)
+        mean_values, ci, n_active_series = step_stats_forward_filled(
+            df, 'dissimilarity_index')
+        di_active_by_scenario[scenario_name] = n_active_series
 
         max_step = min(1000, mean_values.index.max())
         steps = mean_values.index[mean_values.index <= max_step]
@@ -187,6 +246,20 @@ if include_dissimilarity:
 
     ax_di.set_xlabel('Simulation Step')
     ax_di.set_ylabel(metric_labels['dissimilarity_index'])
+    for _sc, _series in di_active_by_scenario.items():
+        ax_di_active.step(_series.index, _series.values, where='post',
+                          linewidth=1.3, alpha=0.85,
+                          color=scenario_colors.get(_sc, '#999999'))
+    _nr = max((int(v.max()) for v in di_active_by_scenario.values() if len(v)), default=0)
+    ax_di_active.set_ylim(0, max(_nr, 1) * 1.08)
+    ax_di_active.set_ylabel('active\nruns', fontsize=8)
+    ax_di_active.set_xlabel('Simulation Step')
+    ax_di_active.grid(True, alpha=0.25)
+    ax_di_active.tick_params(axis='y', labelsize=7)
+    if _nr:
+        ax_di_active.set_yticks([0, _nr // 2, _nr])
+        ax_di_active.axhline(_nr * 0.1, color='#999999', lw=0.8, ls=':')
+    ax_di.tick_params(axis='x', labelbottom=False)
     ax_di.set_title('Dissimilarity Index Convergence', pad=10)
     ax_di.grid(False)
     sns.despine(ax=ax_di)
@@ -210,7 +283,7 @@ for scenario_name, folder in scenarios.items():
     if scenario_name in metrics_history_cache:
         df_base = metrics_history_cache[scenario_name]
     else:
-        path = Path(f'experiments/{folder}/metrics_history.csv')
+        path = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         df_base = pd.read_csv(path) if path.exists() else None
         if df_base is not None:
             metrics_history_cache[scenario_name] = df_base

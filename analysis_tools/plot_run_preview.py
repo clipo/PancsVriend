@@ -11,13 +11,10 @@ Outputs into <run_dir>/plots/preview/:
                                      per-run traces)
     preview_grids_<scenario>.png     initial vs final grid per completed run
 
-Reads states/states_run_*.npz (one int-grid snapshot per agent decision;
--1 empty, 0/1 agent types) and move_logs/agent_moves_run_*.json.gz (per-decision
-records incl. step, moved, llm_parse_status), via the shared loaders in
-analysis_tools.analyze_agent_movement (single source of truth for run-file
-formats). The per-step grid is the LAST snapshot within each step. Metrics come
-from Metrics.calculate_all_metrics — the same definitions used everywhere else
-in the project.
+Reads each run's per-step grids (-1 empty, 0/1 agent types) and per-step
+decision counts through run_files, which serves the per-step and the older
+per-move formats alike. Metrics come from Metrics.calculate_all_metrics — the
+same definitions used everywhere else in the project.
 """
 import argparse
 import glob
@@ -35,11 +32,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
 from Metrics import calculate_all_metrics  # noqa: E402
-from analysis_tools.analyze_agent_movement import (  # noqa: E402
-    load_move_log_json,
-    load_states_for_run,
-)
+from run_files import list_run_ids, load_step_frames, load_step_log  # noqa: E402
 from analysis_tools.experiment_list_for_analysis import SCENARIO_COLORS  # noqa: E402
+from analysis_tools.plot_style import overlay_run_points  # noqa: E402
 
 METRIC_KEYS = ["clusters", "switch_rate", "distance", "mix_deviation", "share", "ghetto_rate"]
 GRID_CMAP = ListedColormap(["#f2f2f2", "#d62728", "#1f77b4"])  # empty, type 0, type 1
@@ -63,42 +58,26 @@ def int_grid_to_object_grid(int_grid):
 
 
 def load_run(exp_dir, run_id):
-    """Return (per_step_grids, per_step_move_rate, per_step_parse_fail) or None."""
-    states = load_states_for_run(Path(exp_dir), run_id)
-    entries = load_move_log_json(Path(exp_dir), run_id)
-    if states is None or entries is None:
+    """Return (steps, per_step_grids, per_step_move_rate, per_step_parse_fail) or None."""
+    loaded = load_step_frames(exp_dir, run_id)
+    step_log = load_step_log(exp_dir, run_id)
+    if loaded is None or step_log is None or step_log.empty:
         return None
-
-    last_idx_by_step, decisions_by_step = {}, {}
-    for idx, e in enumerate(entries):
-        if idx >= len(states):
-            break
-        step = e.get("step")
-        if step is None:
-            continue
-        step = int(step)
-        last_idx_by_step[step] = idx
-        if e.get("reason") == "initial_state":
-            continue
-        moved = bool(e.get("moved"))
-        parse_ok = str(e.get("llm_parse_status")) == "OK"
-        decisions_by_step.setdefault(step, []).append((moved, parse_ok))
-
-    steps = sorted(last_idx_by_step)
-    grids = [states[last_idx_by_step[s]] for s in steps]
+    steps, grids = loaded
+    by_step = step_log.set_index("step")
     move_rate, parse_fail = [], []
     for s in steps:
-        ds = decisions_by_step.get(s, [])
-        move_rate.append(np.mean([m for m, _ in ds]) if ds else np.nan)
-        parse_fail.append(np.mean([not ok for _, ok in ds]) if ds else np.nan)
+        if s in by_step.index and by_step.at[s, "decisions"] > 0:
+            move_rate.append(by_step.at[s, "moved"] / by_step.at[s, "decisions"])
+            parse_fail.append(by_step.at[s, "parse_failed"] / by_step.at[s, "decisions"])
+        else:
+            move_rate.append(np.nan)
+            parse_fail.append(np.nan)
     return steps, grids, move_rate, parse_fail
 
 
 def collect_experiment(exp_dir):
-    run_ids = sorted(
-        int(os.path.basename(p).split("_run_")[1].split(".")[0])
-        for p in glob.glob(os.path.join(exp_dir, "states", "states_run_*.npz"))
-    )
+    run_ids = list_run_ids(exp_dir)
     runs = {}
     for rid in run_ids:
         loaded = load_run(exp_dir, rid)
@@ -175,8 +154,9 @@ def _final_values(matrix):
 
 
 def plot_final_boxplots(series_by_scenario, run_counts, out_path):
-    """Final-step value distributions per scenario — violin + box overlay,
-    matching the house style of segregation_metrics_comparison.py."""
+    """Final-step value distributions per scenario — violin + box overlay with
+    every individual run scattered on top, matching the house style of
+    segregation_metrics_comparison.py."""
     scenarios = list(series_by_scenario)
     positions = np.arange(1, len(scenarios) + 1)
     fig, axes = plt.subplots(2, 4, figsize=(18, 8))
@@ -195,11 +175,13 @@ def plot_final_boxplots(series_by_scenario, run_counts, out_path):
             patch.set_facecolor(col); patch.set_edgecolor(col)
             patch.set_alpha(0.65); patch.set_linewidth(1.0)
         for med in bp["medians"]:
-            med.set_color("black"); med.set_linewidth(1.2)
+            # zorder above the points so the median stays readable through them
+            med.set_color("black"); med.set_linewidth(1.2); med.set_zorder(4)
         for wl in bp["whiskers"]:
             wl.set_color("#777777"); wl.set_linewidth(1.0)
         for cap in bp["caps"]:
             cap.set_color("#777777"); cap.set_linewidth(1.0)
+        overlay_run_points(ax, plot_data, positions)
         ax.set_xticks(positions)
         ax.set_xticklabels([f"{s}\n(n={run_counts[s]})" for s in scenarios],
                            fontsize=8, rotation=20, ha="right")

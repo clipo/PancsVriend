@@ -450,11 +450,31 @@ def _write_single_model_scenario_ranking_table(
     output_csv = reports_dir / f"segregation_scenario_rankings_{safe_model}.csv"
     output_md = reports_dir / f"segregation_scenario_rankings_{safe_model}.md"
 
+    # Normality gating (analysis_tools/normality_tests.py runs earlier in the
+    # pipeline): an adjacent-pair comparison uses Welch's t-test only when
+    # BOTH scenarios' per-run finals pass Shapiro-Wilk for that metric;
+    # otherwise Mann-Whitney U. Missing table -> Mann-Whitney throughout.
+    normal_lookup: Dict[tuple, bool] = {}
+    normality_csv = reports_dir / "normality_tests.csv"
+    if normality_csv.exists():
+        norm_df = pd.read_csv(normality_csv)
+        for _, r in norm_df.iterrows():
+            normal_lookup[(str(r["metric"]), str(r["scenario"]))] = bool(
+                r["normal_at_0.05"]) if pd.notna(r["normal_at_0.05"]) else False
+
+    def _stars(p: float) -> str:
+        return ("***" if p < 0.001 else "**" if p < 0.01
+                else "*" if p < 0.05 else "")
+
     rows: List[dict] = []
     markdown_lines: List[str] = [
         f"# Segregation Ranking by Scenario ({model_display})",
         "",
-        "Rankings and significance are computed per metric (Mann-Whitney U, two-sided).",
+        "Each scenario is compared with the NEXT-ranked one. The test is",
+        "normality-gated per normality_tests.csv (Shapiro-Wilk): Welch's",
+        "t-test when both scenarios' finals are normal for the metric,",
+        "Mann-Whitney U (two-sided) otherwise.",
+        "Significance levels: `***` p<0.001, `**` p<0.01, `*` p<0.05.",
         "",
         "Metrics are ordered with dissimilarity first when available.",
         "",
@@ -479,8 +499,8 @@ def _write_single_model_scenario_ranking_table(
         markdown_lines.extend([
             f"## {metric}",
             "",
-            "| Rank | Scenario | Mean | Std dev | Runs | Significant vs next | p-value vs next |",
-            "|---:|---|---:|---:|---:|:---:|---:|",
+            "| Rank | Scenario | Mean | Std dev | Runs | Sig. vs next | p-value vs next | Test |",
+            "|---:|---|---:|---:|---:|:---:|---:|---|",
         ])
 
         for idx, (scenario, values) in enumerate(ranking):
@@ -490,19 +510,29 @@ def _write_single_model_scenario_ranking_table(
 
             sig_marker = ""
             p_value = None
+            test_used = None
             if idx + 1 < len(ranking):
-                next_values = ranking[idx + 1][1]
+                next_name, next_values = ranking[idx + 1]
                 if len(values) >= 2 and len(next_values) >= 2:
+                    both_normal = (normal_lookup.get((metric, scenario), False)
+                                   and normal_lookup.get((metric, next_name),
+                                                         False))
                     try:
-                        _, p_value = stats.mannwhitneyu(
-                            values,
-                            next_values,
-                            alternative="two-sided",
-                        )
-                        if p_value < 0.05:
-                            sig_marker = "*"
+                        if both_normal:
+                            test_used = "Welch t"
+                            _, p_value = stats.ttest_ind(
+                                values, next_values, equal_var=False)
+                        else:
+                            test_used = "Mann-Whitney U"
+                            _, p_value = stats.mannwhitneyu(
+                                values,
+                                next_values,
+                                alternative="two-sided",
+                            )
+                        sig_marker = _stars(p_value)
                     except Exception:
                         p_value = None
+                        test_used = None
 
             scenario_label = experiment_list.SCENARIO_LABELS.get(
                 scenario,
@@ -519,11 +549,12 @@ def _write_single_model_scenario_ranking_table(
                 "n_runs": n_runs,
                 "significant_vs_next": sig_marker,
                 "p_value_vs_next": None if p_value is None else round(float(p_value), 6),
+                "test_vs_next": test_used,
             })
 
             p_value_display = "" if p_value is None else f"{p_value:.6f}"
             markdown_lines.append(
-                f"| {idx + 1} | {scenario_label} | {mean_value:.4f} | {std_value:.4f} | {n_runs} | {sig_marker} | {p_value_display} |"
+                f"| {idx + 1} | {scenario_label} | {mean_value:.4f} | {std_value:.4f} | {n_runs} | {sig_marker} | {p_value_display} | {test_used or ''} |"
             )
 
         markdown_lines.append("")
