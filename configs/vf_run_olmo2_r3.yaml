@@ -1,0 +1,77 @@
+# =============================================================================
+# VALUE-FUNCTION simulation run — OLMo-2-0325-32B-Instruct-Q8_0, R3 dual-count, all scenarios
+# =============================================================================
+# Composition-cell P(MOVE) lookups, no LLM server, no GPU. See
+# configs/vf_run_gemma_r3.yaml for the full mechanics (artifact freezing into
+# <run_dir>/value_functions/, {scenario} template semantics, profiles).
+#
+#   python run_llm_probability_simulation_analysis.py \
+#       --config-yaml configs/vf_run_olmo2_r3.yaml --config-profile production
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+llm_model: "olmo-2-32b-vf-r3"
+
+manifest_file: null
+skip_vf_build: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+
+vf_build_args:
+  config: "configs/value_function_scenarios_olmo2.yaml"
+  plot: true
+
+contexts_args:
+  scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
+  runs: 10000
+  max_steps: 1000
+  grid_size: 20
+  num_type_a: 160
+  num_type_b: 160
+  value_function: "prompt_refinement/results/value_functions/vf_olmo-2-32b-chat-grammar__{scenario}__R3_dual_count.json"
+  temperature: 0.3
+  scenario_file: "scenarios_a2.py"
+  llm_model: "olmo-2-32b-vf-r3"
+  processes: 4
+  no_parallel: false
+  new: true
+
+analysis_args: {}
+
+profiles:
+
+  smoke_test:
+    contexts_args:
+      scenarios: [baseline]
+      runs: 2
+      max_steps: 2
+      grid_size: 20
+      num_type_a: 160
+      num_type_b: 160
+      value_function: "prompt_refinement/results/value_functions/vf_olmo-2-32b-chat-grammar__{scenario}__R3_dual_count.json"
+      temperature: 0.3
+      scenario_file: "scenarios_a2.py"
+      llm_model: "olmo-2-32b-vf-r3"
+      processes: 2
+      no_parallel: false
+      new: true
+
+  production:
+    contexts_args:
+      scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
+      runs: 10000
+      max_steps: 1000
+      grid_size: 20
+      num_type_a: 160
+      num_type_b: 160
+      value_function: "prompt_refinement/results/value_functions/vf_olmo-2-32b-chat-grammar__{scenario}__R3_dual_count.json"
+      temperature: 0.3
+      scenario_file: "scenarios_a2.py"
+      llm_model: "olmo-2-32b-vf-r3"
+      processes: 4
+      no_parallel: false
+      new: true

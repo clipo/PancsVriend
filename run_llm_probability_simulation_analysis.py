@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
 """Guide: llm_probability_simulation_analysis pipeline.
 
-Run token probabilities -> simulations -> scenario analysis in one CLI.
+Run value-function build -> simulations -> scenario analysis in one CLI.
 
 Example:
     python run_llm_probability_simulation_analysis.py \
-        --llm-model phi4:latest \
-        --token-args "--scenario all --processes 10 --temperature 0.3" \
-        --contexts-args "--runs 100 --processes 10 --use-log-probs --save-every-steps 10" \
-        --analysis-args "--include-movement"
+        --config-yaml configs/vf_run_gemma_r3.yaml --config-profile production
 
-Each stage also allows pass-through arguments:
-- --token-args    -> llm_utility_approximation/llm_token_probabilities.py
+Each stage allows pass-through arguments:
+- --vf-build-args -> prompt_refinement/build_value_function.py
 - --contexts-args -> run_all_contexts.py
 - --analysis-args -> analysis_tools/run_all_scenario_analysis.py
+
+Value-function guide:
+- The vf-build stage samples P(MOVE | context) from a live llama.cpp server
+  (build_value_function.py --config <sampling yaml>); it only runs when
+  `vf_build_args` provides a `config` and `skip_vf_build` is false. Skip it
+  when the artifacts already exist under the canonical store
+  (prompt_refinement/results/value_functions/).
+- When `contexts_args.value_function` is set, the resolved artifacts (JSON +
+  figures) are FROZEN into <run_dir>/value_functions/ together with a
+  composition-heatmap grid rendered from the frozen copies, and the contexts
+  stage reads the frozen copies — each run folder carries the exact decision
+  tables it simulated from, for side-by-side comparison with the results.
+- The token-probability stage was removed 2026-08-25 (superseded by value
+  functions). Old `token_args`/`skip_token_probs`/`token_*_root` config keys
+  are ignored with a warning.
 
 Analysis-stage extras:
 - Scenario hierarchy/significance tables are produced by
     analysis_tools/run_all_scenario_analysis.py and written to analysis output.
-
-Root-path guide:
-- Token stage root can be set via `token_args.token_output_root` in YAML.
-- If `token_args.token_output_root` is missing, fallback is top-level `token_log_probs_root`.
-- Context simulation uses `contexts_args.log_probs_root` when provided.
-- If `contexts_args.log_probs_root` is missing, fallback is the effective token root.
-- Token API structure can be set via `token_args.logprob_api_structure` (`ollama` or `openai`).
-
-
 """
 
 from __future__ import annotations
@@ -53,9 +56,16 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-TOKEN_SCRIPT = REPO_ROOT / "llm_utility_approximation" / "llama_cpp_llm_token_probabilities.py"
+VF_BUILD_SCRIPT = REPO_ROOT / "prompt_refinement" / "build_value_function.py"
 CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 ANALYSIS_SCRIPT = REPO_ROOT / "analysis_tools" / "run_all_scenario_analysis.py"
+
+DEPRECATED_TOKEN_KEYS = (
+    "token_args",
+    "skip_token_probs",
+    "token_log_probs_root",
+    "token_output_root",
+)
 
 
 def _default_run_id(model_slug: str) -> str:
@@ -80,7 +90,7 @@ def _resolve_run_layout(run_root: str, run_id: str, llm_model: str) -> dict[str,
         "analysis_dir": str(analysis_dir),
         "plots_dir": str(plots_dir),
         "experiments_dir": str(experiments_dir),
-        "token_output_root": str(run_dir / "log_probs"),
+        "value_functions_dir": str(run_dir / "value_functions"),
         "default_manifest_file": str(manifest_dir / f"{run_id}_run_manifest.json"),
         "model_slug": model_slug,
     }
@@ -191,6 +201,130 @@ def _freeze_scenario_file(contexts_base_args: list[str], run_dir: str | Path) ->
     return frozen
 
 
+def _replace_flag_value(argv: list[str], flag: str, new_value: str) -> list[str]:
+    """Return argv with the value of `flag` replaced (space and equals forms)."""
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token == flag and i + 1 < len(argv):
+            out.extend([flag, new_value])
+            i += 2
+            continue
+        if token.startswith(f"{flag}="):
+            out.append(f"{flag}={new_value}")
+            i += 1
+            continue
+        out.append(token)
+        i += 1
+    return out
+
+
+def _render_vf_heatmaps(frozen_jsons: list[Path], out_path: Path) -> None:
+    """Composition-surface heatmap grid — the exact lookup table the simulation
+    uses — rendered FROM THE FROZEN artifacts. plot_value_functions.fig_heatmaps
+    is reused so this rendering cannot drift from the sweep figures."""
+    pr_dir = str(REPO_ROOT / "prompt_refinement")
+    if pr_dir not in sys.path:
+        sys.path.insert(0, pr_dir)
+    try:
+        from sampling_common import load_value_function
+        from plot_value_functions import SCENARIO_ORDER, fig_heatmaps
+    except ImportError as exc:
+        print(f"WARNING: composition-heatmap rendering unavailable ({exc}); "
+              f"frozen JSONs written without the grid figure.")
+        return
+    found = {}
+    for path in frozen_jsons:
+        vf = load_value_function(str(path))
+        found[vf["meta"].get("scenario", path.stem)] = vf
+    order = [s for s in SCENARIO_ORDER if s in found]
+    order += sorted(k for k in found if k not in order)
+    fig_heatmaps(found, order, str(out_path))
+    print(f"[freeze] composition heatmaps -> {out_path}")
+
+
+def _write_table_hashes(vf_dir: Path) -> None:
+    """value_functions/TABLE_HASHES.json: one-glance table identity per run.
+
+    Two runs used the same decision table iff their hashes match — no diffing
+    of frozen artifacts needed. The hash covers ONLY `compositions` (the
+    numbers the simulation actually reads), so cosmetic meta edits do not
+    change identity, while any top-up does (counts merge into the cells).
+    Also surfaces n_samples and meta.calibration (requested vs achieved
+    precision — absent on artifacts built before 2026-09-02), the other two
+    at-a-glance version markers. A separate file, not run_layout_manifest:
+    the frozen dir is static after launch, so this can never race with a
+    manifest rewrite.
+    """
+    import hashlib
+    entries = {}
+    for p in sorted(vf_dir.glob("vf_*.json")):
+        vf = json.loads(p.read_text())
+        comp = vf.get("compositions", {})
+        entries[p.name] = {
+            "table_sha256": hashlib.sha256(
+                json.dumps(comp, sort_keys=True).encode()).hexdigest(),
+            "n_samples": sum(c.get("n_samples", 0)
+                             for rows in comp.values() for c in rows),
+            "calibration": vf.get("meta", {}).get("calibration"),
+        }
+    (vf_dir / "TABLE_HASHES.json").write_text(json.dumps(entries, indent=1))
+    print(f"[freeze] table hashes -> {vf_dir / 'TABLE_HASHES.json'}")
+
+
+def _freeze_value_functions(
+    contexts_base_args: list[str],
+    value_functions_dir: str,
+    dry_run: bool,
+) -> list[str]:
+    """Freeze the run's value-function artifacts into <run_dir>/value_functions/.
+
+    Same rationale as _freeze_scenario_file: the repo-level artifact store is
+    mutable (top-ups, half-data rebuilds), so the run folder keeps byte-exact
+    copies of the decision tables it simulated from, plus their existing
+    figures and a composition-heatmap grid for side-by-side comparison with
+    the results. Returns contexts args rewritten so the contexts stage reads
+    the frozen copies (and config.json records the in-run-dir path).
+    """
+    vf_arg = _extract_flag_value(contexts_base_args, "--value-function")
+    if not vf_arg:
+        return contexts_base_args
+
+    # Absolute: the contexts stage runs with cwd inside the run dir, so a
+    # run_root-relative path would only resolve via llm_runner's repo-root
+    # anchor fallback (and not at all for an absolute run_root elsewhere).
+    vf_dir = Path(_resolve_cli_path(str(value_functions_dir)))
+    resolved = Path(_resolve_cli_path(vf_arg))  # keeps '{scenario}' literal
+    if "{scenario}" in vf_arg:
+        sources = sorted(resolved.parent.glob(resolved.name.replace("{scenario}", "*")))
+        frozen_target = str(vf_dir / resolved.name)
+    elif resolved.is_dir():
+        sources = sorted(resolved.glob("vf_*.json"))
+        frozen_target = str(vf_dir)
+    else:
+        sources = [resolved] if resolved.exists() else []
+        frozen_target = str(vf_dir / resolved.name)
+    if not sources:
+        raise FileNotFoundError(
+            f"--value-function {vf_arg!r} matched no artifact (resolved: {resolved})")
+
+    if not dry_run:
+        vf_dir.mkdir(parents=True, exist_ok=True)
+        for src in sources:
+            shutil.copy2(src, vf_dir / src.name)
+            for ext in (".png", ".pdf", ".svg"):
+                figure = src.with_suffix(ext)
+                if figure.exists():
+                    shutil.copy2(figure, vf_dir / figure.name)
+        _render_vf_heatmaps(sorted(vf_dir.glob("vf_*.json")),
+                            vf_dir / "value_function_heatmaps.png")
+        _write_table_hashes(vf_dir)
+
+    print(f"[freeze] {len(sources)} value-function artifact(s) -> {vf_dir}")
+    return _replace_flag_value(contexts_base_args, "--value-function", frozen_target)
+
+
 def _passthrough_map_to_cli_args(arg_map: dict[str, Any]) -> list[str]:
     cli_args: list[str] = []
     for key, value in arg_map.items():
@@ -247,14 +381,18 @@ def _apply_config_to_args(
     config_values: dict[str, Any],
     cli_argv: list[str],
 ) -> argparse.Namespace:
+    deprecated_present = [k for k in DEPRECATED_TOKEN_KEYS if k in config_values]
+    if deprecated_present:
+        print(f"[deprecated] the token-probability stage was removed 2026-08-25 "
+              f"(superseded by value functions); ignoring config key(s): "
+              f"{', '.join(deprecated_present)}")
+
     top_level_fields = [
         "run_root",
         "run_id",
         "llm_model",
         "manifest_file",
-        "token_log_probs_root",
-        "token_output_root",
-        "skip_token_probs",
+        "skip_vf_build",
         "skip_contexts",
         "skip_analysis",
         "continue_on_error",
@@ -268,7 +406,7 @@ def _apply_config_to_args(
         if field_name in config_values:
             setattr(parsed_args, field_name, config_values.get(field_name))
 
-    passthrough_fields = ["token_args", "contexts_args", "analysis_args"]
+    passthrough_fields = ["vf_build_args", "contexts_args", "analysis_args"]
     for field_name in passthrough_fields:
         flag = f"--{field_name.replace('_', '-')}"
         if _contains_cli_flag(cli_argv, flag):
@@ -278,14 +416,7 @@ def _apply_config_to_args(
 
         raw_value = config_values.get(field_name)
         if isinstance(raw_value, dict):
-            arg_map = dict(raw_value)
-            if field_name == "token_args":
-                token_root_from_token_args = arg_map.pop("token_output_root", None)
-                if token_root_from_token_args is None:
-                    token_root_from_token_args = arg_map.pop("token_log_probs_root", None)
-                if token_root_from_token_args is not None:
-                    setattr(parsed_args, "token_args_token_output_root", token_root_from_token_args)
-            cli_list = _passthrough_map_to_cli_args(arg_map)
+            cli_list = _passthrough_map_to_cli_args(dict(raw_value))
             setattr(parsed_args, field_name, shlex.join(cli_list))
         elif isinstance(raw_value, str):
             setattr(parsed_args, field_name, raw_value)
@@ -319,27 +450,6 @@ def _get_flag_value(args: Iterable[str], flag: str) -> str | None:
     return None
 
 
-def _resolve_token_output_paths(
-    model_slug: str,
-    explicit_output_dir: str | None,
-    token_root_fallback: str,
-) -> tuple[str, str]:
-    """Return (token_output_root, token_output_dir_for_token_script).
-
-    `explicit_output_dir` follows llm_token_probabilities semantics where the
-    value can be either <root> or <root>/<model_slug>.
-    """
-    if explicit_output_dir:
-        resolved_output_dir = _resolve_cli_path(explicit_output_dir)
-        output_dir_path = Path(resolved_output_dir)
-        if output_dir_path.name == model_slug:
-            return str(output_dir_path.parent), str(output_dir_path)
-        return str(output_dir_path), str(output_dir_path / model_slug)
-
-    resolved_root = _resolve_cli_path(token_root_fallback)
-    return resolved_root, str(Path(resolved_root) / model_slug)
-
-
 def _run_command(command: list[str], dry_run: bool, cwd: str | None = None) -> None:
     printable = " ".join(shlex.quote(part) for part in command)
     if cwd:
@@ -361,7 +471,7 @@ def _run_command(command: list[str], dry_run: bool, cwd: str | None = None) -> N
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run token probabilities, run_all_contexts, and scenario analysis in one command.",
+        description="Run value-function build, run_all_contexts, and scenario analysis in one command.",
     )
     parser.add_argument(
         "--config-yaml",
@@ -390,13 +500,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--llm-model",
         default=None,
-        help="LLM model name used across token-probabilities, contexts, and analysis steps",
+        help="LLM model name/label used across the vf-build, contexts, and analysis steps",
     )
     parser.add_argument(
-        "--token-args",
+        "--vf-build-args",
         type=str,
         default="",
-        help="Quoted passthrough args for llm_token_probabilities.py",
+        help="Quoted passthrough args for prompt_refinement/build_value_function.py "
+             "(the stage only runs when these include --config)",
     )
     parser.add_argument(
         "--contexts-args",
@@ -417,21 +528,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Explicit simulation manifest JSON path used by analysis (if omitted with --skip-contexts, defaults to manifest/<run_id>_run_manifest.json when --run-id is provided).",
     )
     parser.add_argument(
-        "--token-log-probs-root",
-        type=str,
-        default=None,
-        help="Root directory for token-probability outputs when token args do not set --output-dir (preferred alias; same purpose as --token-output-root)",
-    )
-    parser.add_argument(
-        "--token-output-root",
-        type=str,
-        default=None,
-        help="Deprecated alias for --token-log-probs-root (default: <run>/log_probs)",
-    )
-    parser.add_argument(
-        "--skip-token-probs",
+        "--skip-vf-build",
         action="store_true",
-        help="Skip llm_token_probabilities.py stage",
+        help="Skip the build_value_function.py sampling stage (use pre-built artifacts)",
     )
     parser.add_argument(
         "--skip-contexts",
@@ -472,7 +571,7 @@ def main() -> None:
     if not args.llm_model:
         parser.error("--llm-model is required (or set 'llm_model' in --config-yaml).")
 
-    token_base_args = _parse_passthrough_args(args.token_args)
+    vf_build_base_args = _parse_passthrough_args(args.vf_build_args)
     contexts_base_args = _parse_passthrough_args(args.contexts_args)
     analysis_base_args = _parse_passthrough_args(args.analysis_args)
 
@@ -481,18 +580,6 @@ def main() -> None:
     model_slug = _sanitize_model_for_path_component(model)
     run_id = args.run_id or _default_run_id(model_slug)
     run_layout = _resolve_run_layout(args.run_root, run_id, model)
-
-    token_root_from_token_args = getattr(args, "token_args_token_output_root", None)
-    token_log_probs_root_arg = token_root_from_token_args or args.token_log_probs_root or args.token_output_root
-    if token_log_probs_root_arg is None:
-        token_log_probs_root_arg = run_layout["token_output_root"]
-
-    explicit_token_output_dir = _get_flag_value(token_base_args, "--output-dir")
-    default_token_output_root, default_token_output_dir = _resolve_token_output_paths(
-        model_slug=model_slug,
-        explicit_output_dir=explicit_token_output_dir,
-        token_root_fallback=token_log_probs_root_arg,
-    )
 
     contexts_manifest_arg = _get_flag_value(contexts_base_args, "--manifest-file")
     analysis_manifest_arg = _get_flag_value(analysis_base_args, "--manifest-file")
@@ -536,29 +623,37 @@ def main() -> None:
 
         _freeze_scenario_file(contexts_base_args, run_layout["run_dir"])
 
+        # Freeze the vf sampling config alongside the run config: it documents
+        # how the artifacts this run simulates from were (or would be) sampled.
+        vf_build_config_arg = _extract_flag_value(vf_build_base_args, "--config")
+        if vf_build_config_arg:
+            resolved_vf_config = _resolve_cli_path(vf_build_config_arg)
+            if os.path.exists(resolved_vf_config):
+                shutil.copy2(resolved_vf_config,
+                             Path(run_layout["run_dir"]) / "vf_build_config_source.yaml")
+            else:
+                print(f"WARNING: vf_build_args --config '{vf_build_config_arg}' resolved to "
+                      f"'{resolved_vf_config}' which does not exist; not frozen.")
+
         effective_config_payload = {
             "config_yaml": source_config_path,
             "config_profile": args.config_profile,
             "run_root": args.run_root,
             "run_id": args.run_id,
             "llm_model": args.llm_model,
-            "token_args": args.token_args,
+            "vf_build_args": args.vf_build_args,
             "contexts_args": args.contexts_args,
             "analysis_args": args.analysis_args,
             "manifest_file": args.manifest_file,
-            "token_log_probs_root": args.token_log_probs_root,
-            "token_output_root": args.token_output_root,
-            "token_args_token_output_root": token_root_from_token_args,
-            "skip_token_probs": args.skip_token_probs,
+            "skip_vf_build": args.skip_vf_build,
             "skip_contexts": args.skip_contexts,
             "skip_analysis": args.skip_analysis,
             "continue_on_error": args.continue_on_error,
             "dry_run": args.dry_run,
             "resolved": {
                 "manifest_path": manifest_path,
-                "default_token_output_root": default_token_output_root,
-                "default_token_output_dir": default_token_output_dir,
-                "token_base_args_list": token_base_args,
+                "value_functions_dir": run_layout["value_functions_dir"],
+                "vf_build_base_args_list": vf_build_base_args,
                 "contexts_base_args_list": contexts_base_args,
                 "analysis_base_args_list": analysis_base_args,
             },
@@ -577,18 +672,17 @@ def main() -> None:
             "config_profile": args.config_profile,
             "run_layout": run_layout,
             "stages": {
-                "skip_token_probs": args.skip_token_probs,
+                "skip_vf_build": args.skip_vf_build,
                 "skip_contexts": args.skip_contexts,
                 "skip_analysis": args.skip_analysis,
             },
             "passthrough": {
-                "token_args": args.token_args,
+                "vf_build_args": args.vf_build_args,
                 "contexts_args": args.contexts_args,
                 "analysis_args": args.analysis_args,
             },
             "resolved_paths": {
-                "token_output_root": default_token_output_root,
-                "token_output_dir": default_token_output_dir,
+                "value_functions_dir": run_layout["value_functions_dir"],
                 "manifest_path": manifest_path,
                 "analysis_output_dir": run_layout["analysis_dir"],
                 "plots_output_dir": run_layout["plots_dir"],
@@ -604,26 +698,32 @@ def main() -> None:
     print(f"Experiments dir: {run_layout['experiments_dir']}")
     print(f"Analysis dir: {run_layout['analysis_dir']}")
     print(f"Plots dir: {run_layout['plots_dir']}")
+    print(f"Value functions dir: {run_layout['value_functions_dir']}")
 
-    if not args.skip_token_probs:
-        token_cmd = [sys.executable, str(TOKEN_SCRIPT), "--llm-model", model]
-        token_cmd.extend(token_base_args)
-        if not _contains_flag(token_base_args, "--output-dir"):
-            token_cmd.extend(["--output-dir", default_token_output_dir])
-        try:
-            _run_command(token_cmd, dry_run=args.dry_run)
-        except subprocess.CalledProcessError as exc:
-            print(f"[error] Token probability stage failed with exit code {exc.returncode}.")
-            if not args.continue_on_error:
-                raise
+    if not args.skip_vf_build:
+        if _contains_flag(vf_build_base_args, "--config"):
+            vf_build_cmd = [sys.executable, str(VF_BUILD_SCRIPT)]
+            vf_build_cmd.extend(vf_build_base_args)
+            try:
+                # cwd stays at the repo root so artifacts land in the canonical
+                # store (prompt_refinement/results/value_functions/); the run
+                # folder then freezes copies of what it uses.
+                _run_command(vf_build_cmd, dry_run=args.dry_run)
+            except subprocess.CalledProcessError as exc:
+                print(f"[error] Value-function build stage failed with exit code {exc.returncode}.")
+                if not args.continue_on_error:
+                    raise
+        else:
+            print("[skip] vf-build stage: vf_build_args has no --config; "
+                  "assuming pre-built artifacts.")
 
     if not args.skip_contexts:
+        contexts_base_args = _freeze_value_functions(
+            contexts_base_args, run_layout["value_functions_dir"], args.dry_run)
         contexts_cmd = [sys.executable, str(CONTEXTS_SCRIPT)]
         contexts_cmd.extend(contexts_base_args)
         if not _contains_flag(contexts_base_args, "--llm-model"):
             contexts_cmd.extend(["--llm-model", model])
-        if _contains_flag(contexts_base_args, "--use-log-probs") and not _contains_flag(contexts_base_args, "--log-probs-root"):
-            contexts_cmd.extend(["--log-probs-root", default_token_output_root])
         if manifest_path and not _contains_flag(contexts_base_args, "--manifest-file"):
             contexts_cmd.extend(["--manifest-file", manifest_path])
         try:

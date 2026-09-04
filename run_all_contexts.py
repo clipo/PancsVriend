@@ -10,11 +10,10 @@ Key options:
 * --scenarios <names...>  Limit execution to specific scenarios (defaults to all).
 * --runs N                Target number of runs per scenario (falls back to config when resuming).
 * --processes P           Parallel worker count (omit for auto min(cpu_count, runs)).
-* --save-every-steps N    Persist states/move logs every N steps (default 1, all detail retained).
+* --save-every-steps N    Persist states/move logs every N steps (default: only at the end).
+* --full-move-log         Per-decision records + frames instead of per-step (see run_files.py).
 * --no-parallel           Force sequential execution.
 * --new                   Always start new experiments (skip resume detection).
-* --use-log-probs         Use precomputed MOVE/STAY shares from summary CSVs.
-* --log-probs-root PATH   Optional root/model directory for log-prob summary files.
 * --llm-model/url/api-key Override the LLM endpoint configuration.
 * --temperature T         Sampling temperature for live LLM requests (default 0.3).
 
@@ -34,6 +33,7 @@ except (AttributeError, OSError):
 
 import argparse
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
@@ -42,9 +42,12 @@ import config as cfg
 from context_scenarios import CONTEXT_SCENARIOS
 from llm_runner import (
 	_analyze_run_status,
+	apply_grid_config,
 	check_existing_experiment,
+	grid_config_from_args,
 	run_llm_experiment,
 )
+from run_summary import combine_run_summaries
 
 
 def _sorted_experiment_dirs(root: Path) -> Iterable[Path]:
@@ -242,6 +245,14 @@ def _find_mechanical_baseline_experiment(experiments_root: Optional[Path] = None
 	return None
 
 
+def _sanitize_model_for_path_component(name: str) -> str:
+	# Same rule as run_llm_probability_simulation_analysis and
+	# run_all_scenario_analysis: Windows-disallowed path chars collapse to '-'.
+	sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', (name or "").strip())
+	sanitized = re.sub(r'-{2,}', '-', sanitized.rstrip(' .'))
+	return sanitized or "unknown-model"
+
+
 def _selected_experiments(records: List[dict]) -> dict:
 	selected = {}
 	for record in records:
@@ -270,18 +281,26 @@ def main() -> None:
 	parser.add_argument("--llm-api-key", type=str, default=None, help="Override LLM API key")
 	parser.add_argument("--temperature", type=float, default=0.3, help="Sampling temperature for live LLM API requests")
 	parser.add_argument("--processes", type=int, default=None, help="Parallel process count")
-	parser.add_argument("--save-every-steps", type=int, default=None, help="Persist states/move logs every N steps (default: 1)")
+	parser.add_argument("--save-every-steps", type=int, default=None,
+		help="Persist states/move logs every N steps. Default None = save only at the end; "
+		     "intermediate saves rewrite both files whole, so they cost O(steps^2) I/O.")
+	parser.add_argument("--grid-size", type=int, default=None,
+		help="Cells per side for this run (overrides config.GRID_SIZE)")
+	parser.add_argument("--num-type-a", type=int, default=None,
+		help="Type A agent count (overrides config.NUM_TYPE_A)")
+	parser.add_argument("--num-type-b", type=int, default=None,
+		help="Type B agent count (overrides config.NUM_TYPE_B)")
+	parser.add_argument("--full-move-log", action="store_true",
+		help="Record every agent decision and a grid frame per decision (the pre-2026-09-02 "
+		     "format) instead of per-step counts and frames. Runs are deterministic per "
+		     "run_id, so this regenerates per-move detail for any run exactly.")
 	parser.add_argument("--no-parallel", action="store_true", help="Force sequential execution")
 	parser.add_argument(
-		"--use-log-probs",
-		action="store_true",
-		help="Use precomputed scenario log-probability summary CSVs instead of live LLM API calls",
-	)
-	parser.add_argument(
-		"--log-probs-root",
+		"--value-function",
 		type=str,
 		default=None,
-		help="Optional root/model directory containing log-prob summary CSV files",
+		help="Path to a vf-1 value-function JSON (23-ratio P(MOVE) tables); decides MOVE/STAY "
+		     "without live LLM calls (composition-level lookup).",
 	)
 	parser.add_argument(
 		"--new",
@@ -315,6 +334,11 @@ def main() -> None:
 	)
 
 	args = parser.parse_args()
+
+	grid_config = grid_config_from_args(args.grid_size, args.num_type_a, args.num_type_b)
+	# Applied here as well so anything this module reports before the first
+	# run_llm_experiment call (preflight, banners) uses the run's geometry.
+	apply_grid_config(grid_config)
 
 	from llm_runner import apply_scenario_file, resolve_llm_style
 	try:
@@ -374,9 +398,10 @@ def main() -> None:
 			parallel=parallel,
 			n_processes=args.processes,
 			resume_experiment=resume_candidate,
-			use_log_probs=args.use_log_probs,
-			log_probs_root=args.log_probs_root,
+			value_function=args.value_function,
 			save_every_steps=args.save_every_steps,
+			grid_config=grid_config,
+			full_move_log=args.full_move_log,
 			llm_style=args.llm_style,
 			scenario_file=args.scenario_file,
 			progress_offset=scenario_index * (args.runs or 0),
@@ -415,6 +440,16 @@ def main() -> None:
 
 	manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
 	print(f"Run manifest written: {manifest_path}")
+
+	# Campaign-level roll-up of the per-experiment run_summary.csv files: one
+	# row per run, every scenario this model was run on, alongside the manifest
+	# that names them (2026-09-01).
+	summary_dirs = [out_dir for _, out_dir, _ in summary if out_dir]
+	if summary_dirs:
+		combined_path = manifest_path.with_name(
+			f"{manifest_path.stem.replace('_run_manifest', '')}"
+			f"_run_summary_{_sanitize_model_for_path_component(llm_model)}.csv")
+		combine_run_summaries(summary_dirs, out_path=combined_path)
 
 
 if __name__ == "__main__":
