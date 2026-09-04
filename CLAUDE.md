@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git policy — NEVER commit or push
+
+NEVER run `git commit` or `git push` yourself, under any circumstances. Leave
+all changes uncommitted in the working tree so the user can review them; the
+user commits and pushes manually. This also applies to scripts you author:
+do not add auto-commit/auto-push steps to runner or queue scripts.
+
 ## Project Overview
 
 This is a research framework comparing traditional utility-maximizing agents with LLM-based agents in the classic Schelling Segregation Model. The project studies how different social contexts (race, income, politics) affect residential segregation patterns.

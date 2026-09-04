@@ -69,12 +69,8 @@ TEMPLATES = {
     "production_complete": dict(
         title="✅ {label} DONE in {elapsed_min} min",
         body=("{desc}\n"
-              "Results: experiments_with_llama_cpp/"),
+              "Results (uncommitted — review & commit): experiments_with_llama_cpp/"),
         tags="tada", priority="max"),
-    "results_pushed": dict(
-        title="{label} results pushed",
-        body="{desc} — commit on master.",
-        tags="package", priority="low"),
     "production_failed": dict(
         title="{label} production FAILED",
         body="Production run failed after smoke passed. Check {log}.",

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Generic config-driven production runner for one model (works for any profile
 # set — A3, A2, future prompt styles): start a native llama-server, smoke-test,
-# then run the full production suite, commit results, with ntfy phone
-# notifications throughout.
+# then run the full production suite, with ntfy phone notifications throughout.
+# Results are left UNCOMMITTED for manual review (CLAUDE.md "Git policy").
 #
 # Usage:
 #   run_a3_model.sh <label> <run_cfg> <port> <model_path> [extra llama-server args...]
@@ -160,14 +160,9 @@ if "$PYBIN" run_llm_probability_simulation_analysis.py \
     ELAPSED=$(( (END_TIME - START_TIME) / 60 ))
     echo "[$(date)] Production run COMPLETED in ${ELAPSED} minutes." | tee -a "$LOG"
 
-    echo "[$(date)] Committing results to git..." | tee -a "$LOG"
-    git add experiments_with_llama_cpp/ configs/ run_a3_model.sh run_a3_queue.sh "$LOG" 2>/dev/null || true
-    git commit -m "results: $MODEL_LABEL production run complete (${ELAPSED} min)
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>" >> "$LOG" 2>&1 || true
-    git push >> "$LOG" 2>&1 || true
-    echo "[$(date)] Git push done." | tee -a "$LOG"
-    notify_evt results_pushed
+    # No auto-commit/push: results stay in the working tree for the user to
+    # review and commit manually (see CLAUDE.md "Git policy").
+    echo "[$(date)] Results left uncommitted in experiments_with_llama_cpp/ for review." | tee -a "$LOG"
 
     notify_evt production_complete --set "elapsed_min=$ELAPSED"
 else

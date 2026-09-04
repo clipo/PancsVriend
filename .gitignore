@@ -131,3 +131,17 @@ llm_utility_approximation/llama_cpp_neighborhood_trials/**
 prompt_refinement/results/
 slot_sweep/results/
 experiments_with_llama_cpp/
+
+# Simulation RESULT DATA is never committed — only the run's provenance
+# (config.json, run_config_*.yaml, manifests) and the analysis outputs are
+# worth versioning. A single 10k-run 20x20 batch is ~3 GB across 20k files,
+# and experiments/ is un-ignored above, so a run landing there would otherwise
+# be staged in full. These rules come AFTER the !experiments/ negation, so
+# they win. Already-tracked files are unaffected: `git rm --cached` those.
+experiments/**/states/
+experiments/**/move_logs/
+experiments/**/*.npz
+experiments/**/*.json.gz
+
+# Shell scripts (run/queue helpers, machine-specific)
+*.sh
