@@ -10,47 +10,31 @@ Usage
     python analysis_tools/dissimilarity_index_over_time.py --only llm_baseline mech_baseline
 
 The script expects experiments to follow the layout produced by the simulation
-runs (move_logs/*.json.gz or .csv + states/*.npz).
+runs: move_logs/ + states/ in either the per-step or the older per-move
+format, read through run_files.load_step_frames.
 """
 
 from __future__ import annotations
 
 import argparse
 from concurrent.futures import ProcessPoolExecutor
-import gzip
-import json
 import multiprocessing as mp
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from experiment_list_for_analysis import SCENARIOS as scenarios
 from analysis_tools.output_paths import get_reports_dir
-from analysis_tools.analyze_agent_movement import (
-    load_states_for_run,
-    load_move_log_json,
-    load_move_log_csv,
-    iter_move_logs_json,
-    iter_move_logs_csv,
-)
+from run_files import list_run_ids, load_step_frames
 
-# Precomputed tract map for 10x10 grid (see DissimilarityIndex.py)
-TRACT_MAP = np.array([
-    [0, 0, 0, 1, 1, 1, 1, 2, 2, 2],
-    [0, 0, 0, 1, 1, 1, 1, 2, 2, 2],
-    [0, 0, 0, 1, 1, 1, 1, 2, 2, 2],
-    [3, 3, 3, 4, 4, 4, 4, 5, 5, 5],
-    [3, 3, 3, 4, 4, 4, 4, 5, 5, 5],
-    [3, 3, 3, 4, 4, 4, 4, 5, 5, 5],
-    [3, 3, 3, 4, 4, 4, 4, 5, 5, 5],
-    [6, 6, 6, 7, 7, 7, 7, 8, 8, 8],
-    [6, 6, 6, 7, 7, 7, 7, 8, 8, 8],
-    [6, 6, 6, 7, 7, 7, 7, 8, 8, 8],
-], dtype=np.int8)
-TRACT_MAP_FLAT = TRACT_MAP.reshape(-1)
+# Tract map + DI now live in Metrics.py (batch C, 2026-08-25): the simulation
+# computes the index alongside the other six metrics, and this module reuses
+# the SAME definition instead of a second hardcoded 10x10 copy. tract_map()
+# reproduces the historical 10x10 map exactly and generalizes to any size.
+from Metrics import compute_dissimilarity_from_int_grid  # noqa: E402
 
 
 def _process_pool_context() -> Any:
@@ -62,205 +46,22 @@ def _process_pool_context() -> Any:
     return mp.get_context()
 
 
-def _step_to_last_state_index_from_json_entries(entries: list, limit: int) -> List[Tuple[int, int]]:
-    """Return sorted (step, last_state_idx) pairs from JSON move log entries.
-
-    Uses a lightweight Python scan instead of building a DataFrame + groupby.
-    """
-    last_by_step: dict[int, int] = {}
-    for idx, entry in enumerate(entries[:limit]):
-        if not isinstance(entry, dict):
-            continue
-        step_val = entry.get('step')
-        if step_val is None:
-            continue
-        try:
-            step_int = int(step_val)
-        except (TypeError, ValueError):
-            continue
-        last_by_step[step_int] = idx
-    return sorted(last_by_step.items())
-
-
-def _step_to_last_state_index_from_json_file(json_path: Path, limit: int) -> Optional[List[Tuple[int, int]]]:
-    """Stream parse a JSON array file and return sorted (step, last_state_idx) pairs.
-
-    This avoids materializing the full JSON list in memory and is typically faster
-    than `json.load(...)` + pandas groupby for large move logs.
-    """
-    if limit <= 0 or not json_path.exists():
-        return []
-
-    opener = gzip.open if json_path.suffix == '.gz' else open
-    decoder = json.JSONDecoder()
-    last_by_step: Dict[int, int] = {}
-
-    buffer = ''
-    pos = 0
-    entry_idx = 0
-    chunk_size = 1 << 20
-
-    try:
-        with opener(json_path, 'rt', encoding='utf-8') as f:
-            # Seek array start '['
-            while True:
-                if pos >= len(buffer):
-                    chunk = f.read(chunk_size)
-                    if not chunk:
-                        return None
-                    buffer += chunk
-                while pos < len(buffer) and buffer[pos].isspace():
-                    pos += 1
-                if pos < len(buffer):
-                    if buffer[pos] != '[':
-                        return None
-                    pos += 1
-                    break
-
-            while entry_idx < limit:
-                # Skip whitespace and commas
-                while True:
-                    while pos < len(buffer) and buffer[pos].isspace():
-                        pos += 1
-                    if pos < len(buffer) and buffer[pos] == ',':
-                        pos += 1
-                        continue
-                    break
-
-                while pos >= len(buffer):
-                    chunk = f.read(chunk_size)
-                    if not chunk:
-                        return sorted(last_by_step.items())
-                    buffer += chunk
-
-                while pos < len(buffer) and buffer[pos].isspace():
-                    pos += 1
-                if pos < len(buffer) and buffer[pos] == ']':
-                    break
-
-                try:
-                    obj, end_pos = decoder.raw_decode(buffer, pos)
-                except json.JSONDecodeError:
-                    chunk = f.read(chunk_size)
-                    if not chunk:
-                        return None
-                    if pos > 0:
-                        buffer = buffer[pos:]
-                        pos = 0
-                    buffer += chunk
-                    continue
-
-                if isinstance(obj, dict):
-                    step_val = obj.get('step')
-                    if step_val is not None:
-                        try:
-                            last_by_step[int(step_val)] = entry_idx
-                        except (TypeError, ValueError):
-                            pass
-
-                entry_idx += 1
-                pos = end_pos
-
-                # Trim consumed buffer to control memory growth
-                if pos > chunk_size:
-                    buffer = buffer[pos:]
-                    pos = 0
-
-        return sorted(last_by_step.items())
-    except Exception:
-        return None
-
-
-def _step_to_last_state_index_from_csv_df(moves_df: pd.DataFrame, limit: int) -> List[Tuple[int, int]]:
-    """Return sorted (step, last_state_idx) pairs from CSV move log rows.
-
-    Keeps pandas use minimal and avoids expensive groupby on large runs.
-    """
-    if 'step' not in moves_df.columns or limit <= 0:
-        return []
-
-    step_series = pd.to_numeric(moves_df.iloc[:limit]['step'], errors='coerce')
-    last_by_step: dict[int, int] = {}
-    for idx, step_val in enumerate(step_series.to_numpy()):
-        if pd.isna(step_val):
-            continue
-        last_by_step[int(step_val)] = idx
-    return sorted(last_by_step.items())
-
-
-def compute_dissimilarity_from_int_grid(grid: np.ndarray) -> float:
-    """Fast dissimilarity index computation for int grids (-1 empty, 0/1 types)."""
-    if grid.shape != TRACT_MAP.shape:
-        raise ValueError(f"Expected grid shape {TRACT_MAP.shape}, got {grid.shape}")
-
-    flat = grid.reshape(-1)
-    mask0 = flat == 0
-    mask1 = flat == 1
-    total0 = int(mask0.sum())
-    total1 = int(mask1.sum())
-
-    if total0 == 0 or total1 == 0:
-        return 1.0 if (total0 + total1) > 0 else 0.0
-
-    counts0 = np.bincount(TRACT_MAP_FLAT[mask0], minlength=9)
-    counts1 = np.bincount(TRACT_MAP_FLAT[mask1], minlength=9)
-    return 0.5 * np.abs(counts0 / total0 - counts1 / total1).sum()
-
-
 def compute_run_timeseries(
     experiment_dir: Path,
     run_id: int,
     scenario_key: str,
     recompute: bool,
 ) -> Optional[pd.DataFrame]:
-    states = load_states_for_run(experiment_dir, run_id)
-    if states is None or len(states) == 0:
-        print(f"  [WARN] Missing states for run {run_id} in {experiment_dir.name}; skipping run.")
+    loaded = load_step_frames(experiment_dir, run_id)
+    if loaded is None:
+        print(f"  [WARN] Missing states or move log for run {run_id} in {experiment_dir.name}; skipping run.")
         return None
-
-    states_len = len(states)
-    last_indices: List[Tuple[int, int]] = []
-
-    json_path_gz = experiment_dir / 'move_logs' / f'agent_moves_run_{run_id}.json.gz'
-    json_path = experiment_dir / 'move_logs' / f'agent_moves_run_{run_id}.json'
-
-    if json_path_gz.exists() or json_path.exists():
-        path = json_path_gz if json_path_gz.exists() else json_path
-        n = states_len
-        states = np.array(states[:n])
-        last_indices = _step_to_last_state_index_from_json_file(path, n) or []
-
-        # Fallback to legacy loader if streaming parse fails unexpectedly
-        if not last_indices:
-            log_json = load_move_log_json(experiment_dir, run_id)
-            if log_json is not None:
-                n = min(states_len, len(log_json))
-                if n == 0:
-                    return None
-                states = np.array(states[:n])
-                last_indices = _step_to_last_state_index_from_json_entries(log_json, n)
-
-    if not last_indices:
-        moves_df = load_move_log_csv(experiment_dir, run_id)
-        if moves_df is None or moves_df.empty:
-            print(f"  [WARN] Missing move log for run {run_id} in {experiment_dir.name}; skipping run.")
-            return None
-        moves_df = moves_df.reset_index(drop=True)
-        n = min(states_len, len(moves_df))
-        if n == 0:
-            return None
-        states = np.array(states[:n])
-        last_indices = _step_to_last_state_index_from_csv_df(moves_df, n)
-
-    if not last_indices:
-        print(f"  [WARN] Missing valid step entries for run {run_id} in {experiment_dir.name}; skipping run.")
-        return None
+    steps, grids = loaded
 
     rows: List[dict] = []
-    for step_val, state_idx in last_indices:
+    for step_val, grid in zip(steps, grids):
         try:
-            grid_int = np.array(states[int(state_idx)], dtype=int)
-            dis_val = compute_dissimilarity_from_int_grid(grid_int)
+            dis_val = compute_dissimilarity_from_int_grid(np.asarray(grid, dtype=int))
             rows.append({
                 'scenario': scenario_key,
                 'experiment': experiment_dir.name,
@@ -314,7 +115,7 @@ def process_experiment(
             print(f"[WARN] Failed to read cached dissimilarity for {scenario_key}; recomputing.")
 
     print(f"[RUN] {scenario_key}: computing dissimilarity index over time from {exp_dir}")
-    run_ids = sorted(set(iter_move_logs_json(exp_dir) + iter_move_logs_csv(exp_dir)))
+    run_ids = list_run_ids(exp_dir)
     if not run_ids:
         print(f"  [WARN] No move logs found in {exp_dir}; skipping.")
         return None, None

@@ -7,6 +7,7 @@ import gzip
 from unittest.mock import patch
 from base_simulation import Simulation
 import config as cfg
+import run_files
 
 
 def test_analyze_results_writes_csv(tmp_path):
@@ -30,7 +31,7 @@ def test_analyze_results_writes_csv(tmp_path):
     out_dir, out_results, out_conv = Simulation.analyze_results(results, str(output_dir), len(results))
 
     # Check generated files
-    metrics_file = output_dir / "metrics_history.csv"
+    metrics_file = output_dir / "metrics_history.csv.gz"
     conv_file = output_dir / "convergence_summary.csv"
     assert metrics_file.exists(), "metrics_history.csv not created"
     assert conv_file.exists(), "convergence_summary.csv not created"
@@ -104,7 +105,7 @@ def test_analyze_results_creates_step_statistics(tmp_path):
     Simulation.analyze_results(results, str(output_dir), len(results))
 
     # Files should exist
-    assert (output_dir / 'metrics_history.csv').exists(), "metrics_history.csv missing"
+    assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing"
     assert (output_dir / 'convergence_summary.csv').exists(), "convergence_summary.csv missing"
     assert (output_dir / 'step_statistics.csv').exists(), "step_statistics.csv missing"
 
@@ -135,7 +136,7 @@ def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
     out_dir, out_results, out_conv = Simulation.load_and_analyze_results(output_dir=str(output_dir))
 
     # Check output files
-    assert (output_dir / 'metrics_history.csv').exists(), "metrics_history.csv missing after integration"
+    assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing after integration"
     assert (output_dir / 'convergence_summary.csv').exists(), "convergence_summary.csv missing after integration"
     assert (output_dir / 'step_statistics.csv').exists(), "step_statistics.csv missing after integration"
 
@@ -269,27 +270,56 @@ def test_grid_to_int():
 
 
 def test_log_state_per_move():
-    """Test logging of grid states"""
+    """Per-move frames are only recorded in full_move_log mode."""
     sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func)
-    
-    initial_states_count = len(sim.states)
+    assert len(sim.states) == 1          # the initial grid, in either mode
     sim.log_state_per_move()
-    
-    assert len(sim.states) == initial_states_count + 1
-    assert isinstance(sim.states[-1], np.ndarray)
+    assert len(sim.states) == 1
+
+    full = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func,
+                      full_move_log=True)
+    full.log_state_per_move()
+    assert len(full.states) == 2
+    assert isinstance(full.states[-1], np.ndarray)
 
 
-def test_log_agent_move():
-    """Test agent move logging"""
+def test_log_agent_move_counts_per_step():
+    """Default mode: one row per step, counting decisions by outcome."""
     sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func)
-    
+
+    agent = MockAgent(0)
+    sim.log_agent_move(agent, 0, 0, (1, 1), True, (1, 1), 'successful_move')
+    sim.log_agent_move(agent, 0, 0, (2, 2), False, (0, 0), 'target_occupied')
+    sim.step = 1
+    sim.log_agent_move(agent, 0, 0, None, False, (0, 0), 'chose_to_stay')
+
+    assert sim.agent_move_log == []
+    assert [row['step'] for row in sim.step_log] == [0, 1]
+    first = sim.step_log[0]
+    assert (first['decisions'], first['moved'], first['successful_move'], first['target_occupied']) == (2, 1, 1, 1)
+    assert sim.step_log[1]['chose_to_stay'] == 1
+    assert sim.step_log[1]['parse_failed'] == 0
+
+
+def test_log_agent_move_rejects_unknown_reason():
+    sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func)
+    with pytest.raises(ValueError):
+        sim.log_agent_move(MockAgent(0), 0, 0, (1, 1), True, (1, 1), 'test_move')
+
+
+def test_log_agent_move_full_record():
+    """full_move_log mode keeps the per-decision record."""
+    sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func,
+                     full_move_log=True)
+
     agent = MockAgent(0)
     initial_log_count = len(sim.agent_move_log)
-    
+
     sim.log_agent_move(agent, 0, 0, (1, 1), True, (1, 1), 'successful_move')
-    
+
     assert len(sim.agent_move_log) == initial_log_count + 1
-    
+    assert sim.step_log == []
+
     move_entry = sim.agent_move_log[-1]
     assert move_entry['step'] == sim.step
     assert move_entry['agent_id'] == id(agent)
@@ -449,7 +479,11 @@ def test_run_step_convergence(monkeypatch):
         converged = sim.run_step()
         assert converged is True
         assert sim.converged is True
-        assert sim.convergence_step == 1  # Step when convergence detected
+        # FIRST step of the no-move window, not the step the criterion tripped
+        # on: the window here is steps 0-1, so convergence_step is 0 and the
+        # last simulated step is 1 (= convergence_step + threshold - 1).
+        assert sim.convergence_step == 0
+        assert sim.step == sim.convergence_step + cfg.NO_MOVE_THRESHOLD - 1
 
 
 def test_run_single_simulation(tmp_path):
@@ -474,7 +508,11 @@ def test_run_single_simulation(tmp_path):
         assert 'convergence_step' in result
         assert 'final_step' in result
         assert 'metrics_history' in result
-        assert 'states_per_move' in result
+        # n_states is a COUNT, not the frames: the per-move history lives in
+        # states_run_<id>.npz. Asserting the type pins that contract so the
+        # frames cannot silently creep back into the returned dict.
+        assert isinstance(result['n_states'], int)
+        assert 'states_per_move' not in result
         assert 'total_agent_moves' in result
         assert isinstance(result['metrics_history'], list)
 
@@ -527,14 +565,33 @@ def test_save_states_no_output_dir():
     sim.save_states(None)
 
 
-def test_save_agent_move_log(tmp_path):
-    """Test saving agent move log"""
+def test_save_agent_move_log_per_step(tmp_path):
+    """Default mode writes step_moves_run_<id>.csv and no JSON."""
     sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func)
-    
+
+    agent = MockAgent(0)
+    sim.log_agent_move(agent, 0, 0, (1, 1), True, (1, 1), 'successful_move')
+    sim.log_agent_move(agent, 0, 0, (1, 1), False, (0, 0), 'chose_to_stay')
+
+    sim.save_agent_move_log(str(tmp_path))
+
+    csv_file = tmp_path / "move_logs" / "step_moves_run_1.csv"
+    assert csv_file.exists()
+    assert not (tmp_path / "move_logs" / "agent_moves_run_1.json.gz").exists()
+    table = pd.read_csv(csv_file)
+    assert list(table.columns) == list(run_files.STEP_LOG_COLUMNS)
+    assert table.iloc[0][['step', 'decisions', 'moved', 'chose_to_stay']].tolist() == [0, 2, 1, 1]
+
+
+def test_save_agent_move_log(tmp_path):
+    """full_move_log mode saves the per-decision JSON"""
+    sim = Simulation(run_id=1, agent_factory=MockAgent, decision_func=mock_decision_func,
+                     full_move_log=True)
+
     # Add some move log entries
     agent = MockAgent(0)
-    sim.log_agent_move(agent, 0, 0, (1, 1), True, (1, 1), 'test_move')
-    
+    sim.log_agent_move(agent, 0, 0, (1, 1), True, (1, 1), 'successful_move')
+
     sim.save_agent_move_log(str(tmp_path))
 
     # Check JSON.gz file
@@ -552,11 +609,12 @@ def test_save_agent_move_log(tmp_path):
     assert 'type_id' in first
     assert 'moved' in first
     assert 'reason' in first
-    assert 'grid' in first
     assert isinstance(first['current_position'], list)
     assert first['new_position'] is None or isinstance(first['new_position'], list)
-    assert len(first['grid']) == cfg.GRID_SIZE
-    assert all(len(row) == cfg.GRID_SIZE for row in first['grid'])
+    # The per-record 'grid' copy was dropped 2026-09-01: it duplicated the
+    # frame log_state_per_move() writes to states_run_<id>.npz at the same
+    # instant. See test_move_log_and_states.py for the invariant that replaced it.
+    assert 'grid' not in first
 
 
 def test_save_agent_move_log_no_moves(tmp_path):
@@ -612,7 +670,7 @@ def test_analyze_results_single_run(tmp_path):
     assert len(out_conv) == 1
     
     # Check files created
-    assert (tmp_path / "metrics_history.csv").exists()
+    assert (tmp_path / "metrics_history.csv.gz").exists()
     assert (tmp_path / "convergence_summary.csv").exists()
     assert (tmp_path / "step_statistics.csv").exists()
 

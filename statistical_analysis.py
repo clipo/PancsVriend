@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import run_files
 from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.stats.anova import anova_lm
@@ -29,7 +30,7 @@ def perform_statistical_tests(experiments_data, metric='distance', alpha=0.05):
     all_data = []
     
     for exp_name, exp_dir in experiments_data.items():
-        df = pd.read_csv(f"{exp_dir}/metrics_history.csv")
+        df = pd.read_csv(run_files.metrics_history_path(exp_dir))
         final_values = df.groupby('run_id').last()[metric].values
         experiment_values[exp_name] = final_values
         
@@ -187,7 +188,7 @@ def analyze_convergence_patterns(experiments_data):
     
     for exp_name, exp_dir in experiments_data.items():
         conv_df = pd.read_csv(f"{exp_dir}/convergence_summary.csv")
-        metrics_df = pd.read_csv(f"{exp_dir}/metrics_history.csv")
+        metrics_df = pd.read_csv(run_files.metrics_history_path(exp_dir))
         
         # Convergence statistics
         conv_steps = conv_df['convergence_step'].dropna()
@@ -221,7 +222,7 @@ def perform_multivariate_analysis(experiments_data, metrics=['distance', 'mix_de
     labels = []
     
     for exp_name, exp_dir in experiments_data.items():
-        df = pd.read_csv(f"{exp_dir}/metrics_history.csv")
+        df = pd.read_csv(run_files.metrics_history_path(exp_dir))
         final_values = df.groupby('run_id').last()
         
         for _, row in final_values.iterrows():

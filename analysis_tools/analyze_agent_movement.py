@@ -25,6 +25,12 @@ Usage examples
   python analyze_agent_movement.py --only "llm_race_white_black_20250718_195455"
 
 Notes
+- LEGACY / FULL-FORMAT RUNS ONLY. This needs one record and one frame per agent
+  decision, which is what every run before 2026-09-02 and any --full-move-log
+  run wrote. Runs recorded in the per-step format (step_moves_run_<id>.csv,
+  the default since then) have no per-move records and are skipped; re-run
+  them with --full-move-log if this analysis is wanted (runs are
+  deterministic per run_id, so the result is exact).
 - We derive PRE-decision neighbor stats from states[i-1] for the i-th move entry.
   The first log entry is a dummy 'initial_state' and is skipped.
 - If JSON logs are missing, we fall back to CSV. If states are missing, that run is skipped.
@@ -36,7 +42,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import gzip
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -48,6 +53,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from context_scenarios import CONTEXT_SCENARIOS
 from analysis_tools.output_paths import get_reports_dir
+from run_files import list_run_ids, load_frames, load_move_log_csv, load_move_log_json
 
 
 def load_config(experiment_dir: Path) -> Dict:
@@ -69,88 +75,6 @@ def list_experiments(experiments_dir: Path, only: Optional[List[str]] = None) ->
         return [p for p in all_dirs if p.name in names]
     # Sort by mtime desc (newest first)
     return sorted(all_dirs, key=lambda p: p.stat().st_mtime, reverse=True)
-
-
-def load_states_for_run(experiment_dir: Path, run_id: int) -> Optional[np.ndarray]:
-    states_path = experiment_dir / "states" / f"states_run_{run_id}.npz"
-    if not states_path.exists():
-        return None
-    try:
-        data = np.load(states_path)
-        # Expect key 'states'
-        if 'states' in data:
-            return data['states']
-        # Fallback to first key
-        keys = list(data.keys())
-        return data[keys[0]] if keys else None
-    except Exception:
-        return None
-
-
-def iter_move_logs_json(experiment_dir: Path) -> List[int]:
-    move_dir = experiment_dir / "move_logs"
-    if not move_dir.exists():
-        return []
-    run_ids = []
-    for pattern in ("agent_moves_run_*.json.gz", "agent_moves_run_*.json"):
-        for f in move_dir.glob(pattern):
-            name = f.name
-            if name.endswith(".json.gz"):
-                prefix = name[:-8]  # strip .json.gz
-            elif name.endswith(".json"):
-                prefix = name[:-5]  # strip .json
-            else:
-                continue
-            try:
-                rid = int(prefix.split("_")[-1])
-            except ValueError:
-                continue
-            run_ids.append(rid)
-    return sorted(set(run_ids))
-
-
-def iter_move_logs_csv(experiment_dir: Path) -> List[int]:
-    """Return run ids for CSV or compressed CSV move logs."""
-    move_dir = experiment_dir / "move_logs"
-    if not move_dir.exists():
-        return []
-    run_ids = set()
-    for ext in (".csv.gz", ".csv"):
-        for f in move_dir.glob(f"agent_moves_run_*{ext}"):
-            try:
-                rid = int(f.stem.split("_")[-1].split(".")[0])
-            except ValueError:
-                continue
-            run_ids.add(rid)
-    return sorted(run_ids)
-
-
-def load_move_log_json(experiment_dir: Path, run_id: int) -> Optional[List[dict]]:
-    path = experiment_dir / "move_logs" / f"agent_moves_run_{run_id}.json.gz"
-    if not path.exists():
-        return None
-    try:
-        with gzip.open(path, 'rt', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def load_move_log_csv(experiment_dir: Path, run_id: int) -> Optional[pd.DataFrame]:
-    """Load CSV (optionally gzip-compressed) move logs for a run."""
-    move_dir = experiment_dir / "move_logs"
-    candidates = [
-        move_dir / f"agent_moves_run_{run_id}.csv.gz",
-        move_dir / f"agent_moves_run_{run_id}.csv",
-    ]
-    for path in candidates:
-        if not path.exists():
-            continue
-        try:
-            return pd.read_csv(path, compression="infer")
-        except Exception:
-            continue
-    return None
 
 
 def count_neighbors(pre_grid: np.ndarray, r: int, c: int, agent_type: int) -> Tuple[int, int]:
@@ -179,7 +103,7 @@ def compute_summary_for_run(experiment_dir: Path, run_id: int) -> Optional[pd.Da
     Columns: run_id, index_in_run, step, type_id, moved, reason, row, col,
              share_same, like_neighbors, unlike_neighbors
     """
-    states = load_states_for_run(experiment_dir, run_id)
+    states = load_frames(experiment_dir, run_id)
     if states is None or len(states) == 0:
         return None
 
@@ -277,9 +201,7 @@ def analyze_experiment(experiment_dir: Path, summary_out_dir: Optional[Path] = N
         parts = name.split('_')
         scenario = '_'.join(parts[1:-2]) if len(parts) > 3 else name
 
-    json_runs = iter_move_logs_json(experiment_dir)
-    csv_runs = iter_move_logs_csv(experiment_dir)
-    run_ids = sorted(set(json_runs) | set(csv_runs))
+    run_ids = list_run_ids(experiment_dir)
     if not run_ids:
         print(f"  No move logs found in {experiment_dir}")
         return None

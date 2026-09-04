@@ -8,6 +8,7 @@ Focuses on the key comparisons:
 """
 
 import pandas as pd
+import run_files
 import numpy as np
 from scipy import stats
 import warnings
@@ -17,7 +18,7 @@ def load_final_metrics(exp_dir):
     """Load final metrics from metrics history"""
     try:
         # Load metrics history and get final values for each run
-        df = pd.read_csv(f"{exp_dir}/metrics_history.csv")
+        df = pd.read_csv(run_files.metrics_history_path(exp_dir))
         
         # Group by run_id and get final step for each run
         final_metrics = []

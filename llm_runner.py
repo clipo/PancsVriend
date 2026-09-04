@@ -6,6 +6,7 @@ try:
 except (AttributeError, OSError):
     pass  # Older Pythons or non-tty streams
 
+import math
 import numpy as np
 import json
 import os
@@ -18,7 +19,8 @@ from tqdm import tqdm
 import time
 from context_scenarios import CONTEXT_SCENARIOS
 import argparse
-from base_simulation import Simulation
+import run_files
+from base_simulation import Simulation, convergence_from_step_moves
 from multiprocessing import Pool, cpu_count
 import pandas as pd
 import ast
@@ -117,6 +119,48 @@ def build_llm_request(llm_url, llm_style, llm_model, prompt, temperature, max_to
     return url, payload
 
 
+def grid_config_from_args(grid_size=None, num_type_a=None, num_type_b=None):
+    """Build the apply_grid_config payload from CLI values, or None if all unset.
+
+    Returning None when nothing was given keeps config.py the default: only a
+    run that explicitly asks for a geometry gets one.
+    """
+    provided = {'GRID_SIZE': grid_size, 'NUM_TYPE_A': num_type_a, 'NUM_TYPE_B': num_type_b}
+    provided = {k: v for k, v in provided.items() if v is not None}
+    return provided or None
+
+
+def apply_grid_config(grid_config):
+    """Set GRID_SIZE / NUM_TYPE_A / NUM_TYPE_B on the config module, in place.
+
+    The grid used to be reachable only by editing config.py, which is ambient
+    global state: it changed every runner, test and GUI launch at once, and a
+    run's geometry was whatever the file happened to say that day rather than
+    something the run recorded. Passing it down means the run YAML — which the
+    orchestrator freezes into the run directory — is the record of what was
+    simulated, and config.json picks it up because the parent applies it before
+    the config snapshot is written.
+
+    Workers re-apply this (see run_single_simulation) so it is fork/spawn safe:
+    under spawn a worker re-imports config fresh and would otherwise run the
+    default 10x10 while the parent reported 20x20.
+    """
+    if not grid_config:
+        return
+    size = int(grid_config.get('GRID_SIZE', cfg.GRID_SIZE))
+    n_a = int(grid_config.get('NUM_TYPE_A', cfg.NUM_TYPE_A))
+    n_b = int(grid_config.get('NUM_TYPE_B', cfg.NUM_TYPE_B))
+    if size < 1:
+        raise ValueError(f"grid_size must be >= 1, got {size}")
+    if n_a < 0 or n_b < 0:
+        raise ValueError(f"agent counts must be non-negative, got {n_a} and {n_b}")
+    if n_a + n_b > size * size:
+        raise ValueError(
+            f"{n_a} + {n_b} agents do not fit on a {size}x{size} grid "
+            f"({size * size} cells)")
+    cfg.GRID_SIZE, cfg.NUM_TYPE_A, cfg.NUM_TYPE_B = size, n_a, n_b
+
+
 def apply_scenario_file(scenario_file):
     """Load CONTEXT_SCENARIOS from a python module path and swap them in, IN PLACE.
 
@@ -182,112 +226,86 @@ def _temp_slug(temperature: float) -> str:
     return f"T{float(temperature):.3f}".replace(".", "p")
 
 
-def _resolve_log_prob_summary_csv(
-    llm_model: str,
-    scenario: str,
-    log_probs_root: str | None = None,
-    temperature: float | None = None,
-) -> str:
-    """Resolve scenario summary CSV path for a model using sanitized model naming.
+def _resolve_value_function_file(vf_path, scenario):
+    """Accept a vf-1 JSON file, a '{scenario}' template, OR a directory.
 
-    Lookup order when ``temperature`` is provided:
-      1. Nested branching-estimator path:
-         ``<root>/<model_slug>/T<temp_slug>/<model_slug>_<scenario>_T<temp_slug>_stay_move_probability_split_summary.csv``
-      2. Flat legacy path:
-         ``<root>/<model_slug>/<model_slug>_<scenario>_stay_move_probability_split_summary.csv``
-
-    When ``temperature`` is ``None`` the nested path is not probed.
+    Template ('.../vf_<label>__{scenario}__<style>.json') pins label and style
+    exactly while substituting the current scenario — the right form for
+    multi-scenario batches (run_all_contexts / the YAML orchestrator) once
+    several labels (e.g. the -half sufficiency artifacts) share a directory.
+    Directory resolution: scenario is in
+    the filename) but with NO silent fallback: zero matches is an error naming
+    the expected pattern, several matches is an error listing them.
     """
-    model_slug = _sanitize_model_for_path_component(llm_model)
-    scenario_slug = _sanitize_model_for_path_component(scenario)
+    def _anchor(path):
+        """Resolve relative to cwd, else to the repo root — the orchestrator
+        runs the contexts stage with cwd inside the run directory, while
+        configs state artifact paths repo-relative."""
+        p = Path(path)
+        if p.exists():
+            return p
+        repo_p = Path(__file__).resolve().parent / path
+        return repo_p if repo_p.exists() else p
 
-    if log_probs_root:
-        provided_root = Path(log_probs_root)
-        if provided_root.name == model_slug:
-            model_dir = provided_root
-        else:
-            model_dir = provided_root / model_slug
-    else:
-        model_dir = Path(__file__).resolve().parent / "llm_log_probs" / model_slug
-
-    if temperature is not None:
-        ts = _temp_slug(temperature)
-        nested_path = model_dir / ts / f"{model_slug}_{scenario_slug}_{ts}_stay_move_probability_split_summary.csv"
-        if nested_path.exists():
-            return str(nested_path)
-
-    flat_path = model_dir / f"{model_slug}_{scenario_slug}_stay_move_probability_split_summary.csv"
-    return str(flat_path)
-
-
-def load_log_prob_policy(
-    llm_model: str,
-    scenario: str,
-    log_probs_root: str | None = None,
-    temperature: float | None = None,
-) -> tuple[dict[tuple[str, str], dict[str, float]], str]:
-    """Load per-(agent_role, arrangement_code) stay/move shares from summary CSV.
-
-    If ``temperature`` is provided, the temperature-scoped nested summary path
-    (written by ``branching_probability_estimator.py``) is tried first, falling
-    back to the legacy flat path.
-    """
-    summary_path = _resolve_log_prob_summary_csv(llm_model, scenario, log_probs_root, temperature=temperature)
-    if not os.path.exists(summary_path):
+    if "{scenario}" in str(vf_path):
+        if not scenario:
+            raise ValueError(f"value-function template {vf_path!r} needs a scenario")
+        resolved = _anchor(str(vf_path).format(scenario=scenario))
+        if not resolved.exists():
+            raise FileNotFoundError(f"value-function template resolved to missing file: {resolved}")
+        return str(resolved)
+    p = _anchor(vf_path)
+    if not p.is_dir():
+        return str(p)
+    matches = sorted(p.glob(f"vf_*__{scenario}__*.json"))
+    if not matches:
         raise FileNotFoundError(
-            f"Log-probability summary CSV not found for model='{llm_model}', scenario='{scenario}', "
-            f"temperature={temperature}: {summary_path}"
-        )
-
-    df = pd.read_csv(summary_path)
-    required_cols = {
-        "agent_role",
-        "arrangement_code",
-        "mean_stay_share",
-        "mean_move_share",
-    }
-    missing = sorted(required_cols - set(df.columns))
-    if missing:
+            f"no value function for scenario {scenario!r} under {p} "
+            f"(expected vf_<label>__{scenario}__<style>.json)")
+    if len(matches) > 1:
         raise ValueError(
-            f"Summary CSV missing required columns {missing}: {summary_path}"
-        )
+            f"ambiguous value function for scenario {scenario!r} under {p}: "
+            f"{[m.name for m in matches]} — pass the file explicitly")
+    return str(matches[0])
 
-    policy: dict[tuple[str, str], dict[str, float]] = {}
-    for row_idx, row in df.iterrows():
-        role = str(row["agent_role"]).strip()
-        arrangement_code = str(row["arrangement_code"]).strip()
 
-        raw_stay = row["mean_stay_share"]
-        raw_move = row["mean_move_share"]
-        if pd.isna(raw_stay) or pd.isna(raw_move):
-            raise ValueError(
-                f"Missing mean share value in summary CSV at row={row_idx}, "
-                f"agent_role='{role}', arrangement_code='{arrangement_code}'"
-            )
+def load_value_function_policy(vf_path, scenario=None):
+    """Load a vf-1 value-function artifact (prompt_refinement/build_value_function.py)
+    into {(type_key, "comp:n_similar,n_occupied"): move_probability}.
 
-        stay_share = float(raw_stay)
-        move_share = float(raw_move)
+    COMPOSITION-level lookup only (user decision 2026-08-25, ratio mode
+    removed): the agent's exact (n_similar, n_occupied) cell drives the
+    decision — no ratio aliasing. The measured surfaces show members of one
+    reduced ratio can genuinely differ (e.g. gemma baseline red at
+    all-opposite: 1-of-1 p=0.00, 2-of-2 p=0.46, 8-of-8 p=1.00), so the
+    aggregated 23-ratio curve in the artifact is a visualization, not a
+    policy. All 45 cells per role — including the zero-neighbour (0,0) cell —
+    must carry a defined rate; coverage is validated here at load time, so
+    a mid-run KeyError on an unseen composition cannot occur.
+    `vf_path` may be a directory when `scenario` is given (per-scenario
+    filename resolution; see _resolve_value_function_file).
+    """
+    pr_dir = str(Path(__file__).resolve().parent / "prompt_refinement")
+    if pr_dir not in sys.path:
+        sys.path.insert(0, pr_dir)
+    from sampling_common import load_value_function  # deferred: avoids import cycle
 
-        total = stay_share + move_share
-        if not np.isfinite(total) or total <= 0:
-            raise ValueError(
-                f"Invalid mean share values in summary CSV at row={row_idx}, "
-                f"agent_role='{role}', arrangement_code='{arrangement_code}', "
-                f"mean_stay_share={stay_share}, mean_move_share={move_share}"
-            )
-
-        stay_share /= total
-        move_share /= total
-
-        policy[(role, arrangement_code)] = {
-            "stay_probability": stay_share,
-            "move_probability": move_share,
-        }
-
-    if len(policy) == 0:
-        raise ValueError(f"No valid policy rows found in summary CSV: {summary_path}")
-
-    return policy, summary_path
+    vf_path = _resolve_value_function_file(vf_path, scenario)
+    vf = load_value_function(vf_path)
+    # Artifact roles are red/blue (scenario type_a/type_b); the simulation keys
+    # agents as type_a/type_b (LLMAgent._agent_role_key).
+    role_map = vf["meta"].get("role_to_type", {"red": "type_a", "blue": "type_b"})
+    policy = {}
+    for role, rows in vf["compositions"].items():
+        type_key = role_map[role]
+        for c in rows:
+            if c["p_move_effective"] is None:
+                raise ValueError(
+                    f"{vf_path}: composition ({c['n_similar']},{c['n_occupied']}) "
+                    f"role {role} has no defined rate — cannot build the policy")
+            policy[(type_key, f"comp:{c['n_similar']},{c['n_occupied']}")] = \
+                float(c["p_move_effective"])
+    return policy, str(vf_path), vf["meta"]
 
 
 def query_server_slots(llm_url, timeout=5):
@@ -418,8 +436,8 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
 
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
-                 run_id=None, step=None, use_log_prob_policy=False, log_prob_policy=None,
-                 log_prob_summary_path=None, temperature=None, llm_style=None):
+                 run_id=None, step=None, temperature=None, llm_style=None,
+                 value_function_policy=None, value_function_path=None):
         super().__init__(type_id)
         self.scenario = scenario
         self.context_info = CONTEXT_SCENARIOS[scenario]
@@ -438,9 +456,10 @@ class LLMAgent(Agent):
         self.llm_call_count = 0
         self.llm_call_time = 0.0
         self.step = step
-        self.use_log_prob_policy = bool(use_log_prob_policy)
-        self.log_prob_policy = log_prob_policy or {}
-        self.log_prob_summary_path = log_prob_summary_path
+        # Composition-keyed value-function policy:
+        # {(type_key, "comp:n_sim,n_occ"): p_move}, loaded by load_value_function_policy.
+        self.value_function_policy = value_function_policy or {}
+        self.value_function_path = value_function_path
         self.store_llm_responses = (
             getattr(cfg, 'STORE_LLM_RESPONSES', False) or
             os.environ.get('STORE_LLM_RESPONSES', '').lower() in ('true', '1', 'yes')
@@ -471,35 +490,21 @@ class LLMAgent(Agent):
                     neighbors.append("#")
         return "".join(neighbors)
 
-    def _get_log_prob_decision(self, r, c, grid):
-        """Sample MOVE/STAY from precomputed summary probabilities for this context."""
-        role_key = self._agent_role_key()
-        arrangement_code = self._context_arrangement_code(r, c, grid)
+    def _get_value_function_decision(self, r, c, grid):
+        """Sample MOVE/STAY from the composition-level value function.
 
-        policy_entry = self.log_prob_policy.get((role_key, arrangement_code))
-        if policy_entry is None:
-            source = self.log_prob_summary_path or "(unknown summary source)"
-            raise KeyError(
-                f"Missing log-prob policy for role='{role_key}', arrangement='{arrangement_code}' in {source}"
-            )
+        The key is the agent's exact (n_similar, n_occupied) count over the 8
+        surrounding cells (walls and empties excluded — Agent._unlike_ratio
+        semantics). Every cell, including the zero-neighbour (0,0) one, is
+        guaranteed present by the load-time coverage check.
+        """
+        code = self._context_arrangement_code(r, c, grid)
+        n_sim = code.count("S")
+        n_occ = n_sim + code.count("O")
 
-        if "move_probability" not in policy_entry or "stay_probability" not in policy_entry:
-            source = self.log_prob_summary_path or "(unknown summary source)"
-            raise KeyError(
-                f"Incomplete log-prob policy entry for role='{role_key}', arrangement='{arrangement_code}' in {source}"
-            )
-
-        move_probability = float(policy_entry["move_probability"])
-        stay_probability = float(policy_entry["stay_probability"])
-
-        total = move_probability + stay_probability
-        if not np.isfinite(total) or total <= 0:
-            source = self.log_prob_summary_path or "(unknown summary source)"
-            raise ValueError(
-                f"Invalid log-prob policy values for role='{role_key}', arrangement='{arrangement_code}' in {source}: "
-                f"stay_probability={stay_probability}, move_probability={move_probability}"
-            )
-        move_probability = move_probability / total
+        type_key = self._agent_role_key()
+        move_probability = self.value_function_policy[
+            (type_key, f"comp:{n_sim},{n_occ}")]
 
         # Keep accounting aligned with LLM runs for downstream summaries.
         self.llm_call_count += 1
@@ -507,24 +512,19 @@ class LLMAgent(Agent):
         choose_move = random.random() < move_probability
         if self.store_llm_responses:
             self.last_llm_response_raw = (
-                f"LOG_PROB_POLICY(move={move_probability:.6f}, stay={1.0 - move_probability:.6f})"
+                f"VALUE_FUNCTION(comp={n_sim}/{n_occ}, move={move_probability:.6f})"
             )
             self.last_llm_parsed_decision = "MOVE" if choose_move else "STAY"
             self.last_llm_parse_status = "OK"
 
         if not choose_move:
             return None
+        empty_spaces = [(row, col)
+                        for row in range(cfg.GRID_SIZE)
+                        for col in range(cfg.GRID_SIZE)
+                        if grid[row][col] is None]
+        return random.choice(empty_spaces) if empty_spaces else None
 
-        empty_spaces = []
-        for row in range(cfg.GRID_SIZE):
-            for col in range(cfg.GRID_SIZE):
-                if grid[row][col] is None:
-                    empty_spaces.append((row, col))
-
-        if empty_spaces:
-            return random.choice(empty_spaces)
-        return None
-    
     def get_context_grid(self, r, c, grid):
         """
         Create a 3x3 neighborhood context string for the LLM prompt.
@@ -581,8 +581,8 @@ class LLMAgent(Agent):
     
     def get_llm_decision(self, r, c, grid, max_retries=300):
         """Get movement decision from LLM with retry logic (max_retries attempts)"""
-        if self.use_log_prob_policy:
-            return self._get_log_prob_decision(r, c, grid)
+        if self.value_function_policy:
+            return self._get_value_function_decision(r, c, grid)
 
         # Debug flag - set via environment variable
         debug = os.environ.get('DEBUG', '').lower() in ('true', '1', 'yes')
@@ -759,8 +759,8 @@ def llm_decision_function(agent, r, c, grid):
 class LLMSimulation(Simulation):
     def __init__(self, run_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None, random_seed=None,
                  initial_int_grid=None, initial_step=None, initial_no_move_steps=None,
-                 use_log_prob_policy=False, log_prob_policy=None, log_prob_summary_path=None,
-                 temperature=None, llm_style=None):
+                 temperature=None, llm_style=None,
+                 value_function_policy=None, value_function_path=None):
         # Store LLM parameters for agent creation
         self.scenario = scenario
         self.llm_model = llm_model or cfg.OLLAMA_MODEL
@@ -770,10 +770,9 @@ class LLMSimulation(Simulation):
         if temperature is None:
             raise ValueError("temperature must be provided to LLMSimulation")
         self.temperature = float(temperature)
-        self.use_log_prob_policy = bool(use_log_prob_policy)
-        self.log_prob_policy = log_prob_policy or {}
-        self.log_prob_summary_path = log_prob_summary_path
-        
+        self.value_function_policy = value_function_policy or {}
+        self.value_function_path = value_function_path
+
         super().__init__(
             run_id=run_id, 
             agent_factory=self._create_llm_agent, 
@@ -782,7 +781,11 @@ class LLMSimulation(Simulation):
             random_seed=random_seed,
             initial_int_grid=initial_int_grid,
             initial_step=initial_step,
-            initial_no_move_steps=initial_no_move_steps
+            initial_no_move_steps=initial_no_move_steps,
+            # Live-LLM runs keep one record per decision because that is
+            # where the raw LLM reply is stored; value-function runs make no
+            # LLM calls and get the per-step format (see run_files).
+            full_move_log=not self.value_function_policy,
         )
         
         # Track LLM metrics across all agents
@@ -799,11 +802,10 @@ class LLMSimulation(Simulation):
             self.llm_api_key,
             self.run_id,
             self.step,
-            use_log_prob_policy=self.use_log_prob_policy,
-            log_prob_policy=self.log_prob_policy,
-            log_prob_summary_path=self.log_prob_summary_path,
             temperature=self.temperature,
             llm_style=self.llm_style,
+            value_function_policy=self.value_function_policy,
+            value_function_path=self.value_function_path,
         )
 
     def run_step(self, verbose_move_log: bool = False):
@@ -843,7 +845,7 @@ class LLMSimulation(Simulation):
 
         return result
 
-    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=1):
+    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=None):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
         print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
@@ -868,7 +870,8 @@ def run_single_simulation(args):
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir)
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps)
             (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir, max_steps, initial_int_grid, initial_step)
-                (..., initial_no_move_steps, use_log_prob_policy, log_prob_policy, log_prob_summary_path, save_every_steps, temperature)
+                (..., initial_no_move_steps, save_every_steps, temperature, llm_style,
+             scenario_file, value_function_policy, value_function_path)
     """
     if len(args) < 6:
         raise ValueError(
@@ -880,31 +883,41 @@ def run_single_simulation(args):
     initial_int_grid = args[7] if len(args) >= 8 else None
     initial_step = args[8] if len(args) >= 9 else None
     initial_no_move_steps = args[9] if len(args) >= 10 else None
-    use_log_prob_policy = bool(args[10]) if len(args) >= 11 else False
-    log_prob_policy = args[11] if len(args) >= 12 else None
-    log_prob_summary_path = args[12] if len(args) >= 13 else None
-    save_every_steps = args[13] if len(args) >= 14 else 1
-    if len(args) < 15:
+    save_every_steps = args[10] if len(args) >= 11 else None
+    if len(args) < 12:
         raise ValueError(
-            f"incomplete worker args: expected 15 values including temperature, got {len(args)}"
+            f"incomplete worker args: expected 12 values including temperature, got {len(args)}"
         )
-    temperature = args[14]
+    temperature = args[11]
     if temperature is None:
         raise ValueError("temperature argument missing in run_single_simulation worker args")
-    llm_style = args[15] if len(args) >= 16 else None
-    scenario_file = args[16] if len(args) >= 17 else None
+    llm_style = args[12] if len(args) >= 13 else None
+    scenario_file = args[13] if len(args) >= 14 else None
+    value_function_policy = args[14] if len(args) >= 15 else None
+    value_function_path = args[15] if len(args) >= 16 else None
+    grid_config = args[16] if len(args) >= 17 else None
+    # Re-apply in the worker for the same reason scenario_file is: required
+    # under spawn, harmless (idempotent) under fork.
+    apply_grid_config(grid_config)
     if scenario_file:
         # Re-apply in the worker: idempotent, and required under spawn start methods
         # (under fork the parent's apply already covers it).
         apply_scenario_file(scenario_file)
 
     sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
+                        # Seed by run_id: run k of ANY two batches shares its
+                        # initial grid and RNG streams, making full-vs-half
+                        # value-function checks and LLM-vs-mechanical
+                        # comparisons paired (base_simulation seeds numpy +
+                        # stdlib random when a seed is given, 2026-08-21).
+                        random_seed=run_id,
                         initial_int_grid=initial_int_grid, initial_step=initial_step,
                         initial_no_move_steps=initial_no_move_steps,
-                        use_log_prob_policy=use_log_prob_policy,
-                        log_prob_policy=log_prob_policy,
-                        log_prob_summary_path=log_prob_summary_path,
-                        temperature=temperature, llm_style=llm_style)
+                        temperature=temperature, llm_style=llm_style,
+                        value_function_policy=value_function_policy,
+                        value_function_path=value_function_path)
+    if initial_int_grid is not None:
+        sim.preload_record(output_dir)
     result = sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps, save_every_steps=save_every_steps)
     
     # Add LLM-specific metrics to the result
@@ -912,8 +925,8 @@ def run_single_simulation(args):
         'scenario': scenario,
         'llm_call_count': sim.total_llm_calls,
         'avg_llm_call_time': sim.total_llm_time / max(sim.total_llm_calls, 1),
-        'decision_source': 'log_prob_summary' if use_log_prob_policy else 'llm_api',
-        'log_prob_summary_path': log_prob_summary_path,
+        'decision_source': ('value_function' if value_function_policy else 'llm_api'),
+        'value_function_path': value_function_path,
     })
     return result
 
@@ -922,85 +935,46 @@ def _analyze_run_status(output_dir, run_id, max_steps):
     Returns dict with keys: status in {'converged','reached_max','aborted','missing'},
     last_step (int or None), next_step (int or None), seed_grid (2D list or None).
     """
-    move_log_path = os.path.join(output_dir, "move_logs", f"agent_moves_run_{run_id}.json.gz")
-    states_npz = os.path.join(output_dir, "states", f"states_run_{run_id}.npz")
+    empty = {'status': 'missing', 'last_step': None, 'next_step': None,
+             'seed_grid': None, 'convergence_step': None, 'no_move_streak': 0}
+    step_log = run_files.load_step_log(output_dir, run_id)
+    if step_log is None or step_log.empty:
+        # No usable move log; a states file alone means an aborted run whose
+        # step count is unknown — seed from its last grid.
+        frames = run_files.load_frames(output_dir, run_id)
+        if frames is None or len(frames) == 0:
+            return empty
+        return dict(empty, status='aborted', seed_grid=frames[-1].tolist())
 
-    if os.path.exists(move_log_path):
-        try:
-            with gzip.open(move_log_path, 'rt', encoding='utf-8') as fh:
-                entries = json.load(fh)
-            df = pd.DataFrame(entries)
-        except Exception:
-            df = pd.DataFrame()
-        last_step = int(df['step'].max()) if (not df.empty and 'step' in df.columns) else -1
-        step_moves = df.groupby('step')['moved'].sum() if (not df.empty and 'moved' in df.columns) else pd.Series(dtype=int)
-        threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
-        converged = False
-        convergence_step = None
-        no_move_streak = 0
-        if not step_moves.empty:
-            window = step_moves.tail(threshold)
-            if len(window) == threshold and (window == 0).all():
-                converged = True
-                convergence_step = int(window.index[0])
-            # Count trailing zero-move steps for resuming aborted runs
-            for moves in reversed(step_moves.tolist()):
-                if pd.isna(moves):
-                    break
-                if int(moves) == 0:
-                    no_move_streak += 1
-                else:
-                    break
-        reached_max = (last_step + 1) >= max_steps if last_step >= 0 else False
+    step_moves = run_files.step_moves(step_log)
+    last_step = max(step_moves)
+    threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
+    converged, convergence_step, _ = convergence_from_step_moves(step_moves, threshold)
+    # Count trailing zero-move steps for resuming aborted runs
+    no_move_streak = 0
+    for step in sorted(step_moves, reverse=True):
+        if step_moves[step] != 0:
+            break
+        no_move_streak += 1
+    reached_max = (last_step + 1) >= max_steps
+    status = 'converged' if converged else ('reached_max' if reached_max else 'aborted')
 
-        status = 'converged' if converged else ('reached_max' if reached_max else 'aborted')
+    seed_grid = None
+    next_step = None
+    if status == 'aborted':
+        final = run_files.load_final_grid(output_dir, run_id)
+        seed_grid = None if final is None else np.asarray(final).tolist()
+        next_step = last_step + 1
 
-        # Extract last grid snapshot for resuming aborted runs
-        seed_grid = None
-        next_step = None
-        if status == 'aborted':
-            if 'grid' in df.columns and not df.empty:
-                try:
-                    raw = df.iloc[-1]['grid']
-                    if isinstance(raw, str):
-                        seed_grid = ast.literal_eval(raw)
-                    else:
-                        seed_grid = raw
-                except Exception:
-                    seed_grid = None
-            if seed_grid is None and os.path.exists(states_npz):
-                try:
-                    data = np.load(states_npz)
-                    arr = data['states']
-                    if len(arr) > 0:
-                        seed_grid = arr[-1].tolist()
-                except Exception:
-                    seed_grid = None
-            next_step = (last_step + 1) if last_step is not None and last_step >= 0 else None
+    return {
+        'status': status,
+        'last_step': last_step,
+        'next_step': next_step,
+        'seed_grid': seed_grid,
+        'convergence_step': convergence_step if converged else None,
+        'no_move_streak': int(no_move_streak)
+    }
 
-        return {
-            'status': status,
-            'last_step': None if last_step < 0 else last_step,
-            'next_step': next_step,
-            'seed_grid': seed_grid,
-            'convergence_step': convergence_step if converged else None,
-            'no_move_streak': int(no_move_streak)
-        }
-
-    # No move log; try states as existence indicator
-    if os.path.exists(states_npz):
-        # Without move log, we can't infer steps reliably; treat as aborted with last grid
-        seed_grid = None
-        try:
-            data = np.load(states_npz)
-            arr = data['states']
-            if len(arr) > 0:
-                seed_grid = arr[-1].tolist()
-        except Exception:
-            seed_grid = None
-        return {'status': 'aborted', 'last_step': None, 'next_step': None, 'seed_grid': seed_grid, 'convergence_step': None, 'no_move_streak': 0}
-    return {'status': 'missing', 'last_step': None, 'next_step': None, 'seed_grid': None, 'convergence_step': None, 'no_move_streak': 0}
-    
 def list_available_experiments():
     """List all available experiments that can be resumed"""
     exp_dir = "experiments"
@@ -1087,9 +1061,9 @@ def check_existing_experiment(experiment_name):
 
 def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=None, llm_url=None, llm_api_key=None,
                        parallel=True, n_processes=None, resume_experiment=None,
-                       use_log_probs=None, log_probs_root=None, save_every_steps=None, temperature=None,
-                       llm_style=None, scenario_file=None,
-                       progress_offset=0, progress_total=None):
+                       save_every_steps=None, temperature=None,
+                       llm_style=None, scenario_file=None, value_function=None,
+                       grid_config=None, full_move_log=False, progress_offset=0, progress_total=None):
     """
     Run LLM experiments with specified scenario - compatible with baseline_runner structure
     
@@ -1114,12 +1088,6 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         If None, uses min(cpu_count(), n_runs). If 1, forces sequential execution.
     resume_experiment : str, optional
         Name of an existing experiment to resume (skip runs that are already completed)
-    use_log_probs : bool or None
-        If True, use precomputed MOVE/STAY probabilities from llm_log_probs summary CSVs
-        instead of live LLM API calls. If None when resuming, value is loaded from config.
-    log_probs_root : str or None
-        Optional root directory containing per-model log-probability summaries.
-        Expected layout: <root>/<sanitized_model>/<sanitized_model>_<scenario>_stay_move_probability_split_summary.csv
     save_every_steps : int or None
         Persist states and move logs every N simulation steps (default: 1 / every step).
         Keeps all details; only changes disk write frequency.
@@ -1133,6 +1101,14 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
     """
     
     llm_style = resolve_llm_style(llm_style)   # fail fast on typos
+    # Applied in the parent as well as in each worker: the config.json snapshot
+    # below reads cfg.GRID_SIZE, so without this the run would execute at 20x20
+    # while its own provenance recorded the default.
+    apply_grid_config(grid_config)
+    if full_move_log:
+        # Environment rather than an args-tuple slot: inherited by spawned
+        # workers, and read by Simulation.__init__ in every runner.
+        os.environ['FULL_MOVE_LOG'] = '1'
     resolved_scenario_file = None
     if scenario_file:
         # keep the RESOLVED path: callers may pass a bare name and run from a
@@ -1201,18 +1177,6 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                             config_values_from_file['temperature'] = temperature
                         except (TypeError, ValueError):
                             pass
-                if use_log_probs is None:
-                    use_log_probs_from_config = existing_config.get('use_log_probs')
-                    if isinstance(use_log_probs_from_config, bool):
-                        use_log_probs = use_log_probs_from_config
-                        config_defaults_used.append('use_log_probs')
-                        config_values_from_file['use_log_probs'] = use_log_probs_from_config
-                if log_probs_root is None:
-                    log_probs_root_from_config = existing_config.get('log_probs_root')
-                    if isinstance(log_probs_root_from_config, str) and log_probs_root_from_config.strip():
-                        log_probs_root = log_probs_root_from_config
-                        config_defaults_used.append('log_probs_root')
-                        config_values_from_file['log_probs_root'] = log_probs_root_from_config
                 if n_runs is None:
                     n_runs_from_config = existing_config.get('n_runs')
                     if n_runs_from_config is not None:
@@ -1225,6 +1189,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                         n_processes = n_proc_from_config
                         config_defaults_used.append('n_processes')
                         config_values_from_file['n_processes'] = n_proc_from_config
+                if value_function is None:
+                    vf_from_config = existing_config.get('value_function_file')
+                    if isinstance(vf_from_config, str) and vf_from_config.strip():
+                        value_function = vf_from_config
+                        config_defaults_used.append('value_function')
+                        config_values_from_file['value_function'] = vf_from_config
                 if save_every_steps is None:
                     save_every_steps_from_config = existing_config.get('save_every_steps')
                     if isinstance(save_every_steps_from_config, int) and save_every_steps_from_config > 0:
@@ -1268,12 +1238,15 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             temperature = float(temperature)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid temperature value: {temperature}") from exc
-        if use_log_probs is None:
-            use_log_probs = False
         if not isinstance(n_processes, int) or n_processes < 1:
             n_processes = None
-        if not isinstance(save_every_steps, int) or save_every_steps < 1:
-            save_every_steps = 1
+        # None means NO intermediate saves (base_simulation._normalize_save_every_steps,
+        # 2026-08-27) — do NOT coerce it to 1 here. Coercing was silently
+        # reinstating the per-step save, whose full-file rewrite makes total I/O
+        # O(steps^2): a 1000-step deepseek run took ~30 min instead of 7.5 s.
+        if save_every_steps is not None and (
+                not isinstance(save_every_steps, int) or save_every_steps < 1):
+            save_every_steps = None
 
         value_map = {
             'scenario': scenario,
@@ -1283,8 +1256,6 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'temperature': temperature,
             'n_runs': n_runs,
             'n_processes': n_processes,
-            'use_log_probs': use_log_probs,
-            'log_probs_root': log_probs_root,
             'save_every_steps': save_every_steps,
         }
         config_defaults_used = [key for key in config_defaults_used if value_map.get(key) == config_values_from_file.get(key)]
@@ -1304,12 +1275,6 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             print(f"   Temperature: {temperature} (from config)")
         else:
             print(f"   Temperature: {temperature}")
-        print(f"   Decision source: {'log_prob_summary' if use_log_probs else 'llm_api'}")
-        if use_log_probs:
-            if 'log_probs_root' in config_defaults_used:
-                print(f"   Log-probs root: {log_probs_root} (from config)")
-            elif log_probs_root:
-                print(f"   Log-probs root: {log_probs_root}")
         if n_processes is not None:
             suffix = " (from config)" if 'n_processes' in config_defaults_used else ""
             print(f"   Parallel processes: {n_processes}{suffix}")
@@ -1323,6 +1288,15 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         statuses = {}
         for rid in planned_run_ids:
             statuses[rid] = _analyze_run_status(output_dir, rid, max_steps)
+
+        if value_function:
+            # A resumed run reseeds from run_id at the resume point, so it is
+            # not the run an uninterrupted process would have produced. Runs
+            # driven by a value function cost a fraction of a second: redo
+            # them from scratch and keep every run reproducible from run_id.
+            for s in statuses.values():
+                if s['status'] == 'aborted':
+                    s['status'] = 'missing'
 
         completed_ids = [rid for rid, s in statuses.items() if s['status'] in ('converged', 'reached_max')]
         aborted_items = [(rid, s) for rid, s in statuses.items() if s['status'] == 'aborted']
@@ -1372,33 +1346,51 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             temperature = float(temperature)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid temperature value: {temperature}") from exc
-        if use_log_probs is None:
-            use_log_probs = False
-        if not isinstance(save_every_steps, int) or save_every_steps < 1:
-            save_every_steps = 1
+        # None means NO intermediate saves (base_simulation._normalize_save_every_steps,
+        # 2026-08-27) — do NOT coerce it to 1 here. Coercing was silently
+        # reinstating the per-step save, whose full-file rewrite makes total I/O
+        # O(steps^2): a 1000-step deepseek run took ~30 min instead of 7.5 s.
+        if save_every_steps is not None and (
+                not isinstance(save_every_steps, int) or save_every_steps < 1):
+            save_every_steps = None
         # Create output directory for new experiment
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"llm_{scenario}_{timestamp}"
+        # Value-function batches finish in under a second, so a seconds-resolution
+        # timestamp can COLLIDE with the previous batch and silently mix two
+        # experiments into one directory. Suffix until unique.
+        k = 2
+        while os.path.exists(f"experiments/{experiment_name}"):
+            experiment_name = f"llm_{scenario}_{timestamp}-{k}"
+            k += 1
         output_dir = f"experiments/{experiment_name}"
         os.makedirs(output_dir, exist_ok=True)
         remaining_runs = n_runs
         pending_run_specs = [(i, None, None, None) for i in range(n_runs)]
     
-    log_prob_policy = None
-    log_prob_summary_path = None
+    value_function_policy = None
+    value_function_path = None
+    vf_meta = None
 
-    if use_log_probs:
-        if not log_probs_root:
-            model_slug = _sanitize_model_for_path_component(llm_model)
-            log_probs_root = str(Path(__file__).resolve().parent / "llm_log_probs" / model_slug)
-        log_prob_policy, log_prob_summary_path = load_log_prob_policy(
-            llm_model=llm_model,
-            scenario=scenario,
-            log_probs_root=log_probs_root,
-            temperature=temperature,
-        )
-        print(f"✅ Loaded log-probability policy from: {log_prob_summary_path}")
-        print(f"   Policy entries: {len(log_prob_policy)}")
+    if value_function:
+        # Composition-keyed value-function policy:
+        # no live LLM server needed, full cell coverage validated at load time.
+        value_function_policy, value_function_path, vf_meta = \
+            load_value_function_policy(value_function, scenario=scenario)
+        print(f"✅ Loaded value-function policy from: {value_function_path}")
+        print(f"   model={vf_meta.get('model')}  style={vf_meta.get('style')}  "
+              f"scenario={vf_meta.get('scenario')}  arm={vf_meta.get('arm')}")
+        print(f"   Policy entries: {len(value_function_policy)} "
+              f"(45 composition cells x 2 roles)")
+        # A value function is measured PER SCENARIO (the identity labels are
+        # part of the prompt): simulating scenario X with scenario Y's tables
+        # would silently attribute Y's behaviour to X's social context.
+        vf_scenario = vf_meta.get("scenario")
+        if vf_scenario and scenario and vf_scenario != scenario:
+            raise ValueError(
+                f"value function was measured on scenario {vf_scenario!r} but this "
+                f"experiment simulates {scenario!r} — use the matching "
+                f"vf_*__{scenario}__*.json artifact")
     else:
         # Check LLM connection first with potentially custom parameters
         if not check_llm_connection(llm_model, llm_url, llm_api_key, llm_style=llm_style):
@@ -1419,13 +1411,13 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             seed_grid,
             next_step,
             no_move_streak,
-            use_log_probs,
-            log_prob_policy,
-            log_prob_summary_path,
             save_every_steps,
             temperature,
             llm_style,
             scenario_file,
+            value_function_policy,
+            value_function_path,
+            grid_config,
         )
         for rid, seed_grid, next_step, no_move_streak in pending_run_specs
     ]
@@ -1442,18 +1434,26 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'num_type_b': cfg.NUM_TYPE_B,
             'scenario': scenario,
             'llm_model': llm_model,
-            'llm_url': llm_url,
+            # In value-function mode no LLM endpoint is ever contacted; the
+            # sampled model/URL live in value_function_meta instead. Recording
+            # the (irrelevant) config.py defaults here misled downstream
+            # tooling into reading VF runs as live-LLM runs.
+            'llm_url': None if value_function_policy else llm_url,
             'temperature': temperature,
-            'llm_api_key_last4': (llm_api_key)[-4:] if llm_api_key else None,
+            'llm_api_key_last4': (None if value_function_policy
+                                  else ((llm_api_key)[-4:] if llm_api_key else None)),
             'no_move_threshold': cfg.NO_MOVE_THRESHOLD,
             'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S"),
             'context_info': CONTEXT_SCENARIOS[scenario],
             'parallel_execution': parallel,
             'n_processes': n_processes if parallel else 1,
             'cpu_count': cpu_count(),
-            'use_log_probs': use_log_probs,
-            'log_probs_root': log_probs_root,
-            'log_prob_summary_file': log_prob_summary_path,
+            'value_function_file': value_function_path,
+            'value_function_meta': ({k: vf_meta.get(k) for k in
+                                     ('label', 'model', 'url', 'style', 'arm',
+                                      'scenario', 'temperature', 'grammar_sha256',
+                                      'created')}
+                                    if vf_meta else None),
             'save_every_steps': save_every_steps,
         }
         
@@ -1581,7 +1581,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
     llm_calls = [r.get('llm_call_count', 0) for r in final_results if 'llm_call_count' in r]
     llm_times = [r.get('avg_llm_call_time', 0) for r in final_results if 'avg_llm_call_time' in r]
     if llm_calls:
-        print(f"Average LLM calls per run: {np.mean(llm_calls):.1f}")
+        # "agent calls", not "LLM calls": the counter is incremented once per
+        # agent decision, and in value-function mode no endpoint is contacted
+        # at all — a 20x20 VF run reports 640 of these having made zero
+        # requests. The response time below really is LLM-only (0.000s in VF
+        # mode), so the two lines count different things.
+        print(f"Average agent calls per run: {np.mean(llm_calls):.1f}")
         print(f"Average LLM response time: {np.mean(llm_times):.3f}s")
     
     return output_dir, final_results
@@ -1590,6 +1595,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM-based Schelling segregation simulations")
     parser.add_argument('--runs', type=int, default=None, help='Number of simulation runs')
     parser.add_argument('--max-steps', type=int, default=None, help='Maximum steps per simulation')
+    parser.add_argument('--grid-size', type=int, default=None,
+                        help='Cells per side (overrides config.GRID_SIZE for this run only)')
+    parser.add_argument('--num-type-a', type=int, default=None,
+                        help='Type A agent count (overrides config.NUM_TYPE_A)')
+    parser.add_argument('--num-type-b', type=int, default=None,
+                        help='Type B agent count (overrides config.NUM_TYPE_B)')
+    parser.add_argument('--full-move-log', action='store_true',
+                        help='Record every agent decision and a grid frame per decision '
+                             '(the pre-2026-09-02 format) instead of per-step counts and '
+                             'frames. Runs are deterministic per run_id, so this regenerates '
+                             'per-move detail for any run exactly.')
     parser.add_argument('--scenario', type=str, default=None, choices=list(CONTEXT_SCENARIOS.keys()), help='Scenario to simulate')
     parser.add_argument('--llm-model', type=str, help='LLM model to use (overrides config.py)')
     parser.add_argument('--llm-url', type=str, help='LLM API URL (overrides config.py)')
@@ -1601,16 +1617,15 @@ if __name__ == "__main__":
     parser.add_argument('--resume', type=str, help='Resume existing experiment by name (e.g., "llm_baseline_20250706_143022")')
     parser.add_argument('--list-experiments', action='store_true', help='List all available experiments that can be resumed')
     parser.add_argument(
-        '--use-log-probs',
-        action='store_true',
-        default=None,
-        help='Use precomputed scenario log-probability summary CSVs instead of live LLM API calls',
-    )
-    parser.add_argument(
-        '--log-probs-root',
+        '--value-function',
         type=str,
         default=None,
-        help='Optional root directory containing llm_log_probs/<sanitized_model>/... summary files',
+        help='Path to a vf-1 value-function JSON (prompt_refinement/build_value_function.py), '
+             'or a DIRECTORY of them (the per-scenario file is resolved by filename, '
+             'vf_<label>__<scenario>__<style>.json; a '
+             'missing/ambiguous match is a hard error). Decides MOVE/STAY from the exact '
+             '(n_similar, n_occupied) composition-cell P(MOVE) rates instead of live LLM '
+             'calls (composition-level lookup).',
     )
     parser.add_argument(
         '--save-every-steps',
@@ -1664,9 +1679,10 @@ if __name__ == "__main__":
         parallel=not args.no_parallel,
         n_processes=args.processes,
         resume_experiment=args.resume,
-        use_log_probs=args.use_log_probs,
-        log_probs_root=args.log_probs_root,
+        value_function=args.value_function,
         llm_style=args.llm_style,
         scenario_file=args.scenario_file,
+        grid_config=grid_config_from_args(args.grid_size, args.num_type_a, args.num_type_b),
+        full_move_log=args.full_move_log,
         save_every_steps=args.save_every_steps,
     )

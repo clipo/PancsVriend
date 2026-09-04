@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import run_files
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
@@ -152,7 +153,7 @@ def plot_scenario_comparison(llm_experiments, metrics_to_compare=['distance', 'm
         errors = []
         
         for scenario in scenario_names:
-            df = pd.read_csv(f"{llm_experiments[scenario]}/metrics_history.csv")
+            df = pd.read_csv(run_files.metrics_history_path(llm_experiments[scenario]))
             
             # Get final values for each run
             final_df = df.groupby('run_id').last()
@@ -239,7 +240,7 @@ def create_comprehensive_report(baseline_dir, llm_dirs, output_path='segregation
         
         for exp_name, exp_dir in all_experiments.items():
             conv_df = pd.read_csv(f"{exp_dir}/convergence_summary.csv")
-            metrics_df = pd.read_csv(f"{exp_dir}/metrics_history.csv")
+            metrics_df = pd.read_csv(run_files.metrics_history_path(exp_dir))
             
             # Calculate summary statistics
             final_metrics = metrics_df.groupby('run_id').last()

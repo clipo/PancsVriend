@@ -8,6 +8,7 @@ import json
 import time
 import sys
 from pathlib import Path
+import run_files
 from datetime import datetime
 import subprocess
 
@@ -120,7 +121,7 @@ def monitor_specific_experiment(exp_dir):
     
     # Look for progress indicators
     progress_file = exp_dir / "progress_realtime.json"
-    metrics_file = exp_dir / "metrics_history.csv"
+    metrics_file = Path(run_files.metrics_history_path(exp_dir))
     
     last_progress = None
     last_metrics_size = 0

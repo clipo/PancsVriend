@@ -13,18 +13,22 @@ def mechanical_decision(agent, r, c, grid):
     return agent.random_response(r, c, grid) 
 
 class BaselineSimulation(Simulation):
-    def __init__(self, run_id, config_override=None):
+    def __init__(self, run_id, config_override=None, random_seed=None):
         if config_override:
             for key, value in config_override.items():
                 setattr(cfg, key, value)
-        super().__init__(run_id, agent_factory=Agent, decision_func=mechanical_decision)
+        super().__init__(run_id, agent_factory=Agent, decision_func=mechanical_decision,
+                         random_seed=random_seed)
 
     # Optionally, add any baseline-specific logging or hooks here
 
 def run_single_simulation(args):
-    run_id, config_override, output_dir = args
-    sim = BaselineSimulation(run_id, config_override)
-    return sim.run_single_simulation(output_dir=output_dir, max_steps=1000)
+    # max_steps travels with the worker args (it was hardcoded to 1000 before
+    # 2026-08-21, silently ignoring --max-steps). random_seed=run_id pairs
+    # run k with run k of the seeded LLM/value-function batches.
+    run_id, config_override, output_dir, max_steps = args
+    sim = BaselineSimulation(run_id, config_override, random_seed=run_id)
+    return sim.run_single_simulation(output_dir=output_dir, max_steps=max_steps)
 
 def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, parallel=True):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -47,7 +51,7 @@ def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, pa
     with open(f"{output_dir}/config.json", 'w') as f:
         json.dump(config_dict, f, indent=2)
         
-    args_list = [(i, config_override, output_dir) for i in range(n_runs)]
+    args_list = [(i, config_override, output_dir, max_steps) for i in range(n_runs)]
     if parallel:
         n_processes = min(cpu_count(), n_runs)
         with Pool(n_processes) as pool:

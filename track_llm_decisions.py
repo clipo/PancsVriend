@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 import os
+import run_files
 
 def find_latest_experiment():
     """Find the most recently modified experiment"""
@@ -36,7 +37,7 @@ def track_experiment_progress(exp_dir):
     print("=" * 60)
     
     # Look for metrics file to track decisions
-    metrics_file = exp_dir / "metrics_history.csv"
+    metrics_file = Path(run_files.metrics_history_path(exp_dir))
     convergence_file = exp_dir / "convergence_summary.csv"
     config_file = exp_dir / "experiment_config.json"
     

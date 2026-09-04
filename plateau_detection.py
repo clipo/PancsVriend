@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import run_files
 from scipy import stats
 from scipy.signal import savgol_filter
 from sklearn.preprocessing import MinMaxScaler
@@ -178,7 +179,7 @@ def compare_convergence_across_runs(results_dir):
     - comparison_df: DataFrame with convergence metrics for all runs
     """
     
-    metrics_df = pd.read_csv(f"{results_dir}/metrics_history.csv")
+    metrics_df = pd.read_csv(run_files.metrics_history_path(results_dir))
     
     comparison_data = []
     

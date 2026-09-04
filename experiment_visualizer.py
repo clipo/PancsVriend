@@ -21,6 +21,7 @@ import os
 import glob
 import numpy as np
 import pandas as pd
+import run_files
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Button, Slider, CheckButtons
@@ -134,7 +135,7 @@ class ExperimentVisualizer:
         print(f"✅ Loaded {len(self.states)} states")
         
         # Load metrics if available
-        metrics_path = os.path.join(baseline_dir, "metrics_history.csv")
+        metrics_path = run_files.metrics_history_path(baseline_dir)
         if os.path.exists(metrics_path):
             self.metrics_df = pd.read_csv(metrics_path)
             # Filter for current run

@@ -5,6 +5,7 @@ Analyzes data from comprehensive_study_* directories containing both mechanical 
 """
 
 import pandas as pd
+import run_files
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -27,7 +28,7 @@ def load_mechanical_data(study_dir):
         
         # Load the data files
         try:
-            metrics_file = baseline_dir / "metrics_history.csv"
+            metrics_file = Path(run_files.metrics_history_path(baseline_dir))
             convergence_file = baseline_dir / "convergence_summary.csv"
             config_file = baseline_dir / "config.json"
             
@@ -81,7 +82,7 @@ def load_llm_data(study_dir):
     for exp_dir in experiments_dir.glob("exp_*"):
         try:
             config_file = exp_dir / "config.json"
-            metrics_file = exp_dir / "metrics_history.csv" 
+            metrics_file = Path(run_files.metrics_history_path(exp_dir))
             convergence_file = exp_dir / "convergence_summary.csv"
             
             if all(f.exists() for f in [config_file, metrics_file, convergence_file]):

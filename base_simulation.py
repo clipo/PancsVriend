@@ -5,11 +5,12 @@ from Metrics import calculate_all_metrics
 import os
 import gzip
 import json
-import ast
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 from tqdm import tqdm
+
+import run_files
 
 
 class _MetricsMockAgent:
@@ -17,59 +18,60 @@ class _MetricsMockAgent:
         self.type_id = type_id
 
 
+def convergence_from_step_moves(step_moves, threshold):
+    """(converged, first_no_move_step, detected_step) from a {step: n_moves} map.
+
+    THE convergence definition, in one place. A run has converged when its
+    LAST `threshold` steps all had zero agent movements; the reported
+    convergence step is the FIRST step of that window, and `detected_step` is
+    the step at which the criterion was met (first + threshold - 1), which is
+    also the last step simulated.
+
+    This used to be written out twice with one meaning (first-of-window, in
+    _load_single_run_result and llm_runner._analyze_run_status) and once with
+    the other (last-of-window, in Simulation.run_step), so
+    convergence_summary.csv carried both conventions depending on which path
+    produced the row — 722 rows on disk with final_step - convergence_step == 0
+    against 1593 with == 4. Everything routes through here now (2026-09-01).
+    """
+    if not step_moves or threshold < 1:
+        return False, None, None
+    steps = sorted(step_moves)
+    window = steps[-threshold:]
+    if len(window) < threshold:
+        return False, None, None
+    if any(step_moves[step] != 0 for step in window):
+        return False, None, None
+    return True, int(window[0]), int(window[-1])
+
+
 def _load_single_run_result(task):
-    run_id, json_path, grid_size, threshold = task
+    """Rebuild one run's convergence + per-step metrics from its saved files.
 
-    with gzip.open(json_path, 'rt', encoding='utf-8') as f:
-        move_records = json.load(f)
+    Both come through run_files, which hands back the same per-step tables
+    for the per-step format and for full (per-move) logs, so this function
+    does not care which one the run wrote.
 
-    max_step = 0
-    step_moves = {}
-    last_grid_by_step = {}
+    The grid's SHAPE comes from the data too. It used to come from the ambient
+    cfg.GRID_SIZE, which is silently wrong whenever the config in force differs
+    from the one a run was recorded under: a 20x20 config re-analysing a 10x10
+    run padded 300 cells with None and returned plausible-looking metrics for a
+    grid that was three quarters empty, with no error raised.
+    """
+    run_id, output_dir, threshold = task
 
-    for record in move_records:
-        step = record.get('step')
-        if step is None:
-            continue
-
-        try:
-            step = int(step)
-        except (TypeError, ValueError):
-            continue
-
-        if step > max_step:
-            max_step = step
-
-        moved = bool(record.get('moved', False))
-        step_moves[step] = step_moves.get(step, 0) + (1 if moved else 0)
-
-        if 'grid' in record:
-            last_grid_by_step[step] = record.get('grid')
-
-    if step_moves:
-        sorted_steps = sorted(step_moves.keys())
-        window_steps = sorted_steps[-threshold:]
-        if len(window_steps) == threshold and all(step_moves[step] == 0 for step in window_steps):
-            converged = True
-            convergence_step = window_steps[0]
-        else:
-            converged = False
-            convergence_step = None
-    else:
-        converged = False
-        convergence_step = None
+    step_log = run_files.load_step_log(output_dir, run_id)
+    step_moves = run_files.step_moves(step_log)
+    max_step = max(step_moves) if step_moves else 0
+    converged, convergence_step, _ = convergence_from_step_moves(step_moves, threshold)
 
     metrics_history = []
-    if last_grid_by_step:
-        for step, grid_value in sorted(last_grid_by_step.items()):
+    loaded = run_files.load_step_frames(output_dir, run_id)
+    if loaded is not None:
+        for step, grid_array in zip(*loaded):
             try:
-                if isinstance(grid_value, str):
-                    grid_data = ast.literal_eval(grid_value)
-                else:
-                    grid_data = grid_value
-
-                grid_array = np.array(grid_data)
-                mock_grid = np.full((grid_size, grid_size), None)
+                grid_array = np.asarray(grid_array)
+                mock_grid = np.full(grid_array.shape, None)
                 for r in range(grid_array.shape[0]):
                     for c in range(grid_array.shape[1]):
                         if grid_array[r, c] >= 0:
@@ -113,9 +115,11 @@ def _load_single_run_result(task):
         'metrics_history': metrics_history
     }
 
+
 class Simulation:
     def __init__(self, run_id, agent_factory, decision_func, scenario='baseline', random_seed=None,
-                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None):
+                 initial_int_grid=None, initial_step=None, initial_no_move_steps=None,
+                 full_move_log=False):
         self.run_id = run_id
         self.scenario = scenario
         self.grid = np.full((cfg.GRID_SIZE, cfg.GRID_SIZE), None)
@@ -125,15 +129,31 @@ class Simulation:
         self.no_move_steps = 0
         self.no_move_threshold = cfg.NO_MOVE_THRESHOLD
         self.metrics_history = []
-        self.states = []
         self.agent_factory = agent_factory
         self.decision_func = decision_func
         self.random_seed = random_seed
-        # Track all agent moves during simulation
-        self.agent_move_log = []
+        # What the run records (see run_files). Per-step by default: one row
+        # of decision counts and one grid frame per step. Full: one record and
+        # one frame per agent decision — needed only when records carry LLM
+        # replies (live-LLM runs pass full_move_log=True), or to regenerate
+        # per-move detail for a deterministic run via FULL_MOVE_LOG=1.
+        self.full_move_log = bool(full_move_log) or (
+            os.environ.get('FULL_MOVE_LOG', '').lower() in ('true', '1', 'yes'))
+        self.states = []
+        self.agent_move_log = []       # full format: per-move records
+        self.step_log = []             # per-step format: run_files.STEP_LOG_COLUMNS rows
 
         if self.random_seed is None:
             np.random.seed(None)
+        else:
+            # Seed BOTH RNG streams the simulation actually draws from:
+            # numpy (grid population, agent activation order) and stdlib
+            # random (value-function/mechanical decisions, destination picks
+            # in llm_runner). Before 2026-08-21 a passed seed did nothing —
+            # this branch is what makes run k of two batches pairable.
+            import random as _random
+            np.random.seed(self.random_seed)
+            _random.seed(self.random_seed)
 
         # Initialize grid either randomly or from a provided int grid (resume)
         if initial_int_grid is not None:
@@ -146,10 +166,11 @@ class Simulation:
                     pass
         else:
             self.populate_grid()
-        # Save the initial grid state after population
-        self.log_state_per_move()
-        # Log a dummy "move" to record their initial state
-        self.log_agent_move(None, None, None, None, False, None, 'initial_state', verbose_move_log=False)
+        # Frame 0 is the initial grid in both formats.
+        self.states.append(self._grid_to_int())
+        if self.full_move_log:
+            # Log a dummy "move" to record their initial state
+            self.log_agent_move(None, None, None, None, False, None, 'initial_state', verbose_move_log=False)
 
         if initial_no_move_steps is not None:
             try:
@@ -251,21 +272,35 @@ class Simulation:
         metrics['step'] = self.step
         metrics['run_id'] = self.run_id
         self.metrics_history.append(metrics)
-        # States are now saved after each individual move in update_agents()
+        if not self.full_move_log:
+            self.states.append(self._grid_to_int())    # grid after this step
         if not moved:
             self.no_move_steps += 1
         else:
             self.no_move_steps = 0
         if self.no_move_steps >= self.no_move_threshold:
             self.converged = True
-            self.convergence_step = self.step
+            # FIRST step of the no-move window, not the step the criterion
+            # tripped on (2026-09-01) — matching the two log-reconstruction
+            # paths, which have always reported first-of-window. See
+            # convergence_from_step_moves. final_step stays self.step, so
+            # final_step == convergence_step + NO_MOVE_THRESHOLD - 1 for every
+            # converged run regardless of which path produced the row.
+            self.convergence_step = self.step - (self.no_move_steps - 1)
         if not self.converged:
             self.step += 1 # Increment step only if not converged 
         return self.converged
 
     def _grid_to_int(self):
+        # int8, not the platform int (2026-08-27): cells only ever hold -1
+        # (empty), 0 or 1 (the two agent types in config.py), so 64 bits per
+        # cell wasted 8x the memory and 4x the npz size. Readers are
+        # dtype-agnostic (equality masks, explicit casts, np.array_equal), and
+        # a hypothetical type_id > 127 would raise OverflowError here rather
+        # than corrupt silently. .tolist() still yields Python ints, so the
+        # move-log JSON is unchanged.
         size = cfg.GRID_SIZE
-        int_grid = np.full((size, size), -1, dtype=int)
+        int_grid = np.full((size, size), -1, dtype=np.int8)
         for r in range(size):
             for c in range(size):
                 agent = self.grid[r][c]
@@ -275,13 +310,27 @@ class Simulation:
 
     @staticmethod
     def _normalize_save_every_steps(save_every_steps):
+        """Interval between INTERMEDIATE saves, or None for 'only at the end'.
+
+        None is the default and now means NO intermediate saves (changed
+        2026-08-27; it used to mean 'every step', the most expensive setting).
+        Both writers rewrite their whole file from scratch — save_agent_move_log
+        re-dumps the entire move log (a full grid per record) and save_states
+        re-compresses every frame — so saving each step made total I/O grow as
+        O(steps^2). Measured on a 10x10 grid: ~95% of run time was json.dump,
+        and per-step cost rose 10x (33ms -> 320ms) going from a 200- to a
+        1000-step cap. Nothing is lost by skipping them: run_single_simulation
+        always saves unconditionally after the loop. Intermediate saves only
+        buy crash granularity, and a run killed mid-way is re-run from scratch
+        anyway. Values < 1 (and unparseable ones) also mean 'only at the end'.
+        """
         if save_every_steps is None:
-            return 1
+            return None
         try:
             value = int(save_every_steps)
         except (TypeError, ValueError):
-            return 1
-        return max(1, value)
+            return None
+        return value if value >= 1 else None
 
     @staticmethod
     def _process_pool_context():
@@ -292,7 +341,7 @@ class Simulation:
                 continue
         return mp.get_context()
 
-    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=1):
+    def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=None):
         """Run a single simulation and optionally save agent moves."""
         save_every_steps = self._normalize_save_every_steps(save_every_steps)
         progress_bar = None
@@ -302,7 +351,7 @@ class Simulation:
         
         while not self.converged and self.step < max_steps:
             self.run_step()
-            if save_every_steps == 1 or (self.step % save_every_steps == 0):
+            if save_every_steps is not None and self.step % save_every_steps == 0:
                 self.save_states(output_dir)
                 self.save_agent_move_log(output_dir)  # Save the detailed move log
             
@@ -314,7 +363,8 @@ class Simulation:
                     progress_bar.set_postfix({
                         'converged': self.converged,
                         'no_move_steps': self.no_move_steps,
-                        'moves_logged': len(self.agent_move_log)
+                        'moves_logged': len(self.agent_move_log) if self.full_move_log
+                                        else sum(row['decisions'] for row in self.step_log)
                     })
         
         if progress_bar:
@@ -323,23 +373,34 @@ class Simulation:
         self.save_agent_move_log(output_dir)  # Save the detailed move log
 
         # Print summary statistics
-        moves = sum(1 for entry in self.agent_move_log if entry['moved'])
-        stays = len(self.agent_move_log) - moves
-        print(f"[Run {self.run_id}] Move summary: {moves} moves, {stays} stays, {self.step} steps")
+        if self.full_move_log:
+            decisions = sum(1 for entry in self.agent_move_log if entry['reason'] != 'initial_state')
+            moves = sum(1 for entry in self.agent_move_log if entry['moved'])
+        else:
+            decisions = sum(row['decisions'] for row in self.step_log)
+            moves = sum(row['moved'] for row in self.step_log)
+        print(f"[Run {self.run_id}] Move summary: {moves} moves, {decisions - moves} stays, {self.step} steps")
         
         return {
             'run_id': self.run_id,
+            'scenario': self.scenario,
             'converged': self.converged,
             'convergence_step': self.convergence_step,
             'final_step': self.step,
             'metrics_history': self.metrics_history,
-            'states_per_move': self.states,
+            # COUNT only, not the frames (2026-08-27). The full per-move history
+            # is persisted to states_run_<id>.npz and every consumer reads it
+            # from there; returning it here also shipped it through the Pool
+            # pickle (~66 MB for a 1000-step run) and the parent retains every
+            # result until analyze_results — up to ~7.5 GB resident per
+            # scenario, for data nothing read.
+            'n_states': len(self.states),
             'initial_grid': self.states[0] if self.states else None,
-            'total_agent_moves': len(self.agent_move_log)
+            'total_agent_moves': decisions
         }
 
     def save_states(self, output_dir):
-        """Save grid states after every move (no run_logs)."""
+        """Save the grid frames: per step, or per move in full_move_log mode."""
         if output_dir is not None:
             states_dir = os.path.join(output_dir, "states")
             os.makedirs(states_dir, exist_ok=True)
@@ -352,8 +413,16 @@ class Simulation:
             # print(f"[Run {self.run_id}] Saved {len(self.states)} grid states (including after each move)")
 
     def save_agent_move_log(self, output_dir):
-        """Save detailed agent move log to CSV and JSON files."""
-        if output_dir is not None and self.agent_move_log:
+        """Save the move log: step_moves_run_<id>.csv, or the per-move JSON in full mode."""
+        if output_dir is None:
+            return
+        if not self.full_move_log:
+            if self.step_log:
+                os.makedirs(os.path.join(output_dir, "move_logs"), exist_ok=True)
+                pd.DataFrame(self.step_log, columns=list(run_files.STEP_LOG_COLUMNS)).to_csv(
+                    run_files.step_log_path(output_dir, self.run_id), index=False)
+            return
+        if self.agent_move_log:
             move_logs_dir = os.path.join(output_dir, "move_logs")
             os.makedirs(move_logs_dir, exist_ok=True)
             
@@ -366,12 +435,35 @@ class Simulation:
             # Also save as compressed JSON for complete data
             json_path = os.path.join(move_logs_dir, f"agent_moves_run_{self.run_id}.json.gz")
             with gzip.open(json_path, 'wt', encoding='utf-8') as f:
-                json.dump(self.agent_move_log, f, separators=(',', ':'), default=str)
+                # write(dumps(...)) rather than dump(..., f): dump streams the
+                # encoder token by token, issuing ~15M tiny write() calls
+                # through the gzip wrapper for a long run. Serialising once and
+                # writing it in one call is ~2.3x faster and byte-identical.
+                # separators/default MUST be preserved — dropping separators
+                # inflates the file 22.8%, and dropping default=str turns any
+                # non-JSON-native value into a TypeError that would lose the
+                # whole run's move log at the final save.
+                f.write(json.dumps(self.agent_move_log,
+                                   separators=(',', ':'), default=str))
             
             # print(f"[Run {self.run_id}] Saved {len(self.agent_move_log)} agent move entries to {move_logs_dir}")
 
     def log_agent_move(self, agent, r, c, move_to, moved, new_position, reason, verbose_move_log=False):
-        """Log an individual agent move with all relevant details."""
+        """Record one agent decision: a per-step count, or a full record in full_move_log mode."""
+        if not self.full_move_log:
+            if reason not in run_files.REASONS:
+                raise ValueError(f"unknown move reason {reason!r}; expected one of {run_files.REASONS}")
+            if not self.step_log or self.step_log[-1]['step'] != self.step:
+                self.step_log.append(run_files.new_step_row(self.step))
+            row = self.step_log[-1]
+            row['decisions'] += 1
+            row['moved'] += int(bool(moved))
+            row[reason] += 1
+            status = getattr(agent, 'last_llm_parse_status', None)
+            row['parse_failed'] += int(status is not None and status != 'OK')
+            self._print_move(agent, r, c, move_to, moved, new_position, reason, verbose_move_log)
+            return
+
         # Create move entry for logging
         move_entry = {
             'step': self.step,
@@ -385,7 +477,13 @@ class Simulation:
             'llm_call_count': getattr(agent, 'llm_call_count', 0),
             'llm_call_time': getattr(agent, 'llm_call_time', 0.0),
             'timestamp': pd.Timestamp.now().isoformat(),
-            'grid': self._grid_to_int().tolist()  # Save the current grid state after the move
+            # No 'grid' here (dropped 2026-09-01). log_state_per_move() appends
+            # the identical array to self.states at the same instant, and that
+            # is what states_run_<id>.npz stores, so record i and frame i were
+            # always the same grid — written twice. The JSON copy cost ~38% of
+            # the move log and the _grid_to_int() call behind it was ~40% of
+            # run time. Readers take frame i from the npz; the invariant is
+            # pinned by tests/test_move_log_and_states.py.
         }
 
         store_llm_responses = (
@@ -399,8 +497,9 @@ class Simulation:
         
         # Add move entry to log
         self.agent_move_log.append(move_entry)
-        
-        # Print verbose output if requested
+        self._print_move(agent, r, c, move_to, moved, new_position, reason, verbose_move_log)
+
+    def _print_move(self, agent, r, c, move_to, moved, new_position, reason, verbose_move_log):
         if verbose_move_log:
             agent_id = f"Agent-{id(agent)}"
             if moved:
@@ -415,10 +514,38 @@ class Simulation:
                 print(f"[Step {self.step}] {agent_id} (Type {agent.type_id}) at ({r},{c}) chose to stay (decision: {move_to})")
 
     def log_state_per_move(self):
-        """Save current grid state after a move."""
-        self.states.append(self._grid_to_int())
+        """Full mode only: one frame per agent decision, paired 1:1 with the move records."""
+        if self.full_move_log:
+            self.states.append(self._grid_to_int())
 
     # --- Resume helpers ---
+    def preload_record(self, output_dir):
+        """Resume from the run's saved record, so the final save keeps steps
+        0..self.step-1 instead of overwriting them with the resumed part.
+
+        Installs the saved rows/records and frames up to the seed grid (the
+        last saved frame, which must equal the grid this run was seeded
+        with); leaves the record untouched when the files do not line up.
+        """
+        frames = run_files.load_frames(output_dir, self.run_id)
+        if self.full_move_log:
+            records = run_files.load_move_log_json(output_dir, self.run_id) or []
+            kept = [r for r in records if int(r.get('step', self.step)) < self.step]
+        else:
+            step_log = run_files.load_step_log(output_dir, self.run_id)
+            kept = [] if step_log is None else step_log[step_log['step'] < self.step].to_dict('records')
+        n_frames = len(kept) if self.full_move_log else len(kept) + 1
+        if not kept or frames is None or len(frames) < n_frames \
+                or not np.array_equal(frames[n_frames - 1], self._grid_to_int()):
+            print(f"[Run {self.run_id}] Warning: saved record does not match the resume seed; "
+                  f"only the resumed steps will be saved")
+            return
+        self.states = list(frames[:n_frames])
+        if self.full_move_log:
+            self.agent_move_log = kept
+        else:
+            self.step_log = kept
+
     def set_state_from_int_grid(self, int_grid, step=None):
         """Set the current simulation grid from a 2D array/list of ints and optionally the next step.
 
@@ -447,9 +574,35 @@ class Simulation:
             except Exception:
                 pass
 
+    _PLACEHOLDER_FINAL_STEP = 'unknown'
+
     @staticmethod
-    def analyze_results(results, output_dir, n_runs):   
-        """Analyze simulation results and save metrics, convergence data, and step statistics."""
+    def _read_csv_if_present(path):
+        """Existing CSV as a DataFrame; empty frame if absent or unreadable."""
+        if not os.path.exists(path):
+            return pd.DataFrame()
+        try:
+            return pd.read_csv(path)
+        except Exception as exc:                      # corrupt/partial file
+            print(f"Warning: could not read {path} ({exc}); "
+                  f"treating as empty — prior rows may be lost")
+            return pd.DataFrame()
+
+    @staticmethod
+    def analyze_results(results, output_dir, n_runs):
+        """Analyze simulation results and save metrics, convergence data, and step statistics.
+
+        RESUME SAFETY (2026-08-25): rows already on disk are MERGED rather than
+        overwritten. On resume, llm_runner rebuilds previously completed runs
+        from their .npz state files, which carry no metrics_history and only
+        placeholder convergence values (converged=True, final_step='unknown').
+        Writing those straight out replaced the real history of every earlier
+        run with nothing. Merge policy, keyed by run_id:
+          * metrics    — a re-executed run replaces its own old rows; runs not
+                         in this batch keep the rows already on disk;
+          * convergence — a real new row wins over disk, but a PLACEHOLDER
+                         never overwrites a real stored row.
+        """
         all_metrics = []
         convergence_data = []
 
@@ -463,24 +616,59 @@ class Simulation:
             for metric in result['metrics_history']:
                 all_metrics.append(metric)
 
-        # Save metrics history and convergence summary
-        pd.DataFrame(all_metrics).to_csv(f"{output_dir}/metrics_history.csv", index=False)
-        pd.DataFrame(convergence_data).to_csv(f"{output_dir}/convergence_summary.csv", index=False)
+        metrics_path = run_files.metrics_history_path(output_dir)
+        conv_path = f"{output_dir}/convergence_summary.csv"
 
-        # Analyze step statistics
-        df = pd.DataFrame(all_metrics)
-        step_stats = df.groupby('step').agg({
-            'clusters': ['mean', 'std', 'min', 'max'],
-            'switch_rate': ['mean', 'std', 'min', 'max'],
-            'distance': ['mean', 'std', 'min', 'max'],
-            'mix_deviation': ['mean', 'std', 'min', 'max'],
-            'share': ['mean', 'std', 'min', 'max'],
-            'ghetto_rate': ['mean', 'std', 'min', 'max']
-        }).reset_index()
-        step_stats.columns = ['_'.join(col).strip() if col[1] else col[0] for col in step_stats.columns.values]
-        step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
+        # --- metrics: new rows replace their own run_id, others persist ------
+        new_metrics = pd.DataFrame(all_metrics)
+        disk_metrics = Simulation._read_csv_if_present(metrics_path)
+        if not disk_metrics.empty and 'run_id' in disk_metrics.columns:
+            if not new_metrics.empty:
+                disk_metrics = disk_metrics[
+                    ~disk_metrics['run_id'].isin(set(new_metrics['run_id']))]
+            merged_metrics = pd.concat([disk_metrics, new_metrics], ignore_index=True)
+        else:
+            merged_metrics = new_metrics
+        if not merged_metrics.empty and {'run_id', 'step'} <= set(merged_metrics.columns):
+            merged_metrics = merged_metrics.sort_values(['run_id', 'step'],
+                                                        kind='stable').reset_index(drop=True)
+        merged_metrics.to_csv(metrics_path, index=False)
 
-        return output_dir, results, convergence_data
+        # --- convergence: placeholders never clobber real stored rows --------
+        by_run = {}
+        for row in convergence_data:                       # placeholders first
+            if row.get('final_step') == Simulation._PLACEHOLDER_FINAL_STEP:
+                by_run[row['run_id']] = row
+        disk_conv = Simulation._read_csv_if_present(conv_path)
+        if not disk_conv.empty and 'run_id' in disk_conv.columns:
+            for row in disk_conv.to_dict('records'):       # disk beats placeholder
+                by_run[row['run_id']] = row
+        for row in convergence_data:                       # real new rows win
+            if row.get('final_step') != Simulation._PLACEHOLDER_FINAL_STEP:
+                by_run[row['run_id']] = row
+        merged_conv = [by_run[k] for k in sorted(by_run)]
+        pd.DataFrame(merged_conv).to_csv(conv_path, index=False)
+
+        # --- step statistics over the MERGED history -------------------------
+        df = merged_metrics
+        metric_cols = [c for c in df.columns if c not in ('step', 'run_id')]
+        if not df.empty and 'step' in df.columns and metric_cols:
+            step_stats = df.groupby('step').agg(
+                {c: ['mean', 'std', 'min', 'max'] for c in metric_cols}).reset_index()
+            step_stats.columns = ['_'.join(col).strip() if col[1] else col[0]
+                                  for col in step_stats.columns.values]
+            step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
+
+        # --- one row per run: convergence step + final-step metrics ----------
+        # Written here rather than in each runner so baseline_runner,
+        # llm_runner and the load_and_analyze_results reload path all produce
+        # it without their own call site (2026-09-01). Imported locally: the
+        # module imports DissimilarityIndex and config, and base_simulation is
+        # imported by tests that stub those.
+        from run_summary import write_run_summary
+        write_run_summary(output_dir, results)
+
+        return output_dir, results, merged_conv
 
     @staticmethod
     def load_results_from_output(output_dir, force_recompute: bool = False):
@@ -499,7 +687,7 @@ class Simulation:
         results = []
         
         # Check if metrics_history.csv already exists (from previous analysis)
-        metrics_file = os.path.join(output_dir, "metrics_history.csv")
+        metrics_file = run_files.metrics_history_path(output_dir)
         convergence_file = os.path.join(output_dir, "convergence_summary.csv")
         
         if (not force_recompute) and os.path.exists(metrics_file) and os.path.exists(convergence_file):
@@ -538,26 +726,17 @@ class Simulation:
         else:
             print(f"Loading raw simulation data from {output_dir}")
             
-            # Load from individual move log files 
+            # Load from individual move log files
             move_logs_dir = os.path.join(output_dir, "move_logs")
-            
+
             if not os.path.exists(move_logs_dir):
                 raise FileNotFoundError(f"Move logs directory not found: {move_logs_dir}")
-            
-            # Find all run files (JSON logs are the canonical source)
-            move_files = [
-                f for f in os.listdir(move_logs_dir)
-                if f.startswith("agent_moves_run_") and f.endswith(".json.gz")
-            ]
 
-            run_ids = sorted({int(f.split("_")[-1].split(".")[0]) for f in move_files})
-            
+            run_ids = run_files.list_run_ids(output_dir)
+
             print(f"Found {len(run_ids)} simulation runs: {run_ids}")
             threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
-            tasks = [
-                (run_id, os.path.join(move_logs_dir, f"agent_moves_run_{run_id}.json.gz"), cfg.GRID_SIZE, threshold)
-                for run_id in run_ids
-            ]
+            tasks = [(run_id, output_dir, threshold) for run_id in run_ids]
 
             max_workers = min(len(tasks), max(1, os.cpu_count() or 1)) if tasks else 1
 

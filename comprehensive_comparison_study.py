@@ -10,8 +10,10 @@ import sys
 from pathlib import Path
 import yaml
 import shutil
+import os
 from datetime import datetime
 import pandas as pd
+import run_files
 import config
 from llm_presets import LLM_PRESETS, validate_preset, get_preset_args
 
@@ -99,7 +101,7 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
                         exp_config.get("max_steps") >= max_steps):
                         
                         # Check that all required files exist
-                        required_files = ["convergence_summary.csv", "metrics_history.csv", "step_statistics.csv"]
+                        required_files = ["convergence_summary.csv", os.path.basename(run_files.metrics_history_path(exp_dir)), "step_statistics.csv"]
                         if all((exp_dir / f).exists() for f in required_files):
                             matching_experiments.append(exp_dir)
                             

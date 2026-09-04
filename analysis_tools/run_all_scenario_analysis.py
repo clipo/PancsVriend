@@ -27,6 +27,7 @@ Manifest report outputs (when --manifest-file is used):
 Pipeline order (when not movement-only):
     0) dissimilarity_index_over_time
     1) combined_final_metrics
+    1a) run_summary (per-experiment run_summary.csv + run_summary_by_run.csv)
     2) analyze_agent_movement (optional via --include-movement)
     3) analyze_stability_patterns
     4) convergence_patterns_and_speed
@@ -128,6 +129,16 @@ def run_all_analyses(
 
     steps.append(("combined_final_metrics", _run_combined_final_metrics, {}))
 
+    # 1a. Per-run summary: convergence step + every metric at the final step,
+    #     one row per run. Each experiment folder gets its own run_summary.csv
+    #     (rebuilt here so pre-2026-09-01 experiments and resume placeholders
+    #     are repaired), and the selected experiments are rolled up into a
+    #     single run_summary_by_run.csv for this model.
+    def _run_run_summary():
+        build_run_summaries_for_selection(reports_dir, verbose=verbose)
+
+    steps.append(("run_summary", _run_run_summary, {}))
+
     # 1b. Normality tests + normality-gated significance tests (consumes
     #     combined_final_metrics.csv; justifies parametric vs non-parametric
     #     between-scenario comparisons and plots Q-Q/histograms per metric)
@@ -183,6 +194,48 @@ def run_all_analyses(
     steps.append(("segregation_metrics_comparison", _run_segregation_metrics_comparison, {}))
 
     return _execute_steps(steps, verbose=verbose)
+
+
+def build_run_summaries_for_selection(reports_dir: Path,
+                                      experiments_dir: Union[str, Path] = 'experiments',
+                                      verbose: bool = True) -> pd.DataFrame:
+    """run_summary.csv per selected experiment + one combined CSV for the model.
+
+    The selection is whatever experiment_list.SCENARIOS currently holds, which
+    _update_scenarios_for_run has already narrowed to this model/manifest — the
+    same source the movement step reads. Summaries are rebuilt rather than
+    read, so experiments predating run_summary.csv and runs whose convergence
+    rows are resume placeholders are repaired in place.
+    """
+    from run_summary import combine_run_summaries, write_run_summary
+
+    experiments_root = Path(experiments_dir)
+    output_dirs: List[str] = []
+    scenario_key_by_experiment: Dict[str, str] = {}
+    for scenario_key, folder in dict(experiment_list.SCENARIOS).items():
+        exp_dir = experiments_root / folder
+        if not exp_dir.is_dir():
+            print(f"[run_summary] Skipping '{scenario_key}': {exp_dir} not found")
+            continue
+        write_run_summary(str(exp_dir), verbose=verbose)
+        output_dirs.append(str(exp_dir))
+        scenario_key_by_experiment[exp_dir.name] = scenario_key
+
+    combined = combine_run_summaries(output_dirs, verbose=verbose)
+    if not combined.empty:
+        # The per-experiment 'scenario' comes from that experiment's
+        # config.json ('baseline'); the analysis keys are what distinguishes
+        # llm_baseline from mech_baseline downstream.
+        combined.insert(
+            1, 'scenario_key',
+            combined['experiment'].map(scenario_key_by_experiment).fillna(combined['scenario']))
+
+    reports_dir = Path(reports_dir)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    out_path = reports_dir / 'run_summary_by_run.csv'
+    combined.to_csv(out_path, index=False)
+    print(f"[run_summary] Wrote {len(combined)} run(s) to {out_path}")
+    return combined
 
 
 def _execute_steps(steps, verbose: bool = True):

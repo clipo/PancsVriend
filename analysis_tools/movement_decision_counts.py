@@ -39,7 +39,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, List, Optional
-from numbers import Integral
 
 from experiment_list_for_analysis import (
     SCENARIOS,
@@ -48,12 +47,7 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS,
 )
 from analysis_tools.output_paths import get_reports_dir
-from analysis_tools.analyze_agent_movement import (
-    iter_move_logs_json,
-    iter_move_logs_csv,
-    load_move_log_json,
-    load_move_log_csv,
-)
+from run_files import list_run_ids, load_step_log
 
 # Reuse the convergence plotting aesthetics for visual consistency
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.25)
@@ -116,51 +110,18 @@ def _ordered_scenarios() -> List[str]:
     return ordered
 
 
-def _normalize_moved(value) -> Optional[bool]:
-    if isinstance(value, (bool, np.bool_)):
-        return bool(value)
-    if isinstance(value, Integral):
-        return value != 0
-    if isinstance(value, float):
-        if np.isnan(value):
-            return None
-        return abs(value) > 0
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if text in {"true", "1", "move", "moved", "yes", "y", "t"}:
-            return True
-        if text in {"false", "0", "stay", "stayed", "no", "n", "f"}:
-            return False
-    return None
-
-
 def _load_run_decisions(experiment_dir: Path, run_id: int) -> Optional[pd.DataFrame]:
-    log_json = load_move_log_json(experiment_dir, run_id)
-    if log_json is not None:
-        df = pd.DataFrame(log_json)
-    else:
-        df = load_move_log_csv(experiment_dir, run_id)
-    if df is None or df.empty:
+    """Per-step move/stay counts for one run: columns run_id, step, move, stay."""
+    step_log = load_step_log(experiment_dir, run_id)
+    if step_log is None or step_log.empty:
         return None
-
-    df = df.iloc[1:].copy()  # Skip the initial dummy entry
-    if df.empty or "step" not in df.columns or "moved" not in df.columns:
-        return None
-
-    df["step"] = pd.to_numeric(df["step"], errors="coerce")
-    df = df.dropna(subset=["step"])
-    if df.empty:
-        return None
-
-    df["moved"] = df["moved"].apply(_normalize_moved)
-    df = df.dropna(subset=["moved"])
-    if df.empty:
-        return None
-
-    df["step"] = df["step"].astype(int)
-    df["movement"] = np.where(df["moved"], "move", "stay")
-    df["run_id"] = run_id
-    return df[["run_id", "step", "movement"]]
+    df = pd.DataFrame({
+        "run_id": run_id,
+        "step": step_log["step"].astype(int),
+        "move": step_log["moved"].astype(int),
+        "stay": (step_log["decisions"] - step_log["moved"]).astype(int),
+    })
+    return df
 
 
 def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
@@ -170,7 +131,7 @@ def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
         return None
 
     print(f"movement_decision_counts: scanning '{folder_name}' for move logs")
-    run_ids = sorted(set(iter_move_logs_json(experiment_dir)) | set(iter_move_logs_csv(experiment_dir)))
+    run_ids = list_run_ids(experiment_dir)
     if not run_ids:
         print(f"movement_decision_counts: no move logs found under '{folder_name}'")
         return None
@@ -199,7 +160,7 @@ def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
             continue
         if df_run is not None and not df_run.empty:
             frames.append(df_run)
-            print(f"movement_decision_counts:   run {run_id} contributed {len(df_run)} decision rows")
+            print(f"movement_decision_counts:   run {run_id} contributed {len(df_run)} step rows")
         else:
             print(f"movement_decision_counts:   run {run_id} missing usable move log; skipped")
     if not frames:
@@ -208,18 +169,13 @@ def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
     combined = pd.concat(frames, ignore_index=True)
     print(
         "movement_decision_counts:   compiled "
-        f"{combined['run_id'].nunique()} runs | {len(combined)} decisions from '{folder_name}'"
+        f"{combined['run_id'].nunique()} runs | {int(combined[list(MOVEMENT_TYPES)].sum().sum())} decisions from '{folder_name}'"
     )
     return combined
 
 
 def _aggregate_statistics(decisions: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    per_run = (
-        decisions.groupby(["run_id", "step", "movement"]).size()
-        .unstack("movement", fill_value=0)
-        .reindex(columns=MOVEMENT_TYPES, fill_value=0)
-        .reset_index()
-    )
+    per_run = decisions.reindex(columns=["run_id", "step", *MOVEMENT_TYPES], fill_value=0).copy()
 
     per_run["total"] = per_run[list(MOVEMENT_TYPES)].sum(axis=1)
     for movement in MOVEMENT_TYPES:

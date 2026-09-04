@@ -35,7 +35,9 @@ def test_mechanical_decision_calls_random_response():
 def test_run_single_simulation_invokes_run(monkeypatch, tmp_path):
     monkeypatch.setattr(baseline_runner.BaselineSimulation, "run_single_simulation",
                         lambda self, output_dir, max_steps: "RESULT_OK")
-    args = (7, {"foo": "bar"}, str(tmp_path))
+    # worker tuple carries max_steps since 2026-08-21 (it was hardcoded to
+    # 1000 before, silently ignoring --max-steps)
+    args = (7, {"foo": "bar"}, str(tmp_path), 250)
     out = baseline_runner.run_single_simulation(args)
     assert out == "RESULT_OK"
 
@@ -161,7 +163,7 @@ def test_run_single_simulation_with_config_override(monkeypatch, tmp_path):
     monkeypatch.setattr(baseline_runner.BaselineSimulation, "run_single_simulation", mock_run_single_simulation)
     
     override = {'GRID_SIZE': 12}
-    args = (7, override, str(tmp_path))
+    args = (7, override, str(tmp_path), 1000)
     result = baseline_runner.run_single_simulation(args)
     
     assert result == {"test": "result"}

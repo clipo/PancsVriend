@@ -352,13 +352,14 @@ def test_run_single_simulation_augment(monkeypatch):
         return {"foo": "bar"}
     monkeypatch.setattr(llm_runner.LLMSimulation, "run_single_simulation", fake_run)
     
-    # Use valid scenario name from CONTEXT_SCENARIOS. Worker args are the full
-    # 15-tuple: (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir,
+    # Use valid scenario name from CONTEXT_SCENARIOS. Worker args after the
+    # log-prob path was removed (batch B, 2026-08-25) are the 12-tuple:
+    # (run_id, scenario, llm_model, llm_url, llm_api_key, output_dir,
     # max_steps, initial_int_grid, initial_step, initial_no_move_steps,
-    # use_log_prob_policy, log_prob_policy, log_prob_summary_path,
-    # save_every_steps, temperature)
+    # save_every_steps, temperature) — llm_style, scenario_file and the two
+    # value-function slots are optional trailing entries.
     args = (5, "baseline", "m", "u", "k", "outdir",
-            None, None, None, None, False, None, None, 1, 0.3)
+            None, None, None, None, 1, 0.3)
     res = llm_runner.run_single_simulation(args)
     # base result plus added keys
     assert res["foo"] == "bar"
@@ -693,7 +694,7 @@ def test_run_llm_experiment_resume_uses_config(monkeypatch, tmp_path):
         assert args[3] == config_data["llm_url"]
         assert args[6] == config_data["max_steps"]
         # temperature must be resumed from the stored config, not defaulted
-        assert args[14] == config_data["temperature"]
+        assert args[11] == config_data["temperature"]
 
     # First arg corresponds to resumed (aborted) run
     resumed_args = captured_args[0]
