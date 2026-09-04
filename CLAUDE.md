@@ -115,13 +115,83 @@ Experiments generate structured outputs:
 experiments/
 ├── baseline_[timestamp]/       # Mechanical agent results
 ├── llm_[scenario]_[timestamp]/ # LLM scenario results
+│   ├── metrics_history.csv.gz  # every metric at every step (.csv before 2026-09-03; run_files.metrics_history_path finds either)
+│   ├── convergence_summary.csv # per-run convergence bookkeeping
+│   ├── step_statistics.csv     # metric mean/std/min/max per step
+│   ├── run_summary.csv         # ONE ROW PER RUN (see below)
+│   ├── move_logs/step_moves_run_<id>.csv   # per-step decision counts (see below)
+│   └── states/states_run_<id>.npz          # grid frames: 0 = initial, k+1 = after step k
+├── manifests/
+│   ├── [timestamp]_run_manifest.json
+│   └── [timestamp]_run_summary_[model].csv   # campaign roll-up across scenarios
 └── ...
 
 reports/
 ├── comprehensive_report_[timestamp].pdf
 ├── statistical_analysis_[timestamp].txt
+├── run_summary_by_run.csv      # roll-up for the analysed model selection
 └── experiment_summary_[timestamp].json
 ```
+
+### Run files: move_logs/ and states/
+
+Every run's record is read through `run_files.py`; nothing else parses these
+files. Two formats exist:
+
+* **Per-step** (default since 2026-09-02, all value-function and mechanical
+  runs): `step_moves_run_<id>.csv` with one row per step
+  (`step, decisions, moved, parse_failed, successful_move, target_occupied,
+  invalid_target, chose_to_stay, same_position`) and one grid frame per step
+  in the npz. Runs are seeded by `run_id`, so per-move detail is regenerable.
+* **Full** (per-move): `agent_moves_run_<id>.json.gz` with one record per
+  agent decision (incl. the raw LLM reply) and one frame per record. Written
+  by live-LLM runs always, by anything else with `--full-move-log` /
+  `FULL_MOVE_LOG=1`, and by every run before 2026-09-02.
+
+`run_files.load_step_log` / `load_step_frames` / `load_final_grid` return the
+same per-step tables for both, so analysis code never branches on format.
+`python test_latest_experiment_output_format.py [EXPERIMENT_DIR]` checks a
+directory's files are mutually consistent.
+
+Re-running an incomplete experiment without `--new` resumes it. Aborted
+live-LLM runs continue from their last saved grid and the files keep the
+pre-abort steps (`Simulation.preload_record`); aborted value-function runs
+are redone from scratch, since a resumed run reseeds mid-way and would no
+longer be reproducible from `run_id`.
+
+### run_summary.csv
+
+Written automatically by `Simulation.analyze_results`, so every experiment
+directory has one, and rolled up per model campaign by `run_all_contexts.py`
+and the `run_summary` step of `analysis_tools/run_all_scenario_analysis.py`.
+Columns:
+
+```
+run_id, scenario, converged, convergence_step, dissimilarity_index,
+clusters, switch_rate, distance, mix_deviation, share, ghetto_rate,
+final_step, n_steps, stop_reason, experiment, llm_model, metrics_source
+```
+
+* `convergence_step` is the **first** of the `NO_MOVE_THRESHOLD` consecutive
+  zero-move steps, so `final_step == convergence_step + NO_MOVE_THRESHOLD - 1`
+  (= +4 by default) for every converged run. `base_simulation.convergence_from_step_moves`
+  is the single definition; before 2026-09-01 the live loop recorded the last
+  step of that window instead, and `run_summary` corrects such legacy rows.
+* The metric columns are the values at `final_step`; missing ones (runs
+  predating `dissimilarity_index`, or resume placeholders with no metrics
+  rows) are recomputed from the run's final grid, flagged via `metrics_source`.
+* `final_step` is always the last step actually simulated — the lower of the
+  convergence-implied last step and where the run stopped. A run capped
+  mid-streak (3 no-move steps at step 999) is `converged=False` with an empty
+  `convergence_step`, but `final_step` is still 999.
+* `stop_reason` is `converged` / `max_steps` / `incomplete` — the `+4` identity
+  only applies to `converged` rows.
+* Rebuilding a run from its move log is expensive (a few hundred MB gzipped for
+  a placeholder-heavy experiment), so rows already in `run_summary.csv` are
+  reused on later passes; `build_run_summary.py --force` re-parses the logs.
+
+Regenerate for existing experiments with
+`python analysis_tools/build_run_summary.py --all`.
 
 ## Development Notes
 
