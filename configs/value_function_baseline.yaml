@@ -1,0 +1,72 @@
+# =============================================================================
+# Value-function build config — gemma-4-31B, baseline scenario, R1 style
+# =============================================================================
+# Consumed by prompt_refinement/build_value_function.py:
+#
+#   python prompt_refinement/build_value_function.py \
+#       --config configs/value_function_baseline.yaml --plot
+#
+# Produces one vf-1 JSON per (scenario, style) with BOTH roles' 23-ratio
+# P(MOVE) tables, which llm_runner.py consumes directly:
+#
+#   python llm_runner.py --scenario baseline --runs 5 \
+#       --value-function prompt_refinement/results/value_functions/vf_gemma-4-31b-chat-grammar__baseline__R1_count_opposite.json
+#
+# No LLM server is needed for the simulation once the artifact exists; the
+# server is only needed while SAMPLING (and not at all with
+# --from-existing-only, which builds purely from merge_from counts).
+# =============================================================================
+
+label: gemma-4-31b-chat-grammar
+
+# --- model / endpoint (needed only when new sampling happens) ---------------
+model: gemma-4-31B-it-Q5_K_M
+llm_url: "http://localhost:8085/v1/completions"   # path is rewritten per llm_style
+# Endpoint arm, production vocabulary (llm_runner LLM_STYLES): completions,
+# completions+grammar, chat, chat+grammar. chat+grammar = the production
+# channel: every model answers voluntarily on chat (0.0% bad parses) and the
+# GBNF grammar is the only channel structurally free of silent misparse
+# (NOTES.md). The chat template is applied server-side; for Gemma/Qwen/
+# DeepSeek the server must run with --reasoning off (bg-ops gotcha).
+llm_style: "chat+grammar"
+temperature: 0.3       # MUST match the simulation temperature
+concurrency: 8         # in-flight requests; keep <= server -np slots
+seed: 0                # G0 layout stream seed (ratio styles are deterministic)
+
+# --- what to measure --------------------------------------------------------
+# Scenario names resolve type_a/type_b identity labels via scenario_file
+# (default scenarios_a2.py). red = type_a, blue = type_b.
+scenarios: [baseline]
+scenario_file: null
+
+# Ratio prompt styles from ratio_prompt_templates.RATIO_CANDIDATES.
+# R1 is the count/opposite-valence style; add e.g. R3_dual_count to compare.
+styles: [R3_dual_count]
+
+roles: [red, blue]
+
+# --- sampling allocation ----------------------------------------------------
+# mode: per_ratio        -> every RATIO DATAPOINT (23 of them + no-neighbours)
+#                           gets `samples` in total, split evenly across the
+#                           compositions that alias to it (1/2 pools 1-of-2,
+#                           2-of-4, 3-of-6, 4-of-8). Equal CI width per point
+#                           on the value-function axis.
+# mode: per_composition  -> every one of the 45 (n_similar, n_occupied)
+#                           compositions gets `samples`; ratio datapoints then
+#                           carry samples x multiplicity (8x at ratios 0 and 1).
+sampling:
+  mode: per_ratio
+  samples: 400
+
+# --- reuse of already-paid samples ------------------------------------------
+# Labels of existing results/ratio_comparison_<label>.csv files whose counts
+# are folded in before sampling (baseline scenario only — the historical sweep
+# used the baseline identity labels). Counts are sufficient statistics, so the
+# merge is exact; the Phase-A sweep contributes 50/cell here. The label's arm
+# MUST match llm_style (the builder refuses otherwise — merging counts
+# measured on a different endpoint arm would mix measurement channels).
+merge_from:
+  - ratio-gemma-4-31b-chat-grammar
+
+# --- output -----------------------------------------------------------------
+out_dir: null      # default: prompt_refinement/results/value_functions/

@@ -1,0 +1,52 @@
+# =============================================================================
+# Value-function scenario sweep — Qwen3.6-27B, ALL scenarios, R3, chat+grammar
+# =============================================================================
+# One vf-1 artifact per scenario (both roles each), same style and arm, so the
+# cross-scenario comparison isolates the SOCIAL CONTEXT: the composition
+# sentence is identical, only the identity labels differ (role_keywords pulls
+# type_a/type_b from scenarios_a2.py; red = type_a, blue = type_b).
+#
+#   python prompt_refinement/build_value_function.py \
+#       --config configs/value_function_scenarios_gemma.yaml --plot
+#
+# Server first (chat template => --reasoning off for gemma):
+#   /srv/shared/schelling/llama.cpp/build/bin/llama-server \
+#       -m llms/gemma-4-31B-it-Q5_K_M.gguf --alias gemma-4-31b \
+#       -ngl -1 -fa on -np 4 -c 8192 --host 127.0.0.1 --port 8085 \
+#       --jinja --reasoning off
+# =============================================================================
+
+label: qwen3.6-27b-chat-grammar
+
+model: Qwen3.6-27B-Q5_K_M
+llm_url: "http://localhost:8085/v1/completions"   # path rewritten per llm_style
+llm_style: "chat+grammar"
+temperature: 0.3
+concurrency: 4          # match the server's -np 4 slots
+seed: 0
+
+scenarios:
+  - baseline
+  - race_white_black
+  - ethnic_asian_hispanic
+  - income_high_low
+  - political_liberal_conservative
+  - green_yellow
+scenario_file: scenarios_a2.py
+
+styles: [R3_dual_count]   # user decision 2026-08-21: dual-count is THE value-function style
+roles: [red, blue]
+
+# per_composition (user decision 2026-08-21): EVERY composition gets the full
+# N — 1-of-2 and 2-of-4 are separately sampled 100x each, never split — and the
+# ratio datapoint pools its members (with equal per-composition N the pooled
+# rate IS the average of the member rates). 45 compositions x 100 x 2 roles
+# -> 9,000 requests per scenario, 54,000 total. Uniform N across scenarios
+# (NO merge_from) so the CIs are comparable panel to panel.
+sampling:
+  mode: per_composition
+  samples: 100
+
+merge_from: []
+
+out_dir: null      # default: prompt_refinement/results/value_functions/

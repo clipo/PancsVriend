@@ -1,0 +1,54 @@
+# =============================================================================
+# Value-function scenario sweep — OLMo-2-0325-32B-Instruct-Q8_0, ALL scenarios, R3, chat+grammar
+# =============================================================================
+# AI2 OLMo 2 (arch olmo2). OLMo 3 was the first choice but arch 'olmo3' is
+# NOT in this llama.cpp build (b1-a4ce259) and the build fingerprint is
+# pinned into every artifact, so upgrading mid-study would break
+# comparability. OLMo-2 keeps the reason for including OLMo at all:
+# fully public training data. No reasoning markers in its template.
+#
+# Q8_0, not Q5 (user decision 2026-08-27): a quantisation LABEL is not a fixed
+# amount of degradation — the same Q5_K_M costs a 14B dense model more than a
+# 119B MoE — so the principle is to MINIMISE distortion per model rather than
+# match a label. At this size Q8_0 is affordable and near-lossless.
+#
+#   python prompt_refinement/build_value_function.py \
+#       --config configs/value_function_scenarios_olmo2.yaml --calibrate --plot
+#
+# Server first:
+#   /srv/shared/schelling/llama.cpp/build/bin/llama-server \
+#       -m llms/OLMo-2-0325-32B-Instruct-Q8_0.gguf --alias olmo2 \
+#       -ngl -1 -fa on -np 4 -c 8192 --host 127.0.0.1 --port 8085 \
+#       --jinja
+# =============================================================================
+
+label: olmo-2-32b-chat-grammar
+
+model: OLMo-2-0325-32B-Instruct-Q8_0
+llm_url: "http://localhost:8085/v1/completions"   # path rewritten per llm_style
+llm_style: "chat+grammar"
+temperature: 0.3
+concurrency: 4          # match the server's -np 4 slots
+seed: 0
+
+scenarios:
+  - baseline
+  - race_white_black
+  - ethnic_asian_hispanic
+  - income_high_low
+  - political_liberal_conservative
+  - green_yellow
+scenario_file: scenarios_a2.py
+
+styles: [R3_dual_count]
+roles: [red, blue]
+
+# Identical budget to the existing five models — that identity is what makes
+# the new models comparable to them.
+sampling:
+  mode: per_composition
+  samples: 100
+
+merge_from: []
+
+out_dir: null      # default: prompt_refinement/results/value_functions/
