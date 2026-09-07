@@ -76,7 +76,7 @@ Each is documented where it is established; this is the index.
 | 1 | KV-cache sampling artifact — cache-on measurements biased at transition cells | 04 |
 | 2 | Plain-endpoint silent misparse (~0.08% overall, biased toward MOVE); grammar arms immune | 02 |
 | 3 | Forced-choice arms — grammar readings on models that will not answer unconstrained are protocol-constructed | 02 |
-| 4 | `step_statistics.csv` is survivor-biased; use `metrics_history.csv.gz` with forward-fill | 01 |
+| 4 | `step_statistics.csv` (pre-2026-09-05 dirs) is survivor-biased; use `metrics_history.csv.gz` with forward-fill | 01 |
 | 5 | `ghetto_rate` is a count, not a rate; 4- vs 8-neighbourhood split is historical | 01 |
 | 6 | Two run-record formats; read both through `run_files.py` | 01 |
 | 7 | DI is partition-dependent — levels do not compare across grid sizes | 01 |

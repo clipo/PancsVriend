@@ -56,9 +56,8 @@ def main():
         
         # List the analysis files that were created
         analysis_files = [
-            "metrics_history.csv",
-            "convergence_summary.csv",
-            "step_statistics.csv",
+            "metrics_history.csv.gz",
+            "run_summary.csv",
         ]
         
         for filename in analysis_files:

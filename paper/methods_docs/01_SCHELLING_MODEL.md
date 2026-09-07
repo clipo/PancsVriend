@@ -85,14 +85,14 @@ identity labels differ (red = type_a, blue = type_b):
 
 `experiments/<name>/` holds `config.json` (full provenance, including the
 value-function file), `metrics_history.csv.gz` (row per run × step, all seven
-metrics), `convergence_summary.csv`, `step_statistics.csv`, `run_summary.csv`
+metrics) and `run_summary.csv` (`convergence_summary.csv` and `step_statistics.csv` were dropped on 2026-09-05 as re-derivable from these two)
 (one row per run: convergence step plus every metric at the final step), and
 the run record — per-step decision counts and one grid frame per step, or one
 record and frame per agent decision for live-LLM runs, which is where the raw
 replies are kept. Everything reads these through `run_files.py`, which
 returns the same per-step tables for either format.
 
-Caveat: `step_statistics.csv` pools per-step survivors — runs stop writing
+Caveat (historical; the file has not been written since 2026-09-05): `step_statistics.csv` pools per-step survivors — runs stop writing
 rows once converged — so it is survivor-biased at late steps. Trajectory
 analyses use `metrics_history.csv.gz` with forward-fill
 (`analysis_tools/plot_style.step_stats_forward_filled`), which is the honest

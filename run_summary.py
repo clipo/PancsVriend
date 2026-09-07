@@ -1,7 +1,6 @@
 """One row per run: convergence step + every segregation metric at the final step.
 
-`metrics_history.csv` carries every metric at every step and
-`convergence_summary.csv` carries the convergence bookkeeping, so the
+`metrics_history.csv` carries every metric at every step, so the
 per-run picture the analysis actually starts from — "run 7 of the race
 scenario converged at step 42, and here is its dissimilarity index and the
 other six metrics at the last simulated step" — had to be re-derived by hand
@@ -111,10 +110,12 @@ def _scenario_from_experiment_name(experiment):
 
 
 def _read_csv_if_present(path):
+    """Round-trip float parsing, so rows read back for reuse are the bits
+    that were written (pandas' default parser can be an ulp off)."""
     if not os.path.exists(path):
         return pd.DataFrame()
     try:
-        return pd.read_csv(path)
+        return pd.read_csv(path, float_precision='round_trip')
     except Exception as exc:
         print(f"[run_summary] Warning: could not read {path} ({exc}); treating as empty")
         return pd.DataFrame()
@@ -123,9 +124,8 @@ def _read_csv_if_present(path):
 def _rebuild_from_move_log(output_dir, run_id, threshold):
     """Per-step move counts + the final grid, straight from the run's files.
 
-    The fallback for runs whose convergence_summary row is a resume
-    placeholder (final_step == 'unknown') or whose metrics rows never made it
-    to disk. Returns (converged, convergence_step, final_step, int_grid) with
+    The fallback for runs whose result is a resume placeholder
+    (final_step == 'unknown') or whose metrics rows never made it to disk. Returns (converged, convergence_step, final_step, int_grid) with
     None entries when the log is unusable. run_files reads the per-step and
     the older per-move formats alike.
     """
@@ -195,8 +195,11 @@ def _metrics_by_run(output_dir, results):
     disk = _read_csv_if_present(run_files.metrics_history_path(output_dir))
     if not disk.empty and {"run_id", "step"} <= set(disk.columns):
         idx = disk.groupby("run_id")["step"].idxmax()
-        for _, row in disk.loc[idx].iterrows():
-            final_rows[_to_int_or_none(row["run_id"])] = row.to_dict()
+        # to_dict('records'), not iterrows(): a row Series upcasts the integer
+        # metrics (clusters, ghetto_rate) to float, so the same run was written
+        # as 87 when it came from memory and 87.0 when it came from disk.
+        for row in disk.loc[idx].to_dict("records"):
+            final_rows[_to_int_or_none(row["run_id"])] = row
 
     for result in results or []:
         history = result.get("metrics_history") or []
@@ -209,13 +212,18 @@ def _metrics_by_run(output_dir, results):
 
 
 def _convergence_by_run(output_dir, results):
-    """Convergence rows per run_id; real rows win, placeholders never do."""
+    """Convergence rows per run_id from the in-memory results; real rows win,
+    placeholders never do. Runs not in `results` are served by their existing
+    run_summary.csv row (_cached_rows) or rebuilt from their step log. A
+    legacy convergence_summary.csv is read only when there is no
+    run_summary.csv yet (it stopped being written 2026-09-05)."""
     rows = {}
 
-    disk = _read_csv_if_present(os.path.join(output_dir, "convergence_summary.csv"))
-    if not disk.empty and "run_id" in disk.columns:
-        for row in disk.to_dict("records"):
-            rows[_to_int_or_none(row["run_id"])] = row
+    if not os.path.exists(os.path.join(output_dir, RUN_SUMMARY_FILENAME)):
+        disk = _read_csv_if_present(os.path.join(output_dir, "convergence_summary.csv"))
+        if not disk.empty and "run_id" in disk.columns:
+            for row in disk.to_dict("records"):
+                rows[_to_int_or_none(row["run_id"])] = row
 
     for result in results or []:
         if str(result.get("final_step")) == _PLACEHOLDER_FINAL_STEP:
@@ -283,9 +291,14 @@ def build_run_summary(output_dir, results=None, reuse_existing=True):
         if r.get("scenario")
     }
 
-    run_ids = sorted(
-        {rid for rid in list(metrics_rows) + list(convergence_rows) if rid is not None}
-    )
+    # Every run the directory knows about: in-memory results, stored metrics,
+    # the run record itself, and rows of an existing summary (even when they
+    # are not reused, a run that was summarised before is still a run).
+    known = set(metrics_rows) | set(convergence_rows) | set(cached)
+    known.update(run_files.list_run_ids(output_dir))
+    if not reuse_existing:
+        known.update(_cached_rows(output_dir, True))
+    run_ids = sorted(rid for rid in known if rid is not None)
 
     summary_rows = []
     for run_id in run_ids:

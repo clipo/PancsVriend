@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import pandas as pd
 import run_files
 from scipy import stats
@@ -187,7 +188,10 @@ def analyze_convergence_patterns(experiments_data):
     convergence_analysis = {}
     
     for exp_name, exp_dir in experiments_data.items():
-        conv_df = pd.read_csv(f"{exp_dir}/convergence_summary.csv")
+        conv_path = f"{exp_dir}/run_summary.csv"
+        if not os.path.exists(conv_path):            # pre-2026-09-05 directories
+            conv_path = f"{exp_dir}/convergence_summary.csv"
+        conv_df = pd.read_csv(conv_path)
         metrics_df = pd.read_csv(run_files.metrics_history_path(exp_dir))
         
         # Convergence statistics

@@ -392,8 +392,8 @@ Results land in a timestamped directory under `experiments_with_llama_cpp/`:
 experiments_with_llama_cpp/run_<ts>_<model>/
 ├── run_config_effective.yaml
 ├── experiments/llm_<scenario>_<ts>/
-│   ├── metrics_history.csv        # one row per (run, step)
-│   ├── convergence_summary.csv
+│   ├── metrics_history.csv.gz     # one row per (run, step)
+│   ├── run_summary.csv            # one row per run: convergence + final metrics
 │   └── move_logs/  states/
 ├── analysis/                      # ANOVA, rankings, combined metrics
 └── plots/                         # segregation plots (PNG)
@@ -403,7 +403,7 @@ Monitor a running job:
 
 ```bash
 wc -l experiments_with_llama_cpp/run_*/experiments/*/metrics_history.csv
-tail -f experiments_with_llama_cpp/run_*/experiments/*/convergence_summary.csv
+wc -l experiments_with_llama_cpp/run_*/experiments/*/run_summary.csv
 nvidia-smi -l 5    # GPU utilization
 ```
 

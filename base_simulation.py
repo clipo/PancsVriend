@@ -580,11 +580,17 @@ class Simulation:
 
     @staticmethod
     def _read_csv_if_present(path):
-        """Existing CSV as a DataFrame; empty frame if absent or unreadable."""
+        """Existing CSV as a DataFrame; empty frame if absent or unreadable.
+
+        Round-trip float parsing: analyze_results merges these rows and writes
+        them back, and pandas' default parser is not exact to the last bit, so
+        every merge used to perturb untouched runs' stored metrics by an ulp
+        (0.4137931034482758 -> 0.41379310344827586). Lossless now (2026-09-05).
+        """
         if not os.path.exists(path):
             return pd.DataFrame()
         try:
-            return pd.read_csv(path)
+            return pd.read_csv(path, float_precision='round_trip')
         except Exception as exc:                      # corrupt/partial file
             print(f"Warning: could not read {path} ({exc}); "
                   f"treating as empty — prior rows may be lost")
@@ -592,34 +598,33 @@ class Simulation:
 
     @staticmethod
     def analyze_results(results, output_dir, n_runs):
-        """Analyze simulation results and save metrics, convergence data, and step statistics.
+        """Write the experiment's metrics_history and run_summary from a batch of results.
 
-        RESUME SAFETY (2026-08-25): rows already on disk are MERGED rather than
-        overwritten. On resume, llm_runner rebuilds previously completed runs
-        from their .npz state files, which carry no metrics_history and only
-        placeholder convergence values (converged=True, final_step='unknown').
-        Writing those straight out replaced the real history of every earlier
-        run with nothing. Merge policy, keyed by run_id:
-          * metrics    — a re-executed run replaces its own old rows; runs not
-                         in this batch keep the rows already on disk;
-          * convergence — a real new row wins over disk, but a PLACEHOLDER
-                         never overwrites a real stored row.
+        Returns (output_dir, results, convergence_rows) where convergence_rows
+        is one {run_id, converged, convergence_step, final_step} per run in
+        the written run_summary — the CORRECTED values (first step of the
+        no-move window; final_step = last step actually simulated).
+
+        Two files used to be written here as well (dropped 2026-09-05):
+        convergence_summary.csv, a strict subset of run_summary.csv whose
+        final_step carried the live loop's one-past-the-end value for
+        capped runs, and step_statistics.csv, a survivor-biased per-step
+        average that plot_style.step_stats_forward_filled replaced. Both were
+        re-derivable from what remains; every reader now takes run_summary.
+
+        RESUME SAFETY (2026-08-25): metrics rows already on disk are MERGED
+        rather than overwritten. On resume, llm_runner passes placeholder
+        results for previously completed runs (no metrics_history,
+        final_step='unknown'); a re-executed run replaces its own old rows,
+        every other run keeps the rows on disk, and run_summary reuses its
+        existing row for a placeholder rather than rebuilding it.
         """
         all_metrics = []
-        convergence_data = []
-
         for result in results:
-            convergence_data.append({
-                'run_id': result['run_id'],
-                'converged': result['converged'],
-                'convergence_step': result['convergence_step'],
-                'final_step': result['final_step']
-            })
             for metric in result['metrics_history']:
                 all_metrics.append(metric)
 
         metrics_path = run_files.metrics_history_path(output_dir)
-        conv_path = f"{output_dir}/convergence_summary.csv"
 
         # --- metrics: new rows replace their own run_id, others persist ------
         new_metrics = pd.DataFrame(all_metrics)
@@ -636,31 +641,6 @@ class Simulation:
                                                         kind='stable').reset_index(drop=True)
         merged_metrics.to_csv(metrics_path, index=False)
 
-        # --- convergence: placeholders never clobber real stored rows --------
-        by_run = {}
-        for row in convergence_data:                       # placeholders first
-            if row.get('final_step') == Simulation._PLACEHOLDER_FINAL_STEP:
-                by_run[row['run_id']] = row
-        disk_conv = Simulation._read_csv_if_present(conv_path)
-        if not disk_conv.empty and 'run_id' in disk_conv.columns:
-            for row in disk_conv.to_dict('records'):       # disk beats placeholder
-                by_run[row['run_id']] = row
-        for row in convergence_data:                       # real new rows win
-            if row.get('final_step') != Simulation._PLACEHOLDER_FINAL_STEP:
-                by_run[row['run_id']] = row
-        merged_conv = [by_run[k] for k in sorted(by_run)]
-        pd.DataFrame(merged_conv).to_csv(conv_path, index=False)
-
-        # --- step statistics over the MERGED history -------------------------
-        df = merged_metrics
-        metric_cols = [c for c in df.columns if c not in ('step', 'run_id')]
-        if not df.empty and 'step' in df.columns and metric_cols:
-            step_stats = df.groupby('step').agg(
-                {c: ['mean', 'std', 'min', 'max'] for c in metric_cols}).reset_index()
-            step_stats.columns = ['_'.join(col).strip() if col[1] else col[0]
-                                  for col in step_stats.columns.values]
-            step_stats.to_csv(f"{output_dir}/step_statistics.csv", index=False)
-
         # --- one row per run: convergence step + final-step metrics ----------
         # Written here rather than in each runner so baseline_runner,
         # llm_runner and the load_and_analyze_results reload path all produce
@@ -668,9 +648,19 @@ class Simulation:
         # module imports DissimilarityIndex and config, and base_simulation is
         # imported by tests that stub those.
         from run_summary import write_run_summary
-        write_run_summary(output_dir, results)
+        summary = write_run_summary(output_dir, results)
 
-        return output_dir, results, merged_conv
+        convergence_rows = []
+        if not summary.empty:
+            for row in summary.to_dict('records'):
+                step = row.get('convergence_step')
+                convergence_rows.append({
+                    'run_id': int(row['run_id']),
+                    'converged': bool(row.get('converged')),
+                    'convergence_step': None if step is None or pd.isna(step) else int(step),
+                    'final_step': None if pd.isna(row.get('final_step')) else int(row['final_step']),
+                })
+        return output_dir, results, convergence_rows
 
     @staticmethod
     def load_results_from_output(output_dir, force_recompute: bool = False):
@@ -688,15 +678,19 @@ class Simulation:
         """
         results = []
         
-        # Check if metrics_history.csv already exists (from previous analysis)
+        # Stored analysis: metrics_history plus the per-run bookkeeping in
+        # run_summary.csv (convergence_summary.csv, its pre-2026-09-05
+        # predecessor, is accepted for directories that only have that).
         metrics_file = run_files.metrics_history_path(output_dir)
-        convergence_file = os.path.join(output_dir, "convergence_summary.csv")
+        convergence_file = os.path.join(output_dir, "run_summary.csv")
+        if not os.path.exists(convergence_file):
+            convergence_file = os.path.join(output_dir, "convergence_summary.csv")
         
         if (not force_recompute) and os.path.exists(metrics_file) and os.path.exists(convergence_file):
             print(f"Loading existing analysis files from {output_dir}")
             
             # Load pre-computed metrics and convergence data
-            metrics_df = pd.read_csv(metrics_file)
+            metrics_df = pd.read_csv(metrics_file, float_precision='round_trip')
             convergence_df = pd.read_csv(convergence_file)
             metrics_by_run = {
                 run_id: group.to_dict('records')

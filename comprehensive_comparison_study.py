@@ -101,7 +101,7 @@ def run_comprehensive_study(config_file="baseline_vs_llm_study.yaml", llm_model=
                         exp_config.get("max_steps") >= max_steps):
                         
                         # Check that all required files exist
-                        required_files = ["convergence_summary.csv", os.path.basename(run_files.metrics_history_path(exp_dir)), "step_statistics.csv"]
+                        required_files = ["run_summary.csv", os.path.basename(run_files.metrics_history_path(exp_dir))]
                         if all((exp_dir / f).exists() for f in required_files):
                             matching_experiments.append(exp_dir)
                             

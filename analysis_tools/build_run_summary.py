@@ -1,7 +1,7 @@
 """Build (or rebuild) run_summary.csv for experiment directories.
 
 New experiments get run_summary.csv automatically — Simulation.analyze_results
-writes it alongside metrics_history.csv and convergence_summary.csv. This CLI
+writes it alongside metrics_history.csv. This CLI
 is for the ones that already exist, and for regenerating after a change to the
 summary logic.
 
@@ -59,7 +59,7 @@ def _all_experiment_dirs(experiments_dir: Path) -> list[str]:
         return []
     return [
         str(path) for path in sorted(experiments_dir.iterdir())
-        if path.is_dir() and (path / "convergence_summary.csv").exists()
+        if path.is_dir() and (path / "move_logs").is_dir()
     ]
 
 

@@ -30,20 +30,29 @@ def test_analyze_results_writes_csv(tmp_path):
     # Run analysis
     out_dir, out_results, out_conv = Simulation.analyze_results(results, str(output_dir), len(results))
 
-    # Check generated files
+    # Check generated files: metrics_history plus run_summary (the per-run
+    # bookkeeping; convergence_summary.csv and step_statistics.csv are no
+    # longer written, 2026-09-05)
     metrics_file = output_dir / "metrics_history.csv.gz"
-    conv_file = output_dir / "convergence_summary.csv"
+    summary_file = output_dir / "run_summary.csv"
     assert metrics_file.exists(), "metrics_history.csv not created"
-    assert conv_file.exists(), "convergence_summary.csv not created"
+    assert summary_file.exists(), "run_summary.csv not created"
+    assert not (output_dir / "convergence_summary.csv").exists()
+    assert not (output_dir / "step_statistics.csv").exists()
 
     # Validate contents
     df_metrics = pd.read_csv(metrics_file)
-    df_conv = pd.read_csv(conv_file)
+    df_summary = pd.read_csv(summary_file)
     assert len(df_metrics) == 2
-    assert len(df_conv) == 1
+    assert len(df_summary) == 1
     assert out_dir == str(output_dir)
     assert isinstance(out_results, list)
     assert isinstance(out_conv, list)
+    # The returned rows are run_summary's (corrected) bookkeeping, not the raw results.
+    assert [r['run_id'] for r in out_conv] == [1]
+    assert out_conv[0]['converged'] is True
+    assert out_conv[0]['convergence_step'] == int(df_summary.loc[0, 'convergence_step'])
+    assert out_conv[0]['final_step'] == int(df_summary.loc[0, 'final_step'])
 
 
 def test_load_results_from_output_precomputed(tmp_path):
@@ -85,7 +94,7 @@ def test_load_and_analyze_results_no_results(tmp_path, monkeypatch):
         Simulation.load_and_analyze_results(str(empty_dir))
 
 
-def test_analyze_results_creates_step_statistics(tmp_path):
+def test_analyze_results_writes_metrics_and_summary_only(tmp_path):
     # Create sample results with multiple steps
     metrics_history = [
         {'step': 0, 'run_id': 1, 'clusters': 1, 'switch_rate': 0.1, 'distance': 0.5, 'mix_deviation': 0.0, 'share': 0.4, 'ghetto_rate': 0.0},
@@ -104,15 +113,10 @@ def test_analyze_results_creates_step_statistics(tmp_path):
     # Run analysis
     Simulation.analyze_results(results, str(output_dir), len(results))
 
-    # Files should exist
+    # Files should exist — and only these two
     assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing"
-    assert (output_dir / 'convergence_summary.csv').exists(), "convergence_summary.csv missing"
-    assert (output_dir / 'step_statistics.csv').exists(), "step_statistics.csv missing"
-
-    # Validate step_statistics columns
-    df_stats = pd.read_csv(output_dir / 'step_statistics.csv')
-    expected_cols = {'step', 'clusters_mean', 'clusters_std', 'switch_rate_mean'}
-    assert expected_cols.issubset(set(df_stats.columns)), "Missing expected columns in step_statistics.csv"
+    assert (output_dir / 'run_summary.csv').exists(), "run_summary.csv missing"
+    assert sorted(p.name for p in output_dir.iterdir()) == ['metrics_history.csv.gz', 'run_summary.csv']
 
 
 def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
@@ -137,8 +141,7 @@ def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
 
     # Check output files
     assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing after integration"
-    assert (output_dir / 'convergence_summary.csv').exists(), "convergence_summary.csv missing after integration"
-    assert (output_dir / 'step_statistics.csv').exists(), "step_statistics.csv missing after integration"
+    assert (output_dir / 'run_summary.csv').exists(), "run_summary.csv missing after integration"
 
     # Validate returned data
     assert out_dir == str(output_dir)
@@ -671,8 +674,7 @@ def test_analyze_results_single_run(tmp_path):
     
     # Check files created
     assert (tmp_path / "metrics_history.csv.gz").exists()
-    assert (tmp_path / "convergence_summary.csv").exists()
-    assert (tmp_path / "step_statistics.csv").exists()
+    assert (tmp_path / "run_summary.csv").exists()
 
 
 def test_analyze_results_multiple_runs(tmp_path):
@@ -705,12 +707,13 @@ def test_analyze_results_multiple_runs(tmp_path):
     assert len(out_conv) == 2
     assert out_conv[0]['run_id'] == 1
     assert out_conv[1]['run_id'] == 2
-    
-    # Verify step statistics
-    step_stats = pd.read_csv(tmp_path / "step_statistics.csv")
-    assert 'step' in step_stats.columns
-    assert 'clusters_mean' in step_stats.columns
-    assert len(step_stats) >= 1  # At least one step
+    # The returned rows are run_summary's corrected bookkeeping: run 2 stopped
+    # at step 3 without converging, so its final_step is the metrics history's
+    # last step (1), not the live loop's value.
+    assert out_conv[0]['converged'] is True
+    assert out_conv[1] == {'run_id': 2, 'converged': False, 'convergence_step': None, 'final_step': 1}
+    summary = pd.read_csv(tmp_path / "run_summary.csv")
+    assert [int(v) for v in summary['final_step']] == [r['final_step'] for r in out_conv]
 
 
 def test_load_results_from_output_missing_directory():

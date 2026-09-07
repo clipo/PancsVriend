@@ -123,9 +123,7 @@ experiments/
 ├── baseline_[timestamp]/       # Mechanical agent results
 ├── llm_[scenario]_[timestamp]/ # LLM scenario results
 │   ├── metrics_history.csv.gz  # every metric at every step (.csv before 2026-09-03; run_files.metrics_history_path finds either)
-│   ├── convergence_summary.csv # per-run convergence bookkeeping
-│   ├── step_statistics.csv     # metric mean/std/min/max per step
-│   ├── run_summary.csv         # ONE ROW PER RUN (see below)
+│   ├── run_summary.csv         # ONE ROW PER RUN (see below): the per-run bookkeeping
 │   ├── move_logs/step_moves_run_<id>.csv   # per-step decision counts (see below)
 │   └── states/states_run_<id>.npz          # grid frames: 0 = initial, k+1 = after step k
 ├── manifests/
@@ -205,6 +203,16 @@ final_step, n_steps, stop_reason, experiment, llm_model, metrics_source
 
 Regenerate for existing experiments with
 `python analysis_tools/build_run_summary.py --all`.
+
+Two files stopped being written on 2026-09-05 and every reader now takes
+`run_summary.csv` instead: `convergence_summary.csv` (its four columns are
+in `run_summary.csv`, and its `final_step` carried the live loop's
+one-past-the-end value for capped runs) and `step_statistics.csv` (a
+survivor-biased per-step average; plot from `metrics_history` with
+`plot_style.step_stats_forward_filled`). Readers fall back to a legacy
+`convergence_summary.csv` only in directories that have no
+`run_summary.csv` yet. At the campaign level the roll-up is
+`analysis/run_summary_by_run.csv` (`scenario_key` = the analysis scenario).
 
 ### Metrics are whole-array functions of the int grid
 
