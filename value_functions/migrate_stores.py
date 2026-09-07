@@ -12,7 +12,10 @@ Moves (all gitignored data, so git sees none of it):
     llm_log_probs/value_functions_logprob/*                    -> value_functions/results/llm_logprob/   (llm_log_probs/ removed)
     prompt_refinement/results/figures/cross_model_*            -> experiments_with_llama_cpp/cross_model/
     prompt_refinement/results/figures_backup_8models_*         -> experiments_with_llama_cpp/cross_model/backup_8models_*/
-    prompt_refinement/results/figures/{vfS_,vfH_,vf_,ruler_,sampling_}* -> value_functions/results/figures/
+    prompt_refinement/results/figures/{vfS_,vfH_}*                -> value_functions/results/figures/vf_plots/
+    prompt_refinement/results/figures/vf_*_scale_dependence.png   -> value_functions/results/figures/scale_dependence/
+    prompt_refinement/results/figures/ruler_*                     -> value_functions/results/figures/ruler_scaling/
+    prompt_refinement/results/figures/{vf_,sampling_}*            -> value_functions/results/figures/
     prompt_refinement/results/metric_null_*.json               -> value_functions/results/chance_null/
     prompt_refinement/batch_numerics/results/* (untracked leftovers) -> value_functions/batch_numerics/results/
     prompt_refinement/batch_numerics/*.sh (gitignored runner)        -> value_functions/batch_numerics/
@@ -48,10 +51,16 @@ DIR_MOVES = [
 GLOB_MOVES = [
     (PR_RESULTS / "figures", "cross_model_*", P.CROSS_MODEL_DIR),
     (PR_RESULTS, "figures_backup_8models_*", P.CROSS_MODEL_DIR),
-    (PR_RESULTS / "figures", "vfS_*", P.FIGURES_DIR),
-    (PR_RESULTS / "figures", "vfH_*", P.FIGURES_DIR),
+    (PR_RESULTS / "figures", "vfS_*", P.VF_PLOTS_DIR),
+    (PR_RESULTS / "figures", "vfH_*", P.VF_PLOTS_DIR),
+    (PR_RESULTS / "figures", "vf_*_scale_dependence.*", P.SCALE_DEPENDENCE_DIR),
     (PR_RESULTS / "figures", "vf_*", P.FIGURES_DIR),
-    (PR_RESULTS / "figures", "ruler_*", P.FIGURES_DIR),
+    (PR_RESULTS / "figures", "ruler_*", P.RULER_SCALING_DIR),
+    # second pass for stores migrated before the figure subfolders existed (2026-09-07)
+    (P.FIGURES_DIR, "vfS_*", P.VF_PLOTS_DIR),
+    (P.FIGURES_DIR, "vfH_*", P.VF_PLOTS_DIR),
+    (P.FIGURES_DIR, "vf_*_scale_dependence.*", P.SCALE_DEPENDENCE_DIR),
+    (P.FIGURES_DIR, "ruler_*", P.RULER_SCALING_DIR),
     (PR_RESULTS / "figures", "sampling_requirements.*", P.FIGURES_DIR),
     (PR_RESULTS, "metric_null_*.json", P.CHANCE_NULL_DIR),
     (P.PROMPT_REFINEMENT_DIR / "batch_numerics" / "results", "*", P.VF_ROOT / "batch_numerics" / "results"),
@@ -148,6 +157,8 @@ def main():
     for base, pattern, dst_dir in GLOB_MOVES:
         if base.exists():
             for src in sorted(base.glob(pattern)):
+                if src == dst_dir or dst_dir.is_relative_to(src):   # the subfolder itself matches ruler_*
+                    continue
                 move(src, dst_dir / src.name, args.apply, log)
     rewrite_scripts(args.apply, log)
     if args.apply:

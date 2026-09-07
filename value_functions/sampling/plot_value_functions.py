@@ -25,7 +25,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from value_functions.paths import FIGURES_DIR, SAMPLED_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import SAMPLED_DIR, VF_PLOTS_DIR, add_import_paths  # noqa: E402
 add_import_paths()
 from sampling_common import NO_NEIGHBORS_KEY  # noqa: E402
 
@@ -180,7 +180,7 @@ def main() -> int:
     ap.add_argument("--style", default="R3_dual_count")
     ap.add_argument("--vf-dir", default=str(VF_DIR))
     ap.add_argument("--out", default=None,
-                    help="output path (default figures/vfS_<label>__<style>.<fmt>)")
+                    help="output path (default figures/vf_plots/vfS_<label>__<style>.<fmt>)")
     ap.add_argument("--dpi", type=int, default=300)
     ap.add_argument("--format", default="png", choices=["png", "pdf", "svg"])
     ap.add_argument("--ncols", type=int, default=3)
@@ -242,7 +242,7 @@ def main() -> int:
     fig.subplots_adjust(top=0.885, bottom=0.06, left=0.06, right=0.985)
 
     out = Path(args.out) if args.out else (
-        FIGURES_DIR / f"vfS_{args.label}__{args.style}.{args.format}")
+        VF_PLOTS_DIR / f"vfS_{args.label}__{args.style}.{args.format}")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=args.dpi)
     print(f"wrote {out}  ({len(scenarios)} scenarios: {', '.join(scenarios)})")

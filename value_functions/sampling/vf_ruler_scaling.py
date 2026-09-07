@@ -42,7 +42,7 @@ import pandas as pd  # noqa: E402
 
 _THIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS.parents[1]))
-from value_functions.paths import FIGURES_DIR, SAMPLED_DIR  # noqa: E402
+from value_functions.paths import RULER_SCALING_DIR, SAMPLED_DIR  # noqa: E402
 
 STORE = SAMPLED_DIR
 FRACTIONS = {"": 0.5, "_f075": 0.75, "_f0875": 0.875}
@@ -91,7 +91,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--labels", nargs="*", default=LABELS)
     ap.add_argument("--metric", default="dissimilarity_index")
-    ap.add_argument("--out-dir", default=str(FIGURES_DIR))
+    ap.add_argument("--out-dir", default=str(RULER_SCALING_DIR))
     ap.add_argument("--dpi", type=int, default=200)
     args = ap.parse_args()
 

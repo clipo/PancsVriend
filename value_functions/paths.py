@@ -16,7 +16,11 @@ Stores under results/:
     llm_logprob/   vf_<label>-lp__… exact tables (what the _lp run configs use),
                    vflp_<label>__… per-cell probabilities, validation_*.json,
                    seqcheck_*.csv, raw/ traces
-    figures/       value-function figures (vfS_*, ruler_scaling, sampling_requirements)
+    figures/       value-function figures, one subfolder per kind:
+                     vf_plots/          vfS_* / vfH_* table plots (plot_value_functions.py)
+                     ruler_scaling/     ruler_scaling.{csv,png} (vf_ruler_scaling.py)
+                     scale_dependence/  vf_<label>_scale_dependence.png (vf_scale_dependence_probe.py)
+                     sampling_requirements.png and vf_sweep_comparison.png at the top
     chance_null/   metric_null_*.json — the random-allocation null cached per board
 
 Before 2026-09-07 the sampled store was prompt_refinement/results/value_functions/,
@@ -35,6 +39,9 @@ SAMPLED_DIR = RESULTS_DIR / "sampled"
 SANITY_DIR = SAMPLED_DIR / "sanity"
 LOGPROB_DIR = RESULTS_DIR / "llm_logprob"
 FIGURES_DIR = RESULTS_DIR / "figures"
+VF_PLOTS_DIR = FIGURES_DIR / "vf_plots"
+RULER_SCALING_DIR = FIGURES_DIR / "ruler_scaling"
+SCALE_DEPENDENCE_DIR = FIGURES_DIR / "scale_dependence"
 CHANCE_NULL_DIR = RESULTS_DIR / "chance_null"
 CROSS_MODEL_DIR = REPO_ROOT / "experiments_with_llama_cpp" / "cross_model"
 
