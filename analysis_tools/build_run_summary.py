@@ -22,6 +22,36 @@ Rows whose stored convergence bookkeeping is a resume placeholder
 (final_step == 'unknown') or whose metrics rows are missing are rebuilt from
 the run's move log, so the retrofit also repairs the legacy rows that recorded
 the LAST step of the no-move window instead of the first.
+
+Columns
+-------
+    run_id, scenario, converged, convergence_step, dissimilarity_index,
+    clusters, switch_rate, distance, mix_deviation, share, ghetto_rate,
+    initial_dissimilarity_index, ... initial_ghetto_rate,
+    final_step, n_steps, stop_reason, experiment, llm_model, metrics_source
+
+* The metric columns are the values at final_step; initial_<metric> are the
+  same seven metrics on frame 0, a uniformly random allocation, i.e. the
+  run's own paired draw from the chance distribution.
+* convergence_step is the FIRST of the NO_MOVE_THRESHOLD consecutive
+  zero-move steps (base_simulation.convergence_from_step_moves is the single
+  definition), so final_step == convergence_step + NO_MOVE_THRESHOLD - 1 for
+  every converged row.
+* final_step is always the last step actually simulated. A run capped
+  mid-streak (e.g. 3 no-move steps at step 999) is converged=False with an
+  empty convergence_step, but final_step is still 999.
+* stop_reason is converged / max_steps / incomplete; the identity above only
+  holds for converged rows.
+* Missing metrics (runs predating dissimilarity_index, resume placeholders
+  with no metrics rows) are recomputed from the final grid and flagged via
+  metrics_source.
+* Rebuilding a run from its move log is expensive, so rows already in
+  run_summary.csv are reused on later passes; --force re-parses the logs.
+
+convergence_summary.csv and step_statistics.csv stopped being written on
+2026-09-05; readers fall back to a legacy convergence_summary.csv only in a
+directory with no run_summary.csv. Per-step averages are plotted from
+metrics_history with plot_style.step_stats_forward_filled.
 """
 
 from __future__ import annotations

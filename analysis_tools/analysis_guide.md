@@ -114,6 +114,17 @@ model's newest full run under that run's `run_root`
 | `cross_model_level_<metric>.png` | level chart per metric |
 | `cross_model_chance_tests.csv`, `cross_model_pairwise_tests.csv`, `cross_model_rankings.csv` | the paired t-tests behind every marker |
 
+Significance rules (decided 2026-09-05). "Chance" is tested as a scenario
+like any other: each run's `initial_<metric>` (frame 0, a uniformly random
+allocation) is its paired draw from the chance distribution, and a scenario
+not significantly above its initial grids "shows no segregation". Every
+significance statement in the ranking table and the bump charts is a paired
+t-test on per-run differences (final − initial for chance, final − final
+for scenario pairs), Holm-corrected, with no normality gate and no practical
+floor: solid = statistically distinguishable, not necessarily large. The
+0.01 DI FLOOR-TIE exists only in `vf_rank_stability`'s certification, where
+it bounds GPU top-up quotes.
+
 The comparison is built from the EXACT token-probability tables (runs with
 `llm_model` suffix `-vf-lp`, tables from
 `value_functions/logprob/logprob_value_function.py`); the stage derives the family
