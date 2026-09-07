@@ -33,7 +33,7 @@ Repeat the top-up until `--dry-run` reports zero deficits.
 
 ```bash
 python run_llm_probability_simulation_analysis.py \
-    --config-yaml configs/vf_run_gemma_r3.yaml --config-profile production
+    --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 ```
 
 **Bitwise audit** (same server build):

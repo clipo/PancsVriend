@@ -1,4 +1,9 @@
 # =============================================================================
+# RETIRED 2026-09-07 — sampled (-vf-r3) tables carry the batch-numerics artifact
+# and are not a result. Kept only to reproduce the existing -vf-r3 runs; nothing
+# derives from this file any more. The canonical run config is the _lp sibling
+# (configs/vf_run_<model>_lp.yaml, exact logprob tables).
+# =============================================================================
 # VALUE-FUNCTION simulation run — gemma-4-31B R3 dual-count, all scenarios
 # =============================================================================
 # Simulations driven by the sampled value functions instead of live LLM calls:

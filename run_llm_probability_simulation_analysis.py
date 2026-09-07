@@ -5,7 +5,7 @@ Run value-function build -> simulations -> scenario analysis in one CLI.
 
 Example:
     python run_llm_probability_simulation_analysis.py \
-        --config-yaml configs/vf_run_gemma_r3.yaml --config-profile production
+        --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 
 Each stage allows pass-through arguments:
 - --vf-build-args -> prompt_refinement/build_value_function.py

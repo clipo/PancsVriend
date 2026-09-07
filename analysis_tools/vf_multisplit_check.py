@@ -8,7 +8,10 @@ artifact, so its verdict is a single draw from a distribution — qwen's
 from an unlucky partition. This script estimates the distribution instead.
 
     python analysis_tools/vf_multisplit_check.py \
-        --config-yaml configs/vf_run_qwen_r3.yaml --splits 32
+        --config-yaml configs/vf_run_qwen_sanity.yaml --splits 32
+    # any SAMPLED-table run config (the check resplits raw samples; the exact
+    # -lp tables have none, and the retired _r3 configs are kept only to
+    # reproduce the old sampled runs)
 
 The yaml is the production run being certified: label, style, scenarios,
 max_steps and the board (grid_size, num_type_a, num_type_b) come from its

@@ -1,23 +1,25 @@
 # =============================================================================
-# RETIRED 2026-09-07 — sampled (-vf-r3) tables carry the batch-numerics artifact
-# and are not a result. Kept only to reproduce the existing -vf-r3 runs; nothing
-# derives from this file any more. The canonical run config is the _lp sibling
-# (configs/vf_run_<model>_lp.yaml, exact logprob tables).
-# =============================================================================
-# VALUE-FUNCTION simulation run — granite-4.2-30b-Q8_0, R3 dual-count, all scenarios
+# EXACT-table run (logprob value functions, 2026-09-05). Hand-edited SOURCE
+# config since 2026-09-07: it is no longer generated from the _r3 sibling (the
+# sampled -vf-r3 tables carry the batch-numerics artifact and are not a result;
+# the _r3 yaml is kept only to reproduce those runs), and
+# configs/make_sanity_configs.py derives the -sanity arm from this file.
+# value_function points at llm_log_probs/value_functions_logprob/…-lp…, llm_model
+# is <model>-vf-lp, and rank stability runs in --exact mode (no ruler).
+# VALUE-FUNCTION simulation run — Hermes-4.3-36B-Q8_0, R3 dual-count, all scenarios
 # =============================================================================
 # Composition-cell P(MOVE) lookups, no LLM server, no GPU. See
-# configs/vf_run_gemma_r3.yaml for the full mechanics (artifact freezing into
+# configs/vf_run_gemma_lp.yaml for the full mechanics (artifact freezing into
 # <run_dir>/value_functions/, {scenario} template semantics, profiles).
 #
 #   python run_llm_probability_simulation_analysis.py \
-#       --config-yaml configs/vf_run_granite_r3.yaml --config-profile production
+#       --config-yaml configs/vf_run_hermes_lp.yaml --config-profile production
 # =============================================================================
 
 run_root: "experiments_with_llama_cpp"
 run_id: null
 
-llm_model: "granite-4.2-30b-vf-r3"
+llm_model: "hermes-4.3-36b-vf-lp"
 
 manifest_file: null
 skip_vf_build: true
@@ -27,7 +29,7 @@ continue_on_error: false
 dry_run: false
 
 vf_build_args:
-  config: "configs/value_function_scenarios_granite.yaml"
+  config: "configs/value_function_scenarios_hermes.yaml"
   plot: true
 
 contexts_args:
@@ -37,10 +39,10 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "prompt_refinement/results/value_functions/vf_granite-4.2-30b-chat-grammar__{scenario}__R3_dual_count.json"
+  value_function: "llm_log_probs/value_functions_logprob/vf_hermes-4.3-36b-chat-grammar-lp__{scenario}__R3_dual_count.json"
   temperature: 0.3
   scenario_file: "scenarios_a2.py"
-  llm_model: "granite-4.2-30b-vf-r3"
+  llm_model: "hermes-4.3-36b-vf-lp"
   processes: 4
   no_parallel: false
   new: true
@@ -57,10 +59,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions/vf_granite-4.2-30b-chat-grammar__{scenario}__R3_dual_count.json"
+      value_function: "llm_log_probs/value_functions_logprob/vf_hermes-4.3-36b-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "granite-4.2-30b-vf-r3"
+      llm_model: "hermes-4.3-36b-vf-lp"
       processes: 2
       no_parallel: false
       new: true
@@ -73,10 +75,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions/vf_granite-4.2-30b-chat-grammar__{scenario}__R3_dual_count.json"
+      value_function: "llm_log_probs/value_functions_logprob/vf_hermes-4.3-36b-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "granite-4.2-30b-vf-r3"
+      llm_model: "hermes-4.3-36b-vf-lp"
       processes: 4
       no_parallel: false
       new: true
