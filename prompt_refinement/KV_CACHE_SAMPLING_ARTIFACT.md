@@ -154,3 +154,57 @@ clean). Map: `results/value_functions/vf_contamination_map.{csv,png}`.
 
 Estimated cost at cache-off throughput (~2–3 req/s): pilot ~6 h, top-up
 ~3–5 h ⇒ **~10–14 h GPU, unattended**.
+
+## 8. Addendum 2026-09-05 — the mechanism is BATCH-STATE dependence, and `cache_prompt: false` did not remove it
+
+Found while validating the exact (logprob) value functions
+(`logprob_value_function.py`, `LOGPROB_PLAN.md`). The post-sampling next-token
+probabilities of a byte-identical request depend on the batch the request is
+processed in, not on the KV cache:
+
+PRELIMINARY table — these first measurements went through `/completion` on the
+rendered template, which is NOT equivalent to the chat endpoint for every model
+(gemma-4 differs); they are kept only to record the discovery. The valid,
+chat-endpoint measurements for every model are in
+`batch_numerics/results/probe_<label>_summary.csv` (+ `.png`), produced by
+`batch_numerics/batch_numerics_probe.py`.
+
+| condition (qwen3.6-27B Q5_K_M, build b1-a4ce259, GB10, `-np 4`, cache_prompt=false, T=0.3, grammar; cell baseline/red 1-of-5) | P(MOVE) |
+|---|---|
+| one request in flight, flash attention on, ×8 | 0.2303 every time |
+| four identical requests in flight, ×16 | 0.21 … 0.44 |
+| four in flight, interleaved with other cells, ×8 | 0.24 … 0.42 |
+| one in flight, flash attention **off**, ×4 | 0.2106 every time |
+| four in flight, flash attention off, ×16 | 0.21 … 0.38 |
+| sequential sampling, 300 campaign-payload draws | 0.253 ± 0.05 |
+| the campaign's sampled rate (n = 2384, four in flight) | 0.282 ± 0.018 |
+
+`LLAMA_CPP_SERVING_NOTES.md` §1 had recorded multi-slot nondeterminism as a
+near-tie effect of a few counts per 100 ("44 vs 47/100"); it was judged minor
+next to the cache effect above and not expected to move the dynamics. That
+judgement was wrong in magnitude: the spread is tens of percentage points on
+transition cells, it is present with flash attention on or off, and it does
+not depend on WHAT shares the batch, only on being batched. Sections 1-7
+attributed the instability to retained KV state; the KV state was the
+symptom (a cache holds the arithmetic of the batch that produced it), the
+batch is the cause, and the clean protocol of §6 (cache off + seeds) left the
+campaigns running four requests in flight — so every sampled `vf_*.json` is
+an average over this batch-dependent family. Saturated cells are NOT always unaffected: for models whose zeros are
+truly ~0 (gemma, phi, granite, qwen; exact P(MOVE) on sampled-zero cells
+≤ 0.015) they are, but on deepseek the batching pushed genuine transition
+cells all the way to 0/n or n/n — baseline/red 2-of-5 sampled 0/n is exactly
+0.122 (sequential 39/300), baseline/blue 1-of-4 sampled n/n is 0.705
+(219/300). On qwen's 127 unsaturated cells the campaign-vs-sequential
+difference is median 0.012, 90th percentile 0.073, max 0.114.
+
+**Protocol from here on: ONE request in flight for any probability or
+sampling measurement.** Sequential requests are bit-reproducible on this
+server. Throughput cost is ~4×, which the exact extraction makes irrelevant
+(≈2 requests per cell instead of ≥100). The standalone probe
+`prompt_refinement/batch_numerics/batch_numerics_probe.py` (chat endpoint)
+reproduces this table for any model and writes the per-request values, a
+summary and a figure to `prompt_refinement/batch_numerics/results/`
+(`run_batch_numerics_study.sh`, a one-time study over all models). Whether the artifact moved any
+scenario ORDERING is answered by the exact-table simulations (`-vf-lp` runs),
+not assumed either way — for qwen it did not (levels shifted ≤ 0.013 DI, the
+ordering with its floor-ties is unchanged).

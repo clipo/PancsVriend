@@ -110,3 +110,14 @@ the full-data mean's own 95% CI, i.e. sampling noise moves outcomes less than
 run-to-run noise at reporting precision. This check runs in
 `run_vf_eval_sims.sh` and is re-run on the final artifacts after any top-up;
 it, not the CI table, is what certifies a value function as production.
+
+## Concurrency (added 2026-09-05)
+
+Every probability or sampling measurement is taken with ONE request in flight.
+With several requests batched (`-np 4`, the historical campaigns' setting) the
+server returns batch-dependent probabilities — tens of points on transition
+cells, cache on or off, flash attention on or off — so a sampled rate at
+concurrency > 1 is an average over a family of distributions rather than an
+estimate of the model's. Details, measurements and the probe script:
+`KV_CACHE_SAMPLING_ARTIFACT.md` §8, `batch_numerics/batch_numerics_probe.py`. The exact
+extraction (`logprob_value_function.py`) is sequential by default.

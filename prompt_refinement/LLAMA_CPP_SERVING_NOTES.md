@@ -20,7 +20,7 @@ each step.
 was ~200 requests/min with caching.
 
 **Issues.**
-- **Multi-slot ⇒ nondeterminism.** Logits are not bit-identical across batch
+- **Multi-slot ⇒ nondeterminism — and NOT small (2026-09-05, KV_CACHE_SAMPLING_ARTIFACT.md §8: tens of percentage points on transition cells; one request in flight is bit-reproducible; measure sequentially).** Logits are not bit-identical across batch
   compositions (reduction order, kernel tiling differ with what else is in
   flight). The llama.cpp docs/discussions state plainly that results are not
   guaranteed reproducible with `cache_prompt`/multi-slot serving
@@ -113,7 +113,7 @@ Candidate middle grounds, none currently validated:
 | configuration | same numbers on rerun? |
 |---|---|
 | cache on, no seed, -np 4 concurrent (historical sweeps) | no — and distribution itself state-dependent at near-ties |
-| cache off, no seed, -np 4 concurrent | distribution yes; counts no (true sampling noise) |
+| cache off, no seed, -np 4 concurrent | **distribution NO** (batch-dependent, tens of points at transition cells — §8 of the KV doc); counts no |
 | cache off, fixed seeds, -np 4 concurrent | approximately — measured 44 vs 47/100 on an identical seeded batch (multi-slot batch-composition FP noise flips ~3% of near-tie draws) |
 | cache off, fixed seeds, SERIAL submission (one in flight; works even on an -np 4 server) | **yes — bitwise, measured**: 20/20 identical outputs across two passes; same seed ×10 → identical (2026-08-22, this build) |
 

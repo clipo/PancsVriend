@@ -1,0 +1,20 @@
+{
+ "label": "hermes-4.3-36b-chat-grammar",
+ "model": "Hermes-4.3-36B-Q8_0",
+ "temperature": 0.3,
+ "server": {
+  "model_path": "llms/hermes-4_3_36b-Q8_0.gguf",
+  "build_info": "b1-a4ce259",
+  "total_slots": 4
+ },
+ "cells": 10,
+ "repeats": 12,
+ "concurrency": 4,
+ "sequential_max_range": 2.7461217189106435e-09,
+ "concurrent_sd_median": 0.02996131529759167,
+ "concurrent_span_median": 0.09669079272813294,
+ "concurrent_span_max": 0.16552214907084783,
+ "campaign_minus_sequential_median_abs": 0.02078924936396989,
+ "campaign_minus_sequential_max_abs": 0.05590478723740011,
+ "created": "2026-09-06T16:03:49"
+}
