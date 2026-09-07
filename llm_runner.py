@@ -1121,29 +1121,18 @@ def check_existing_experiment(experiment_name):
     if not os.path.exists(output_dir):
         return False, 0, output_dir, set()
     
-    # Track existing run IDs
-    existing_run_ids = set()
-    
-    # Look for different possible result file patterns
+    # Every run with a move log, per-run or packed (run_files knows both
+    # layouts); plus the original run_<id>.json.gz result files if any.
     import glob
     import re
-    patterns_to_check = [
-        os.path.join(output_dir, "run_*.json.gz"),  # Original pattern
-        os.path.join(output_dir, "states", "states_run_*.npz"),  # Actual pattern used
-        os.path.join(output_dir, "states_run_*.npz"),  # Alternative pattern
-    ]
-    
-    for pattern in patterns_to_check:
-        existing_files = glob.glob(pattern)
-        if existing_files:
-            # Extract run IDs from filenames
-            for file_path in existing_files:
-                filename = os.path.basename(file_path)
-                match = re.search(r'run_(\d+)', filename)
-                if match:
-                    run_id = int(match.group(1))
-                    existing_run_ids.add(run_id)
-            break  # Use the first pattern that finds files
+    existing_run_ids = set(run_files.list_run_ids(output_dir))
+    for pattern in (os.path.join(output_dir, "run_*.json.gz"),
+                    os.path.join(output_dir, "states", "states_run_*.npz"),
+                    os.path.join(output_dir, "states_run_*.npz")):
+        for file_path in glob.glob(pattern):
+            match = re.search(r'run_(\d+)', os.path.basename(file_path))
+            if match:
+                existing_run_ids.add(int(match.group(1)))
     
     completed_runs = len(existing_run_ids)
     return True, completed_runs, output_dir, existing_run_ids
@@ -1615,47 +1604,30 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
     # Load existing results if resuming
     if resume_experiment and completed_runs > 0:
         print(f"Loading {completed_runs} existing results...")
-        # Try different result file patterns
-        patterns_to_check = [
-            os.path.join(output_dir, "run_*.json.gz"),
-            os.path.join(output_dir, "states", "states_run_*.npz"),
-            os.path.join(output_dir, "states_run_*.npz"),
-        ]
-        
-        existing_result_files = []
-        for pattern in patterns_to_check:
-            files = glob.glob(pattern)
-            if files:
-                existing_result_files = files
-                break
-        
         # Load existing results and filter out run_ids that were just re-executed
         newly_executed_run_ids = {r['run_id'] for r in results}
         
         existing_results = []
-        for result_file in sorted(existing_result_files):
-            if result_file.endswith('.json.gz'):
-                with gzip.open(result_file, 'rt') as f:
-                    result = json.load(f)
-                    # Skip if this run was just re-executed (avoids duplicates)
-                    if result.get('run_id') not in newly_executed_run_ids:
-                        existing_results.append(result)
-            elif result_file.endswith('.npz'):
-                # For .npz files, create a minimal result structure
-                # Extract run number from filename
-                match = re.search(r'run_(\d+)', result_file)
-                run_id = int(match.group(1)) if match else 0
-                
+        seen = set()
+        for result_file in sorted(glob.glob(os.path.join(output_dir, "run_*.json.gz"))):
+            with gzip.open(result_file, 'rt') as f:
+                result = json.load(f)
                 # Skip if this run was just re-executed (avoids duplicates)
-                if run_id not in newly_executed_run_ids:
-                    existing_results.append({
-                        'run_id': run_id,
-                        'converged': True,  # Assume converged if file exists
-                        'convergence_step': None,  # Unknown from .npz file alone
-                        'final_step': 'unknown',
-                        'metrics_history': [],  # Empty metrics for .npz files
-                        'file_path': result_file
-                    })
+                if result.get('run_id') not in newly_executed_run_ids:
+                    existing_results.append(result)
+                    seen.add(result.get('run_id'))
+        # Every other stored run (per-run files or packed, via run_files) gets
+        # a placeholder; analyze_results keeps its real rows from disk.
+        for run_id in run_files.list_run_ids(output_dir):
+            if run_id in newly_executed_run_ids or run_id in seen:
+                continue
+            existing_results.append({
+                'run_id': run_id,
+                'converged': True,  # Assume converged if the record exists
+                'convergence_step': None,  # Unknown from the record alone
+                'final_step': 'unknown',
+                'metrics_history': [],  # analyze_results keeps the stored rows
+            })
         
         # Combine existing and new results (no duplicates now)
         all_results = existing_results + results
@@ -1667,6 +1639,11 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
 
     # Analyze results using Simulation's analyze_results method
     output_dir, final_results, convergence_data = Simulation.analyze_results(all_results, output_dir, total_runs)
+
+    # Value-function runs write the per-step record; fold the completed
+    # experiment's per-run files into the packed containers (run_files).
+    if value_function_policy and run_files.pack_enabled():
+        run_files.pack_run_record(output_dir)
     
     print(f"\nExperiment completed. Results saved to: {output_dir}")
     if resume_experiment:

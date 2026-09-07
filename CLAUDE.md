@@ -164,6 +164,23 @@ same per-step tables for both, so analysis code never branches on format.
 `python test_latest_experiment_output_format.py [EXPERIMENT_DIR]` checks a
 directory's files are mutually consistent.
 
+* **Packed** (since 2026-09-05): when a value-function or mechanical
+  experiment completes, the runner folds its per-run files into
+  `move_logs/step_moves_packed.csv.gz` (every step log, `run_id` column
+  first) and `states/states_packed.npz` (member `run_<id>` = that run's
+  frames) and deletes the per-run files — same rows, same arrays, verified
+  member by member before anything is removed. A 10k-run experiment goes
+  from ~20k files / 84 MB on disk to 7 files / 11 MB. The readers try a
+  run's own files first, then the containers, so runs added or re-run
+  after packing land as per-run files until the next pack, and resume,
+  analysis and the format checker are unchanged. Per-run files remain the
+  write format (parallel workers; an aborted campaign keeps finished
+  runs). `PACK_RUN_RECORD=0` disables the automatic pack;
+  `python analysis_tools/pack_run_records.py --all [--root DIR]` packs
+  existing experiments (~1M per-run files predate this). Full-format
+  (per-move) runs are never packed.
+
+
 Re-running an incomplete experiment without `--new` resumes it. Aborted
 live-LLM runs continue from their last saved grid and the files keep the
 pre-abort steps (`Simulation.preload_record`); aborted value-function runs

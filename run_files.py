@@ -6,6 +6,22 @@ Every run writes two files under its experiment directory:
     states/states_run_<id>.npz          'states': frame 0 is the initial grid,
                                         frame k+1 is the grid after step k
 
+PACKED LAYOUT (2026-09-05). Once an experiment is complete, pack_run_record()
+folds those per-run files into two containers holding the same arrays and
+rows and deletes the originals:
+
+    move_logs/step_moves_packed.csv.gz  every step log, with a run_id column
+    states/states_packed.npz            member run_<id> = that run's frames
+
+A 10k-run experiment is ~20k files of a few hundred bytes each, and on a
+4 KiB-block filesystem that is 84 MB on disk for 10 MB of data, plus one
+seek per file to read: packed it is ~5 MB and one open. The readers below
+look for a run's own files first, then the packed containers, so a
+directory can hold both (runs added after packing land as per-run files
+until the next pack), and every caller — resume, analysis, the format
+checker — is unchanged. Per-run files stay the WRITE format: workers write
+them in parallel and an aborted campaign keeps every finished run.
+
 That is the whole record for value-function and mechanical runs. Runs are
 seeded by run_id and deterministic, so anything finer (which agent moved
 where, in what order) is regenerated exactly by re-running with
@@ -25,9 +41,12 @@ load_move_log_json().
 from __future__ import annotations
 
 import ast
+import csv
 import gzip
+import io
 import json
 import os
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -53,6 +72,80 @@ def states_path(output_dir, run_id):
     return os.path.join(output_dir, "states", f"states_run_{run_id}.npz")
 
 
+PACKED_STEP_LOG = "step_moves_packed.csv.gz"
+PACKED_STATES = "states_packed.npz"
+
+
+def packed_step_log_path(output_dir):
+    return os.path.join(output_dir, "move_logs", PACKED_STEP_LOG)
+
+
+def packed_states_path(output_dir):
+    return os.path.join(output_dir, "states", PACKED_STATES)
+
+
+# One parse of each packed container per process, keyed by path and
+# invalidated by (mtime, size): the analysis tools call the per-run readers
+# 10k times per experiment, and the container's directory must not be
+# re-read each time.
+_packed_cache = {}
+
+
+def _cached(path, loader):
+    try:
+        stamp = (os.path.getmtime(path), os.path.getsize(path))
+    except OSError:
+        return None
+    key = os.path.abspath(path)
+    hit = _packed_cache.get(key)
+    if hit is not None and hit[0] == stamp:
+        return hit[1]
+    if hit is not None and hasattr(hit[1], "close"):
+        hit[1].close()
+    value = loader(path)
+    _packed_cache[key] = (stamp, value)
+    return value
+
+
+def _load_packed_table(path):
+    """(frame, {run_id: (start, stop)}) — the row block of every run, found
+    once, so the 10k per-run lookups an analysis makes are slices rather
+    than 10k scans of a million-row frame."""
+    frame = pd.read_csv(path)
+    if "run_id" not in frame.columns:
+        return frame, {}
+    frame = frame.sort_values(["run_id", "step"], kind="stable").reset_index(drop=True)
+    ids = frame["run_id"].to_numpy()
+    starts = np.flatnonzero(np.r_[True, ids[1:] != ids[:-1]])
+    stops = np.r_[starts[1:], len(ids)]
+    return frame, {int(ids[a]): (int(a), int(b)) for a, b in zip(starts, stops)}
+
+
+def _packed_step_logs(output_dir):
+    """All packed step logs as one frame (run_id first), or None."""
+    table = _packed_table(output_dir)
+    return None if table is None else table[0]
+
+
+def _packed_table(output_dir):
+    path = packed_step_log_path(output_dir)
+    if not os.path.exists(path):
+        return None
+    return _cached(path, _load_packed_table)
+
+
+def _packed_states(output_dir):
+    """The packed states container (lazy NpzFile), or None."""
+    path = packed_states_path(output_dir)
+    if not os.path.exists(path):
+        return None
+    return _cached(path, np.load)
+
+
+def _packed_member(run_id):
+    return f"run_{run_id}"
+
+
 def new_step_row(step):
     row = {column: 0 for column in STEP_LOG_COLUMNS}
     row["step"] = int(step)
@@ -66,12 +159,12 @@ def new_step_row(step):
 _LOG_SUFFIXES = (".json.gz", ".json", ".csv.gz", ".csv")
 
 
-def list_run_ids(output_dir):
-    """Sorted run ids that have a move log of any format."""
+def _per_run_log_ids(output_dir):
+    """{run_id: filename} for every per-run move log of any format."""
     move_dir = os.path.join(output_dir, "move_logs")
     if not os.path.isdir(move_dir):
-        return []
-    ids = set()
+        return {}
+    ids = {}
     for name in os.listdir(move_dir):
         for prefix in ("step_moves_run_", "agent_moves_run_"):
             if not name.startswith(prefix):
@@ -79,10 +172,19 @@ def list_run_ids(output_dir):
             for suffix in _LOG_SUFFIXES:
                 if name.endswith(suffix):
                     try:
-                        ids.add(int(name[len(prefix):-len(suffix)]))
+                        ids[int(name[len(prefix):-len(suffix)])] = name
                     except ValueError:
                         pass
                     break
+    return ids
+
+
+def list_run_ids(output_dir):
+    """Sorted run ids that have a move log of any format, per-run or packed."""
+    ids = set(_per_run_log_ids(output_dir))
+    packed = _packed_step_logs(output_dir)
+    if packed is not None and "run_id" in packed.columns:
+        ids.update(int(r) for r in packed["run_id"].unique())
     return sorted(ids)
 
 
@@ -168,6 +270,23 @@ def _aggregate_per_move(df):
 # Per-step readers — the interface everything downstream uses
 # ---------------------------------------------------------------------------
 
+def _packed_step_log(output_dir, run_id):
+    table = _packed_table(output_dir)
+    if table is None:
+        return None
+    frame, blocks = table
+    block = blocks.get(int(run_id))
+    if block is None:
+        return None
+    return frame.iloc[block[0]:block[1]].drop(columns=["run_id"]).reset_index(drop=True)
+
+
+def has_per_step_log(output_dir, run_id):
+    """Whether the run's move log is in the per-step format (own file or packed)."""
+    return os.path.exists(step_log_path(output_dir, run_id)) or \
+        _packed_step_log(output_dir, run_id) is not None
+
+
 def load_step_log(output_dir, run_id):
     """One row per step (STEP_LOG_COLUMNS), from whichever format the run has.
 
@@ -181,6 +300,9 @@ def load_step_log(output_dir, run_id):
             print(f"[run_files] Warning: could not read {path} ({exc})")
             return None
         return df.reindex(columns=list(STEP_LOG_COLUMNS), fill_value=0)
+    packed = _packed_step_log(output_dir, run_id)
+    if packed is not None:
+        return packed.reindex(columns=list(STEP_LOG_COLUMNS), fill_value=0)
     return _aggregate_per_move(_per_move_records(output_dir, run_id))
 
 
@@ -192,15 +314,23 @@ def step_moves(step_log):
 
 
 def load_frames(output_dir, run_id):
-    """Raw 'states' array of the run's npz, or None."""
+    """Raw 'states' array of the run's npz (own file or packed member), or None."""
     path = states_path(output_dir, run_id)
-    if not os.path.exists(path):
+    if os.path.exists(path):
+        try:
+            with np.load(path) as payload:
+                return payload["states"]
+        except Exception as exc:
+            print(f"[run_files] Warning: could not read {path} ({exc})")
+            return None
+    packed = _packed_states(output_dir)
+    member = _packed_member(run_id)
+    if packed is None or member not in packed.files:
         return None
     try:
-        with np.load(path) as payload:
-            return payload["states"]
+        return packed[member]
     except Exception as exc:
-        print(f"[run_files] Warning: could not read {path} ({exc})")
+        print(f"[run_files] Warning: could not read {member} from {packed_states_path(output_dir)} ({exc})")
         return None
 
 
@@ -214,7 +344,7 @@ def load_step_frames(output_dir, run_id):
     """
     frames = load_frames(output_dir, run_id)
 
-    if os.path.exists(step_log_path(output_dir, run_id)):
+    if has_per_step_log(output_dir, run_id):
         step_log = load_step_log(output_dir, run_id)
         if frames is None or step_log is None or step_log.empty:
             return None
@@ -268,3 +398,116 @@ def load_final_grid(output_dir, run_id):
     if loaded is None:
         return None
     return loaded[1][-1]
+
+
+# ---------------------------------------------------------------------------
+# Packing a complete experiment's per-run files into the two containers
+# ---------------------------------------------------------------------------
+
+def _read_step_log_rows(path):
+    """Rows of a per-run step CSV as a list of dicts (csv module: fast)."""
+    with open(path, newline="") as fh:
+        return [{k: int(v) for k, v in row.items()} for row in csv.DictReader(fh)]
+
+
+def pack_run_record(output_dir, verbose=True):
+    """Fold every per-run, per-step record into the packed containers and
+    delete the per-run files. Returns the number of runs packed.
+
+    Full-format runs (agent_moves_run_<id>.json.gz) are left alone: their
+    records carry LLM replies and are read by other tools per file. Runs
+    already in the containers are kept; a run present both ways (re-run
+    after packing) takes its per-run files. Both containers are written to a
+    temporary name and verified member by member against what was read
+    before anything is renamed or deleted, so an interrupted pack leaves the
+    directory as it was.
+    """
+    per_run = {rid: name for rid, name in _per_run_log_ids(output_dir).items()
+               if name.startswith("step_moves_run_")}
+    if not per_run:
+        return 0
+    frames, logs = {}, {}
+    for rid in sorted(per_run):
+        frame = load_frames(output_dir, rid) if os.path.exists(states_path(output_dir, rid)) else None
+        if frame is None:
+            if verbose:
+                print(f"[pack] {output_dir}: run {rid} has no states file; left as is")
+            continue
+        try:
+            rows = _read_step_log_rows(step_log_path(output_dir, rid))
+        except (OSError, ValueError) as exc:
+            if verbose:
+                print(f"[pack] {output_dir}: run {rid} step log unreadable ({exc}); left as is")
+            continue
+        if not rows:
+            continue
+        frames[rid], logs[rid] = np.ascontiguousarray(frame), rows
+    if not frames:
+        return 0
+
+    # Merge with what is already packed (repacking after new runs).
+    old_states, old_logs = _packed_states(output_dir), _packed_step_logs(output_dir)
+    keep = []
+    if old_logs is not None and "run_id" in old_logs.columns:
+        keep = sorted(set(int(r) for r in old_logs["run_id"].unique()) - set(frames))
+
+    states_out, logs_out = packed_states_path(output_dir), packed_step_log_path(output_dir)
+    os.makedirs(os.path.dirname(states_out), exist_ok=True)
+    os.makedirs(os.path.dirname(logs_out), exist_ok=True)
+    tmp_states, tmp_logs = states_out + ".tmp", logs_out + ".tmp"
+    try:
+        # Stream the npz member by member (np.savez_compressed needs every
+        # array in memory at once; a max-steps-heavy 10k-run experiment is
+        # gigabytes of int8).
+        with zipfile.ZipFile(tmp_states, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+            for rid in keep:
+                with zf.open(f"{_packed_member(rid)}.npy", "w", force_zip64=True) as fh:
+                    np.lib.format.write_array(fh, np.ascontiguousarray(old_states[_packed_member(rid)]))
+            for rid in sorted(frames):
+                with zf.open(f"{_packed_member(rid)}.npy", "w", force_zip64=True) as fh:
+                    np.lib.format.write_array(fh, frames[rid])
+        columns = ["run_id", *STEP_LOG_COLUMNS]
+        table = pd.DataFrame(
+            [{"run_id": rid, **{c: row.get(c, 0) for c in STEP_LOG_COLUMNS}}
+             for rid in sorted(frames) for row in logs[rid]], columns=columns)
+        if keep:
+            table = pd.concat([old_logs[old_logs["run_id"].isin(keep)].reindex(columns=columns), table],
+                              ignore_index=True)
+        table = table.sort_values(["run_id", "step"], kind="stable").reset_index(drop=True)
+        table.to_csv(tmp_logs, index=False, compression="gzip")
+
+        # Verify before touching anything.
+        with np.load(tmp_states) as check:
+            for rid, frame in frames.items():
+                if not np.array_equal(check[_packed_member(rid)], frame):
+                    raise RuntimeError(f"packed frames for run {rid} do not match")
+        back = pd.read_csv(tmp_logs, compression="gzip")
+        for rid, rows in logs.items():
+            got = back[back["run_id"] == rid].drop(columns=["run_id"]).reset_index(drop=True)
+            want = pd.DataFrame(rows).reindex(columns=list(STEP_LOG_COLUMNS), fill_value=0)
+            if not got.reindex(columns=list(STEP_LOG_COLUMNS)).astype(int).equals(want.astype(int)):
+                raise RuntimeError(f"packed step log for run {rid} does not match")
+    except BaseException:
+        for tmp in (tmp_states, tmp_logs):
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        raise
+
+    for key in (os.path.abspath(states_out), os.path.abspath(logs_out)):
+        hit = _packed_cache.pop(key, None)
+        if hit is not None and hasattr(hit[1], "close"):
+            hit[1].close()
+    os.replace(tmp_states, states_out)
+    os.replace(tmp_logs, logs_out)
+    for rid in frames:
+        os.remove(states_path(output_dir, rid))
+        os.remove(step_log_path(output_dir, rid))
+    if verbose:
+        print(f"[pack] {output_dir}: packed {len(frames)} run(s) "
+              f"({len(keep)} already packed) into {PACKED_STATES} + {PACKED_STEP_LOG}")
+    return len(frames)
+
+
+def pack_enabled():
+    """Runners pack a completed experiment unless PACK_RUN_RECORD is off."""
+    return os.environ.get("PACK_RUN_RECORD", "1").strip().lower() not in ("0", "false", "no")

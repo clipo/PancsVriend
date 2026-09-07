@@ -3,7 +3,9 @@
 
 For every run listed by run_files.list_run_ids the checker asserts:
 
-1. the move log and states/states_run_<id>.npz are both readable;
+1. the move log and the run's frames (states/states_run_<id>.npz, or its
+   member of states/states_packed.npz once the experiment is packed) are
+   both readable;
 2. per-step runs: the npz has exactly one frame more than the step log has
    rows (frame 0 = initial grid, frame k+1 = after step k) and the steps are
    contiguous; full-format runs: one frame per move record, and any inline
@@ -49,7 +51,7 @@ def check_run(output_dir, run_id, final_steps):
     if steps != list(range(steps[0], steps[0] + len(steps))):
         problems.append(f"run {run_id}: steps are not contiguous ({steps[0]}..{steps[-1]}, {len(steps)} rows)")
 
-    if os.path.exists(run_files.step_log_path(output_dir, run_id)):
+    if run_files.has_per_step_log(output_dir, run_id):     # own CSV or packed
         if len(frames) != len(steps) + 1:
             problems.append(f"run {run_id}: {len(frames)} frames for {len(steps)} steps (expected steps + 1)")
     else:

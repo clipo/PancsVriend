@@ -394,7 +394,7 @@ experiments_with_llama_cpp/run_<ts>_<model>/
 ├── experiments/llm_<scenario>_<ts>/
 │   ├── metrics_history.csv.gz     # one row per (run, step)
 │   ├── run_summary.csv            # one row per run: convergence + final metrics
-│   └── move_logs/  states/
+│   └── move_logs/  states/        # packed after the run (run_files)
 ├── analysis/                      # ANOVA, rankings, combined metrics
 └── plots/                         # segregation plots (PNG)
 ```

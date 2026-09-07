@@ -7,6 +7,7 @@ import config as cfg
 from Agent import Agent
 from tqdm import tqdm
 import argparse
+import run_files
 from base_simulation import Simulation
 
 def mechanical_decision(agent, r, c, grid):
@@ -67,6 +68,8 @@ def run_baseline_experiment(n_runs=100, max_steps=1000, config_override=None, pa
 
     # Analyze results
     output_dir, results, convergence_data = Simulation.analyze_results(results, output_dir, n_runs)
+    if run_files.pack_enabled():
+        run_files.pack_run_record(output_dir)     # per-step records only; full logs are left alone
     
     print(f"\nExperiment completed. Results saved to: {output_dir}")
     print(f"Total runs: {n_runs}")
