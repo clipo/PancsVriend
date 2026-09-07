@@ -103,16 +103,33 @@ def compute_dissimilarity_from_int_grid(int_grid):
     return float(0.5 * np.abs(counts0 / total0 - counts1 / total1).sum())
 
 
+def as_int_grid(grid):
+    """The int8 grid (-1 empty, else type_id) for either representation.
+
+    Object grids of Agent / None are the simulation's live representation;
+    int grids are what states_run_<id>.npz stores and what every metric is
+    a function of. One converter, shared by Metrics.calculate_all_metrics,
+    Simulation._grid_to_int and this module, replaces four copies of the
+    same cell-by-cell loop (2026-09-05). Int inputs come back as int8 without
+    a scan; a type_id outside int8 raises rather than wrapping.
+    """
+    grid = np.asarray(grid)
+    if grid.dtype != object:
+        if grid.dtype == np.int8:
+            return grid
+        if grid.size and (grid.min() < -128 or grid.max() > 127):
+            raise OverflowError("type_id outside int8 range")
+        return grid.astype(np.int8)
+    int_grid = np.full(grid.shape, -1, dtype=np.int8)
+    occupied = grid != None                    # noqa: E711 — elementwise on object arrays
+    if occupied.any():
+        int_grid[occupied] = [agent.type_id for agent in grid[occupied]]
+    return int_grid
+
+
 def compute_dissimilarity(grid):
     """DI for a grid of Agent objects / None (the simulation's representation)."""
-    h, w = grid.shape
-    int_grid = np.full((h, w), -1, dtype=np.int8)
-    for r in range(h):
-        for c in range(w):
-            agent = grid[r][c]
-            if agent is not None:
-                int_grid[r, c] = agent.type_id
-    return compute_dissimilarity_from_int_grid(int_grid)
+    return compute_dissimilarity_from_int_grid(as_int_grid(grid))
 
 
 # ---------------------------------------------------------------------------

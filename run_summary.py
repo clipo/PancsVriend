@@ -175,15 +175,9 @@ def _metrics_from_final_grid(output_dir, run_id, move_log_grid, columns=None):
             # skip rebuilding the agent grid the other six metrics need.
             return {"dissimilarity_index": compute_dissimilarity_from_int_grid(int_grid)}
 
-        from base_simulation import _MetricsMockAgent
         from Metrics import calculate_all_metrics
 
-        mock_grid = np.full(int_grid.shape, None)
-        for r in range(int_grid.shape[0]):
-            for c in range(int_grid.shape[1]):
-                if int_grid[r, c] >= 0:
-                    mock_grid[r, c] = _MetricsMockAgent(int(int_grid[r, c]))
-        computed = calculate_all_metrics(mock_grid)
+        computed = calculate_all_metrics(int_grid)
         return {k: v for k, v in computed.items() if k in wanted}
     except Exception as exc:
         print(f"[run_summary] Warning: could not recompute metrics for run {run_id} ({exc})")

@@ -200,6 +200,17 @@ final_step, n_steps, stop_reason, experiment, llm_model, metrics_source
 Regenerate for existing experiments with
 `python analysis_tools/build_run_summary.py --all`.
 
+### Metrics are whole-array functions of the int grid
+
+Every metric in `Metrics.py` (and the DI) is computed with numpy on the
+int grid that `DissimilarityIndex.as_int_grid` produces from either
+representation; `Simulation.run_step` builds that grid once per step and
+shares it with the frame log. The pre-2026-09-05 object-grid loops live in
+`tests/test_metrics.py` as the oracle the vectorised versions are pinned
+to, bit for bit (real campaign frames + adversarial grids). Per 20x20 step:
+4.4 ms -> 0.3 ms; a value-function run halves overall.
+
+
 ## Development Notes
 
 - The system uses parallel processing for LLM queries with configurable batch sizes

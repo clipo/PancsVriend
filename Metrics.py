@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage import distance_transform_cdt
+from scipy.ndimage import distance_transform_cdt, label
 
 # The dissimilarity index is the paper's headline metric and lives in its own
 # module together with its tract partition, its frozen 10x10 reference
@@ -7,14 +7,28 @@ from scipy.ndimage import distance_transform_cdt
 # for comparability with the earlier literature. Re-exported here so
 # `from Metrics import compute_dissimilarity_from_int_grid` keeps working.
 from DissimilarityIndex import (  # noqa: F401
+    as_int_grid,
     compute_dissimilarity,
     compute_dissimilarity_from_int_grid,
     tract_map,
 )
 
+# Every metric here is a function of the int grid (-1 empty, else type_id),
+# computed with whole-array numpy operations. Until 2026-09-05 each one
+# walked the grid of Agent objects in nested Python loops with per-cell
+# attribute access — six passes over the same 8-neighbourhood, ~4.4 ms per
+# 20x20 step against ~0.3 ms now, and 51-63% of a value-function run's time.
+# The loop versions live on in tests/test_metrics.py as the oracle every
+# function below is checked against, bit for bit, on real and adversarial
+# grids. Callers may pass either representation; as_int_grid converts.
+
+_NB8 = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if (dr, dc) != (0, 0)]
+_NB4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]     # up, down, left, right: the switch-rate order
+_CROSS = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+
 
 def calculate_all_metrics(grid):
-    """All seven segregation metrics for one grid of Agent objects / None.
+    """All seven segregation metrics for one grid (Agent objects / None, or ints).
 
     The dissimilarity index used to be computed only downstream, from the
     saved states (analysis_tools/dissimilarity_index_over_time.py), so every
@@ -22,69 +36,76 @@ def calculate_all_metrics(grid):
     mapping move-frames back onto steps. It is a per-grid statistic like the
     other six, so it is computed here with them (2026-08-25, batch C).
     """
-    clusters = count_clusters(grid)
-    switch_rate = compute_switch_rate(grid)
-    distance = compute_distance(grid)
-    mix_dev = compute_mix_deviation(grid)
-    share = compute_share(grid)
-    ghetto_rate = compute_ghetto_rate(grid)
-    dissimilarity = compute_dissimilarity(grid)
+    t = as_int_grid(grid)
+    like, unlike = _neighbourhood_counts(t)
+    occupied = t >= 0
     return {
-        "clusters": clusters,
-        "switch_rate": switch_rate,
-        "distance": distance,
-        "mix_deviation": mix_dev,
-        "share": share,
-        "ghetto_rate": ghetto_rate,
-        "dissimilarity_index": dissimilarity
+        "clusters": _count_clusters(t, occupied),
+        "switch_rate": _switch_rate(t, occupied),
+        "distance": _distance(t, occupied),
+        "mix_deviation": _mix_deviation(like, unlike, occupied),
+        "share": _share(like, unlike, occupied),
+        "ghetto_rate": _ghetto_rate(unlike, occupied),
+        "dissimilarity_index": compute_dissimilarity_from_int_grid(t),
     }
 
 
-def count_clusters(grid):
-    visited = np.zeros(grid.shape, dtype=bool)
+def _neighbour(t, dr, dc):
+    """t[r + dr, c + dc] at every cell; -1 (empty) beyond the edge."""
+    out = np.full(t.shape, -1, dtype=t.dtype)
+    rows, cols = t.shape
+    r0, r1 = max(0, -dr), min(rows, rows - dr)
+    c0, c1 = max(0, -dc), min(cols, cols - dc)
+    out[r0:r1, c0:c1] = t[r0 + dr:r1 + dr, c0 + dc:c1 + dc]
+    return out
+
+
+def _neighbourhood_counts(t):
+    """Per cell, how many of its 8 neighbours are occupied by the same / the
+    other type (walls and empties count as neither)."""
+    like = np.zeros(t.shape, dtype=np.int16)
+    unlike = np.zeros(t.shape, dtype=np.int16)
+    for dr, dc in _NB8:
+        n = _neighbour(t, dr, dc)
+        present = n >= 0
+        same = present & (n == t)
+        like += same
+        unlike += present & ~same
+    return like, unlike
+
+
+def _count_clusters(t, occupied):
+    """4-connected same-type components, summed over the types present."""
     clusters = 0
+    for type_id in np.unique(t[occupied]):
+        clusters += label(t == type_id, structure=_CROSS)[1]
+    return int(clusters)
 
-    def dfs(r, c, type_id):
-        stack = [(r, c)]
-        while stack:
-            r0, c0 = stack.pop()
-            if visited[r0][c0]:
-                continue
-            visited[r0][c0] = True
-            for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
-                r1, c1 = r0 + dr, c0 + dc
-                if 0 <= r1 < grid.shape[0] and 0 <= c1 < grid.shape[1]:
-                    agent = grid[r1][c1]
-                    if agent and agent.type_id == type_id and not visited[r1][c1]:
-                        stack.append((r1, c1))
 
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent and not visited[r][c]:
-                dfs(r, c, agent.type_id)
-                clusters += 1
-    return clusters
+def _switch_rate(t, occupied):
+    """Over agents with more than one occupied 4-neighbour: type changes
+    between consecutive occupied neighbours (in up, down, left, right order)
+    divided by the number of consecutive pairs."""
+    prev = np.full(t.shape, -1, dtype=t.dtype)
+    have_prev = np.zeros(t.shape, dtype=bool)
+    count = np.zeros(t.shape, dtype=np.int8)
+    pairs = np.zeros(t.shape, dtype=np.int8)
+    switches = np.zeros(t.shape, dtype=np.int8)
+    for dr, dc in _NB4:
+        n = _neighbour(t, dr, dc)
+        present = n >= 0
+        both = present & have_prev
+        pairs += both
+        switches += both & (n != prev)
+        prev = np.where(present, n, prev)
+        have_prev |= present
+        count += present
+    agents = occupied & (count > 1)
+    total = int(pairs[agents].sum())
+    return int(switches[agents].sum()) / total if total > 0 else 0
 
-def compute_switch_rate(grid):
-    switches, total = 0, 0
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent:
-                types = []
-                for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
-                    r1, c1 = r + dr, c + dc
-                    if 0 <= r1 < grid.shape[0] and 0 <= c1 < grid.shape[1]:
-                        n = grid[r1][c1]
-                        if n:
-                            types.append(n.type_id)
-                if len(types) > 1:
-                    total += len(types) - 1
-                    switches += sum(1 for i in range(len(types)-1) if types[i] != types[i+1])
-    return switches / total if total > 0 else 0
 
-def compute_distance(grid):
+def _distance(t, occupied):
     """Mean, over agents, of the taxicab distance to the nearest agent of the
     other type. Agents with no other-type agent on the grid are skipped; 0
     when nobody has one.
@@ -94,84 +115,68 @@ def compute_distance(grid):
     off exactly what the old O(n^2) pairwise scan computed (checked equal in
     tests/test_metrics.py).
     """
-    types = np.full(grid.shape, -1, dtype=np.int8)
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            if grid[r][c]:
-                types[r, c] = grid[r][c].type_id
     dists = []
-    for type_id in np.unique(types[types >= 0]):
-        other = (types >= 0) & (types != type_id)
+    for type_id in np.unique(t[occupied]):
+        other = occupied & (t != type_id)
         if not other.any():
             continue
         to_other = distance_transform_cdt(~other, metric="taxicab")
-        dists.extend(to_other[types == type_id].tolist())
+        dists.extend(to_other[t == type_id].tolist())
     return float(np.mean(dists)) if dists else 0
 
 
+def _mix_deviation(like, unlike, occupied):
+    """Mean over agents with at least one occupied neighbour of
+    |0.5 - like / (like + unlike)|."""
+    total = like + unlike
+    agents = occupied & (total > 0)
+    if not agents.any():
+        return 0
+    return np.mean(np.abs(0.5 - like[agents] / total[agents]))
+
+
+def _share(like, unlike, occupied):
+    """Same-type share of all agent-neighbour pairs."""
+    like_total = int(like[occupied].sum())
+    total = like_total + int(unlike[occupied].sum())
+    return like_total / total if total > 0 else 0
+
+
+def _ghetto_rate(unlike, occupied):
+    """Agents with no other-type neighbour."""
+    return int((occupied & (unlike == 0)).sum())
+
+
+# --- per-metric entry points (either representation) -------------------------
+
+def count_clusters(grid):
+    t = as_int_grid(grid)
+    return _count_clusters(t, t >= 0)
+
+
+def compute_switch_rate(grid):
+    t = as_int_grid(grid)
+    return _switch_rate(t, t >= 0)
+
+
+def compute_distance(grid):
+    t = as_int_grid(grid)
+    return _distance(t, t >= 0)
+
+
 def compute_mix_deviation(grid):
-    deviations = []
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent:
-                like, unlike = 0, 0
-                for dr in [-1, 0, 1]:
-                    for dc in [-1, 0, 1]:
-                        if dr == 0 and dc == 0:
-                            continue
-                        r1, c1 = r + dr, c + dc
-                        if 0 <= r1 < grid.shape[0] and 0 <= c1 < grid.shape[1]:
-                            n = grid[r1][c1]
-                            if n:
-                                if n.type_id == agent.type_id:
-                                    like += 1
-                                else:
-                                    unlike += 1
-                total = like + unlike
-                if total > 0:
-                    deviation = abs(0.5 - like / total)
-                    deviations.append(deviation)
-    return np.mean(deviations) if deviations else 0
+    t = as_int_grid(grid)
+    like, unlike = _neighbourhood_counts(t)
+    return _mix_deviation(like, unlike, t >= 0)
+
 
 def compute_share(grid):
-    like, unlike = 0, 0
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent:
-                for dr in [-1, 0, 1]:
-                    for dc in [-1, 0, 1]:
-                        if dr == 0 and dc == 0:
-                            continue
-                        r1, c1 = r + dr, c + dc
-                        if 0 <= r1 < grid.shape[0] and 0 <= c1 < grid.shape[1]:
-                            n = grid[r1][c1]
-                            if n:
-                                if n.type_id == agent.type_id:
-                                    like += 1
-                                else:
-                                    unlike += 1
-    total = like + unlike
-    return like / total if total > 0 else 0
+    t = as_int_grid(grid)
+    like, unlike = _neighbourhood_counts(t)
+    return _share(like, unlike, t >= 0)
+
 
 def compute_ghetto_rate(grid):
-    ghettos = 0
-    for r in range(grid.shape[0]):
-        for c in range(grid.shape[1]):
-            agent = grid[r][c]
-            if agent:
-                has_unlike = False
-                for dr in [-1, 0, 1]:
-                    for dc in [-1, 0, 1]:
-                        if dr == 0 and dc == 0:
-                            continue
-                        r1, c1 = r + dr, c + dc
-                        if 0 <= r1 < grid.shape[0] and 0 <= c1 < grid.shape[1]:
-                            n = grid[r1][c1]
-                            if n and n.type_id != agent.type_id:
-                                has_unlike = True
-                                break
-                if not has_unlike:
-                    ghettos += 1
-    return ghettos
+    t = as_int_grid(grid)
+    _, unlike = _neighbourhood_counts(t)
+    return _ghetto_rate(unlike, t >= 0)

@@ -1,7 +1,7 @@
 # Base simulation class for Schelling model variants
 import numpy as np
 import config as cfg
-from Metrics import calculate_all_metrics
+from Metrics import as_int_grid, calculate_all_metrics
 import os
 import gzip
 import json
@@ -70,14 +70,7 @@ def _load_single_run_result(task):
     if loaded is not None:
         for step, grid_array in zip(*loaded):
             try:
-                grid_array = np.asarray(grid_array)
-                mock_grid = np.full(grid_array.shape, None)
-                for r in range(grid_array.shape[0]):
-                    for c in range(grid_array.shape[1]):
-                        if grid_array[r, c] >= 0:
-                            mock_grid[r, c] = _MetricsMockAgent(grid_array[r, c])
-
-                step_metrics = calculate_all_metrics(mock_grid)
+                step_metrics = calculate_all_metrics(np.asarray(grid_array))
                 step_metrics['step'] = step
                 step_metrics['run_id'] = run_id
                 metrics_history.append(step_metrics)
@@ -268,12 +261,15 @@ class Simulation:
 
     def run_step(self, verbose_move_log=False):
         moved = self.update_agents(verbose_move_log=verbose_move_log)
-        metrics = calculate_all_metrics(self.grid)
+        # One int grid per step, shared by the metrics and the frame log; the
+        # metrics used to walk the object grid separately (2026-09-05).
+        int_grid = self._grid_to_int()
+        metrics = calculate_all_metrics(int_grid)
         metrics['step'] = self.step
         metrics['run_id'] = self.run_id
         self.metrics_history.append(metrics)
         if not self.full_move_log:
-            self.states.append(self._grid_to_int())    # grid after this step
+            self.states.append(int_grid)               # grid after this step
         if not moved:
             self.no_move_steps += 1
         else:
@@ -299,14 +295,7 @@ class Simulation:
         # a hypothetical type_id > 127 would raise OverflowError here rather
         # than corrupt silently. .tolist() still yields Python ints, so the
         # move-log JSON is unchanged.
-        size = cfg.GRID_SIZE
-        int_grid = np.full((size, size), -1, dtype=np.int8)
-        for r in range(size):
-            for c in range(size):
-                agent = self.grid[r][c]
-                if agent is not None:
-                    int_grid[r, c] = agent.type_id
-        return int_grid
+        return as_int_grid(self.grid)
 
     @staticmethod
     def _normalize_save_every_steps(save_every_steps):
