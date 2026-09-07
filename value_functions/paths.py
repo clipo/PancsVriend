@@ -99,10 +99,6 @@ SEQCHECK_PLOTS_DIR = LOGPROB_DIR / "seqcheck_plots"        # their figures
 # tables. Its own folder since 2026-09-07; the files keep the OUTDATED_ prefix.
 LOGPROB_OUTDATED_MAP_DIR = LOGPROB_DIR / "concurrent_sampling_vs_exact_logprob"
 FIGURES_DIR = RESULTS_DIR / "figures"
-# Retired 2026-09-07: vfS_/vfH_ figures now live in each store's own
-# vf_mapping_plots/ beside the per-artifact plots, so a store carries all of
-# its value-function figures and families are never mixed in one folder.
-VF_PLOTS_DIR = FIGURES_DIR / "vf_plots"   # legacy; nothing writes here
 RULER_SCALING_DIR = FIGURES_DIR / "ruler_scaling"
 SCALE_DEPENDENCE_DIR = FIGURES_DIR / "scale_dependence"
 CHANCE_NULL_DIR = RESULTS_DIR / "chance_null"
