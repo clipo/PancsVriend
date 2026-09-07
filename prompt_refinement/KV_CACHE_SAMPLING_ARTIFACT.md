@@ -204,7 +204,7 @@ server. Throughput cost is ~4×, which the exact extraction makes irrelevant
 `value_functions/batch_numerics/batch_numerics_probe.py` (chat endpoint)
 reproduces this table for any model and writes the per-request values, a
 summary and a figure to `value_functions/batch_numerics/results/`
-(`run_batch_numerics_study.sh`, a one-time study over all models). Whether the artifact moved any
+(`run_batch_numerics_study.py`, a one-time study over all models). Whether the artifact moved any
 scenario ORDERING is answered by the exact-table simulations (`-vf-lp` runs),
 not assumed either way — for qwen it did not (levels shifted ≤ 0.013 DI, the
 ordering with its floor-ties is unchanged).

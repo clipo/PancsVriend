@@ -75,7 +75,7 @@ TEXT_SUBS = [
     (r"analysis_tools/cross_model_vf_comparison\.py", "value_functions/comparison/cross_model_vf_comparison.py"),
 ]
 JOB_PATTERNS = ("build_value_function.py", "logprob_value_function.py", "batch_numerics_probe.py",
-                "run_batch_numerics_study.sh", "run_sanity_vf_chain.sh", "run_logprob_vf_campaign.sh",
+                "run_batch_numerics_study.py", "run_batch_numerics_study.sh", "run_sanity_vf_chain.sh", "run_logprob_vf_campaign.sh",
                 "run_lp_dispatcher.sh", "run_vf_prod10k_queue.sh", "vf_multisplit_check.py",
                 "run_llm_probability_simulation_analysis.py")
 

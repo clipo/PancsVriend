@@ -15,9 +15,12 @@ Everything about this artifact lives here: the probe, its data and its plots.
 * `results/probe_<label>.json` — server build/flags and aggregates.
 * `results/probe_<label>.png` — the per-cell picture.
 
-* `run_batch_numerics_study.sh` — the ONE-TIME study: starts each model's
-  server with its campaign flags, runs the probe, stops it. Not part of any
-  pipeline; run once, keep the CSVs (`--wait` defers until the port is free).
+* `run_batch_numerics_study.py` — the study driver: for each model, starts
+  its llama-server with the campaign flags, runs the probe, stops the server
+  (`--dry-run` prints the plan, `--wait` defers until the port is free,
+  positional labels select models). Not part of any pipeline; the study ran
+  once (all nine models, 2026-09-06/07) and the CSVs are kept. Python since
+  2026-09-07; the shell driver it replaces is gone.
 
 All requests use the chat endpoint, the campaign's own; the first measurements
 of this effect (2026-09-05) went through `/completion` and were discarded as

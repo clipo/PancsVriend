@@ -13,7 +13,7 @@ KV_CACHE_SAMPLING_ARTIFACT.md, addendum): with several requests in flight
 (`-np 4`, continuous batching) a byte-identical request returns DIFFERENT
 next-token probabilities — tens of points on transition cells — while one
 request at a time is bit-reproducible. Needs the model's llama-server up on
---url with the campaign's flags; run_batch_numerics_study.sh does that for
+--url with the campaign's flags; run_batch_numerics_study.py does that for
 every model once (a one-time study, not a pipeline step).
 
 For each probed cell (the unsaturated cells of the sampled artifact with the
