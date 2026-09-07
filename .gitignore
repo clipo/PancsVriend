@@ -128,7 +128,8 @@ llms/**
 llm_utility_approximation/llama_cpp_neighborhood_trials/**
 
 prompt_refinement/results/
-value_functions/results/      # sampled/, llm_logprob/, figures/, chance_null/ (value_functions/paths.py)
+# value-function stores: sampled/, llm_logprob/, figures/, chance_null/ (value_functions/paths.py)
+value_functions/results/
 slot_sweep/results/
 experiments_with_llama_cpp/
 
