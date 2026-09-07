@@ -39,7 +39,8 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import (SAMPLED_DIR, TABLES_REL, BY_SCENARIO_REL,  # noqa: E402
+                                   VF_MAPPING_PLOTS_REL, add_import_paths)
 add_import_paths()
 
 import yaml  # noqa: E402
@@ -486,49 +487,88 @@ def draw_precision_panel(ax, vf):
 
 
 def plot_vf(vf, out_path, dpi=300):
-    """Single-artifact figure; panel drawing shared with the cross-scenario
-    comparison (plot_value_functions.draw_value_function_axes / draw_n_bars)
-    so the two renderings of a value function cannot drift apart. Curve on
-    top, per-datapoint N bar chart, then achieved precision (shared x)."""
+    """Per-SCENARIO figure: the value-function curve and the two role
+    composition surfaces SIDE BY SIDE (user request 2026-09-07), so one file
+    answers both "what is the shape" and "where in the neighbourhood space".
+
+    Panel drawing is shared with the cross-scenario figures
+    (plot_value_functions.draw_value_function_axes / draw_n_bars /
+    draw_heatmap_axes) so the two renderings of a value function cannot drift.
+    A sampled table also gets its N and achieved-precision panels under the
+    curve; an exact one does not — its n_samples / ci95 slots are inherited
+    from the sampled campaign it was checked against, not measured here.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from plot_value_functions import draw_value_function_axes, draw_n_bars
+    from plot_value_functions import (draw_value_function_axes, draw_n_bars,
+                                      draw_heatmap_axes, is_exact, ROLE_COLORS)
 
-    fig, (ax, axn, axp) = plt.subplots(3, 1, figsize=(9, 8.4), sharex=True,
-                                       gridspec_kw={"height_ratios": [3, 1, 1],
-                                                    "hspace": 0.08})
+    exact = is_exact(vf)
+    roles = sorted(vf["compositions"], key=lambda r: (r != "red", r))
+    m = vf["meta"]
+    labels = m.get("role_labels", {})
+    vmax = max([(c["p_move_effective"] or 0.0)
+                for rows in vf["compositions"].values() for c in rows] + [1e-9])
+
+    left_rows = 1 if exact else 3
+    fig = plt.figure(figsize=(15, 5.6 if exact else 8.4))
+    gs = fig.add_gridspec(left_rows, 2, width_ratios=[1.15, 1],
+                          height_ratios=[3] if exact else [3, 1, 1],
+                          hspace=0.08, wspace=0.18)
+    ax = fig.add_subplot(gs[0, 0])
     draw_value_function_axes(ax, vf, legend_roles=True)
-    draw_n_bars(axn, vf)
-    draw_precision_panel(axp, vf)
+    if exact:
+        axp = ax
+    else:
+        axn = fig.add_subplot(gs[1, 0], sharex=ax)
+        axp = fig.add_subplot(gs[2, 0], sharex=ax)
+        draw_n_bars(axn, vf)
+        draw_precision_panel(axp, vf)
+        ax.tick_params(labelbottom=False)
+        axn.tick_params(labelbottom=False)
     axp.set_xlabel("opposite / occupied neighbors (23 reachable ratios)")
     ax.plot([], [], color="black", ls="--", lw=1, label="mechanical (>0.5 moves)")
     ax.annotate("no\nneighbors", (-0.06, 0.02), ha="center", fontsize=7, color="#555")
-    m = vf["meta"]
-    # Report the ACTUAL per-datapoint sample counts in the artifact, not the
-    # config target: a --from-existing-only build carries only the merged
-    # counts, and mixed merge+sample builds vary by datapoint.
+    ax.set_ylabel("effective P(MOVE), equal-weight member mean"
+                  + ("  [exact]" if exact else "  [95% CI]"))
+    ax.legend(fontsize=8, frameon=False)
+
+    # Right column: one surface per role, sharing the curve's colour semantics
+    # through the role name in the title rather than a second colour scale.
+    inner = gs[:, 1].subgridspec(len(roles), 1, hspace=0.28)
+    im, heat_axes = None, []
+    for k, role in enumerate(roles):
+        axh = fig.add_subplot(inner[k, 0])
+        heat_axes.append(axh)
+        im = draw_heatmap_axes(axh, vf, role, vmax, exact)
+        axh.set_title(f"{role} — {labels.get(role, '?')}", fontsize=9,
+                      color=ROLE_COLORS.get(role, "black"))
+        axh.set_ylabel("n_occupied", fontsize=8)
+        if k == len(roles) - 1:
+            axh.set_xlabel("n_similar", fontsize=8)
+    if im is not None:
+        fig.colorbar(im, ax=heat_axes, shrink=0.75,
+                     label=f"P(MOVE)  [0 .. {vmax:.2f}]")
+
     ns = [r["n_samples"] for rows in vf["ratios"].values() for r in rows]
-    n_txt = f"{min(ns)}" if min(ns) == max(ns) else f"{min(ns)}–{max(ns)}"
-    ax.set_ylabel("effective P(MOVE), equal-weight member mean  [95% CI]")
-    # Calibration status in the title: whether the table met the precision it
-    # was asked for has to be visible when inspecting the figure, not only in a
-    # log line. achieved_w is the RMS over cells; the max and the short count
-    # say whether a shortfall is one outlier or systemic.
+    n_txt = None if exact else (f"{min(ns)}" if min(ns) == max(ns) else f"{min(ns)}\u2013{max(ns)}")
     cal = m.get("calibration") or {}
-    if cal:
+    if exact:
+        cal_txt = ""
+    elif cal:
         st = ("converged" if cal.get("converged") else
               f"SHORT — {cal.get('n_cells_short', '?')} of {cal.get('n_cells', '?')} cells over target")
-        cal_txt = (f"\nprecision: asked ±{cal.get('requested_w')}, achieved "
+        cal_txt = (f"; precision asked ±{cal.get('requested_w')}, achieved "
                    f"±{cal.get('achieved_w')} rms / ±{cal.get('achieved_w_max')} max — {st}")
     else:
-        cal_txt = "\nprecision: not recorded (built before calibration provenance)"
-    ax.set_title(f"Value function — {m['model']} / {m['style']} / {m['scenario']} / {m['arm']}\n"
-                 f"(samples per ratio datapoint: {n_txt}, see N panel; T={m['temperature']})"
-                 f"{cal_txt}", fontsize=10)
-    ax.legend(fontsize=8, frameon=False)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=dpi)
+        cal_txt = "; precision not recorded (built before calibration provenance)"
+    kind = "EXACT (log-probability) value function" if exact else "Value function"
+    detail = ("exact probabilities summed over the grammar's token paths — no sampling"
+              if exact else f"samples per ratio datapoint: {n_txt}")
+    fig.suptitle(f"{kind} — {m['model']} / {m['style']} / {m['scenario']} / {m['arm']}\n"
+                 f"({detail}; T={m['temperature']}{cal_txt})", fontsize=10)
+    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1125,7 +1165,7 @@ def main() -> int:
                 vf["compositions"][role] = comp_rows
                 vf["ratios"][role] = ratio_rows
 
-            vf_path = out_dir / f"vf_{label}__{scenario}__{style}.json"
+            vf_path = vf_table_path(out_dir, label, scenario, style)
             vf_path.write_text(json.dumps(vf, indent=1))
             written.append(vf_path)
             print(f"wrote {vf_path}")
@@ -1139,9 +1179,15 @@ def main() -> int:
                 print(f"  ⚠️  INCOMPLETE (kept on disk; counts are mergeable): {e}")
 
             if args.plot:
-                fig_path = out_dir / f"vf_{label}__{scenario}__{style}.{args.format}"
+                fig_path = vf_plot_path(out_dir, label, scenario, style, args.format)
                 plot_vf(vf, fig_path, dpi=args.dpi)
                 print(f"wrote {fig_path}")
+
+    if args.plot:
+        from plot_value_functions import render_label
+        render_label(Path(out_dir) / TABLES_REL,
+                     Path(out_dir) / VF_MAPPING_PLOTS_REL,
+                     label, style, dpi=args.dpi, fmt=args.format)
 
     print(f"\n{len(written)} artifact(s) in {out_dir}")
     return 0

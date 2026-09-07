@@ -65,7 +65,8 @@ OUTPUTS (value_functions/results/llm_logprob/)
       and every state's top-n table. Until 2026-09-07 a vflp_<label>__....json
       duplicated these cells plus the header at 7x the bytes; the header line
       replaced it.
-  concurrent_sampling_vs_exact_logprob/OUTDATED_artifact_samples_vs_exact_<label>.csv / .png   per cell:
+  concurrent_sampling_vs_exact_logprob/OUTDATED_artifact_samples_vs_exact_<label>.csv   per cell:
+      (the .png is no longer drawn automatically; plot_seqcheck.py --outdated-map redraws it)
       p_logprob vs the OUTDATED concurrency-4 campaign's sampled p with its
       Wilson 95% CI — an ARTIFACT MAP, not the pass/fail test (see below).
       Renamed from validation_* on 2026-09-07: the old name read as a pass/fail
@@ -75,6 +76,7 @@ OUTPUTS (value_functions/results/llm_logprob/)
       The y-axis numbers are superseded and are kept only as evidence OF the
       artifact; nothing downstream should read them as value functions.
   validation_data/seqcheck_<label>.csv + validation_data/validation_<label>.json
+  seqcheck_plots/seqcheck_<label>.png   drawn automatically when the check is written
       the pass/fail test (moved into validation_data/ on 2026-09-07 so the
       store's top level holds value-function tables only):
       the cells where exact and campaign disagree most are RE-SAMPLED
@@ -417,7 +419,7 @@ def to_vf1(lp, sampled, label, style):
 
 def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
              server=None, seq_cells=12, seq_samples=300, seq_escalate=3,
-             seq_saturated=4, seq_random=2):
+             seq_saturated=4, seq_random=2, plot=True):
     rows = []
     for scenario in scenarios:
         sampled, _ = sampled_artifact(label, scenario, style)
@@ -451,7 +453,7 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
     # seqcheck_<label>.csv. The leading OUTDATED_ is deliberate: it sorts these
     # away from the live artifacts and warns anyone who only sees the filename.
     # Filed in its own folder (concurrent_sampling_vs_exact_logprob/), away from
-    # the live tables.
+    # the live tables; its figure is redrawn on demand by plot_seqcheck.py --outdated-map.
     LOGPROB_OUTDATED_MAP_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.csv", index=False)
     uns = df[~df.saturated]
@@ -542,7 +544,14 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
         and (summary["saturated_inside_bound"] is None or summary["saturated_inside_bound"] >= 0.99))
     LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
     (LOGPROB_VALIDATION_DIR / f"validation_{label}.json").write_text(json.dumps(summary, indent=1))
-    fig_validation(df, label, LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.png")
+    # The figure that belongs to this verdict is the SEQUENTIAL check
+    # (seqcheck_plots/seqcheck_<label>.png), drawn here as soon as its data is
+    # on disk (2026-09-07). The OUTDATED concurrency-4 map (fig_validation) is
+    # no longer drawn automatically — it shows the batch-numerics artifact,
+    # not extraction error; `plot_seqcheck.py --outdated-map` redraws it.
+    if plot and len(sq):
+        from plot_seqcheck import plot_one
+        plot_one(label)
     return summary
 
 
@@ -630,6 +639,8 @@ def main() -> int:
                          "requests are bit-reproducible")
     ap.add_argument("--out-dir", default=str(LP_DIR))
     ap.add_argument("--no-validate", action="store_true")
+    ap.add_argument("--no-plot", action="store_true",
+                    help="skip the figures (per-scenario + combined value-function plots, and the sequential-check plot)")
     ap.add_argument("--seq-cells", type=int, default=12,
                     help="cells (largest exact-vs-campaign disagreement) re-sampled "
                          "sequentially for the pass/fail test")
@@ -683,7 +694,7 @@ def main() -> int:
         summary = validate(args.label, args.style, scenarios, args.roles, lp_by_scenario, out_dir,
                            server=server, seq_cells=args.seq_cells, seq_samples=args.seq_samples,
                            seq_escalate=args.seq_escalate, seq_saturated=args.seq_saturated,
-                           seq_random=args.seq_random)
+                           seq_random=args.seq_random, plot=not args.no_plot)
         print(json.dumps(summary, indent=1))
         return 0 if summary["pass"] else 4
     for scenario in scenarios:
@@ -718,12 +729,20 @@ def main() -> int:
             p1 = LOGPROB_TABLES_DIR / f"vf_{args.label}-lp__{scenario}__{args.style}.json"
             p1.write_text(json.dumps(vf1, indent=1))
             load_value_function(p1)              # consumer-side check
+            if not args.no_plot:
+                from build_value_function import plot_vf, vf_plot_path
+                plot_vf(vf1, vf_plot_path(LOGPROB_DIR, f"{args.label}-lp",
+                                          scenario, args.style, "png"))
+    if not args.no_plot and not args.no_write_vf1:
+        from plot_value_functions import render_label
+        render_label(LOGPROB_TABLES_DIR, LOGPROB_DIR / VF_MAPPING_PLOTS_REL,
+                     f"{args.label}-lp", args.style)
     print(f"total requests: {server.n_requests}")
     if not args.no_validate:
         summary = validate(args.label, args.style, scenarios, args.roles, lp_by_scenario, out_dir,
                            server=server, seq_cells=args.seq_cells, seq_samples=args.seq_samples,
                            seq_escalate=args.seq_escalate, seq_saturated=args.seq_saturated,
-                           seq_random=args.seq_random)
+                           seq_random=args.seq_random, plot=not args.no_plot)
         print(json.dumps(summary, indent=1))
         return 0 if summary["pass"] else 4
     return 0
