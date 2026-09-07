@@ -81,6 +81,17 @@ python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs exper
 ### Analysis Pipeline
 - **statistical_analysis.py**: ANOVA, effect sizes, multivariate analysis
 - **visualization.py**: Comprehensive PDF reports with time series and comparisons
+- **run_llm_probability_simulation_analysis.py**: the orchestrated pipeline
+  (vf build → contexts → scenario analysis → rank stability → cross-model);
+  its final `cross_model` stage regenerates
+  `prompt_refinement/results/figures/cross_model_{bump,level}_*.png` and the
+  `cross_model_*_tests.csv` tables from every model's newest full run under
+  the run root, so those figures are never hand-run (analysis_guide.md §7b).
+  Only the exact logprob tables (`-vf-lp`) are a result: the sampled
+  `-vf-r3` tables carry the batch-numerics artifact, so the stage skips
+  them (`--family r3` writes `cross_model_sampled_*` for the artifact
+  write-up only; families are never mixed). Exact tables have no
+  multi-split ruler (rank stability runs `--exact`)
 - **SchellingSim.py**: Interactive GUI for real-time simulation viewing
 
 ## Social Context Scenarios

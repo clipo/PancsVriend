@@ -36,6 +36,13 @@ python run_llm_probability_simulation_analysis.py \
     --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 ```
 
+One command per model: simulation, per-campaign analysis
+(`<run_dir>/analysis/`), the DI rank-stability verdict
+(`<run_dir>/analysis/rank_stability/`) and, as the final stage, the
+cross-model bump/level charts and test tables
+(`prompt_refinement/results/figures/cross_model_*`) rebuilt from every
+model's newest full run under `experiments_with_llama_cpp/`.
+
 **Bitwise audit** (same server build):
 
 ```bash
