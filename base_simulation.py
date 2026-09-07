@@ -177,12 +177,15 @@ class Simulation:
         """Populate grid from a 2D numpy/list of ints (-1 empty, 0/1 type ids)."""
         arr = np.array(int_grid)
         assert arr.shape == (cfg.GRID_SIZE, cfg.GRID_SIZE), "initial_int_grid shape mismatch"
+        agent_id = 0
         for r in range(cfg.GRID_SIZE):
             for c in range(cfg.GRID_SIZE):
                 t = int(arr[r, c])
                 if t >= 0:
                     agent = self.agent_factory(t)
                     self.grid[r][c] = agent
+                    agent.agent_id = agent_id
+                    agent_id += 1
                     agent.starting_position = (r, c)
                     agent.position_history = [(r, c)]
                     agent.new_position = None
@@ -192,9 +195,13 @@ class Simulation:
         np.random.shuffle(agents)
         flat_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE)]
         np.random.shuffle(flat_positions)
-        for agent, pos in zip(agents, flat_positions[:len(agents)]):
+        for agent_id, (agent, pos) in enumerate(zip(agents, flat_positions[:len(agents)])):
             r, c = pos
             self.grid[r][c] = agent
+            # Stable per-run identity (index in the seeded shuffle). Keys the
+            # per-decision RNG streams in value-function mode, see
+            # LLMAgent._get_value_function_decision.
+            agent.agent_id = agent_id
             # Assign starting position and initialize position tracking
             agent.starting_position = (r, c)
             agent.position_history = [(r, c)]  # Track all positions throughout the run
@@ -212,6 +219,7 @@ class Simulation:
             agent = self.grid[r][c]
             if agent is not None:
                 agent.new_position = None  # Reset new position for this agent
+                agent.step = self.step     # keys the decision RNG (value-function mode)
             move_to = self.decision_func(agent, r, c, self.grid)
                         
             # Log each agent's move decision

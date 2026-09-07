@@ -149,7 +149,13 @@ files. Two formats exist:
   runs): `step_moves_run_<id>.csv` with one row per step
   (`step, decisions, moved, parse_failed, successful_move, target_occupied,
   invalid_target, chose_to_stay, same_position`) and one grid frame per step
-  in the npz. Runs are seeded by `run_id`, so per-move detail is regenerable.
+  in the npz. Runs are seeded by `run_id`, so per-move detail is regenerable —
+  under the decision-RNG scheme recorded as `rng_scheme` in the run's
+  `config.json`: `keyed` (default since 2026-09-04; each value-function
+  decision's uniform is a function of `(run_id, step, agent_id)`, giving
+  common random numbers across tables and scenarios) or `shared` (the
+  earlier shared `random` stream). Set `VF_RNG_SCHEME=shared` to regenerate a
+  run made before 2026-09-04. See `keyed_uniform` in `llm_runner.py`.
 * **Full** (per-move): `agent_moves_run_<id>.json.gz` with one record per
   agent decision (incl. the raw LLM reply) and one frame per record. Written
   by live-LLM runs always, by anything else with `--full-move-log` /

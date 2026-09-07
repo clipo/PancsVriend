@@ -27,6 +27,14 @@ metric values,
 
 is summarised over B splits as RMS(Δ) = sqrt(mean_b Δ_b²) and compared to
 
+(Since 2026-09-04 llm_runner keys every value-function decision's uniform to
+(run_id, step, agent_id), so "identical random stream" holds literally: the
+half and full arms differ only at decisions whose uniform falls between the
+two tables' probabilities. Before that a single differing decision shifted
+the shared stream and re-rolled every later draw, so rulers measured under
+the old scheme — every multisplit dir dated before 2026-09-04 — carry extra
+run noise and are inflated relative to a re-measurement under this one.)
+
     τ = SD(full finals) / sqrt(n_runs)
 
 the STANDARD ERROR of the full arm's own mean. PASS when RMS(Δ) <= margin·τ.
@@ -644,6 +652,12 @@ def main() -> int:
             # these. Consumers must refuse a status file lacking this key
             # rather than silently mix scales.
             "tau_definition": "se",
+            # Decision-RNG scheme the arms ran under (llm_runner.VF_RNG_SCHEME:
+            # 'keyed' since 2026-09-04, 'shared' before). Rulers measured under
+            # the shared stream carry re-rolled run noise and are inflated; the
+            # orchestrator's ruler resolver prefers 'keyed' and treats a status
+            # file without this key as 'shared'.
+            "rng_scheme": os.environ.get("VF_RNG_SCHEME", "keyed"),
             "worst_inflation_pct": (round(100.0 * (math.sqrt(1.0 + worst ** 2) - 1.0), 1)
                                     if np.isfinite(worst) else None),
             "suggested_precision_multiplier": round(mult, 4),

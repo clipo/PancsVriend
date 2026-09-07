@@ -434,6 +434,50 @@ def check_llm_connection(llm_model=None, llm_url=None, llm_api_key=None, timeout
 
     return False
 
+# ---------------------------------------------------------------------------
+# Value-function decision RNG: one uniform per (run, step, agent, purpose)
+# ---------------------------------------------------------------------------
+# Until 2026-09-04 value-function decisions drew from the shared `random`
+# stream: a STAY consumed one draw, a MOVE two (accept + destination). Two runs
+# with the same seed but tables differing in ONE cell therefore desynchronised
+# at the first differing decision and re-rolled every later draw — so the
+# "paired" arms of vf_multisplit_check (same run seeds, half vs full table)
+# and the cross-scenario pairing of vf_rank_stability were paired only up to
+# the initial grid. Keying each uniform to its identity instead makes the
+# streams true common random numbers: two tables now produce runs that differ
+# only at decisions whose uniform falls between the two probabilities.
+#
+# VF_RNG_SCHEME=shared reproduces pre-2026-09-04 runs from their run_id; the
+# scheme in force is recorded as `rng_scheme` in each experiment's config.json.
+VF_RNG_SCHEME = os.environ.get("VF_RNG_SCHEME", "keyed")
+if VF_RNG_SCHEME not in ("keyed", "shared"):
+    raise ValueError(f"VF_RNG_SCHEME must be 'keyed' or 'shared', got {VF_RNG_SCHEME!r}")
+
+_MASK64 = (1 << 64) - 1
+_U53 = 1.0 / (1 << 53)
+
+
+def _splitmix64(x):
+    x = (x + 0x9E3779B97F4A7C15) & _MASK64
+    x = ((x ^ (x >> 30)) * 0xBF58476D1CE4E5B9) & _MASK64
+    x = ((x ^ (x >> 27)) * 0x94D049BB133111EB) & _MASK64
+    return x ^ (x >> 31)
+
+
+def keyed_uniform(run_id, step, agent_id, salt):
+    """Uniform in [0, 1) that is a pure function of (run_id, step, agent_id, salt).
+
+    salt 0 = the accept/reject draw, 1 = the destination draw. splitmix64 is
+    chained over the four keys, so neighbouring keys give independent-looking
+    outputs (the same mixer numpy's SeedSequence and Java's SplittableRandom
+    rely on); 53 high bits become the double, matching random.random().
+    """
+    h = 0
+    for k in (run_id, step, agent_id, salt):
+        h = _splitmix64(h ^ (int(k) & _MASK64))
+    return (h >> 11) * _U53
+
+
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
                  run_id=None, step=None, temperature=None, llm_style=None,
@@ -468,6 +512,8 @@ class LLMAgent(Agent):
         self.last_llm_parsed_decision = None
         self.last_llm_parse_status = None
 
+    _warned_unkeyed = False
+
     def _agent_role_key(self):
         return "type_a" if self.type_id == 0 else "type_b"
 
@@ -497,6 +543,13 @@ class LLMAgent(Agent):
         surrounding cells (walls and empties excluded — Agent._unlike_ratio
         semantics). Every cell, including the zero-neighbour (0,0) one, is
         guaranteed present by the load-time coverage check.
+
+        Randomness: under VF_RNG_SCHEME=keyed (default since 2026-09-04) the
+        accept draw and the destination draw are keyed_uniform(run_id, step,
+        agent_id, salt) — common random numbers across tables and scenarios,
+        see the note above keyed_uniform. `shared` is the legacy shared-stream
+        behaviour; it is also used, with a one-time warning, if a caller never
+        gave the agent a run_id/step/agent_id (base_simulation always does).
         """
         code = self._context_arrangement_code(r, c, grid)
         n_sim = code.count("S")
@@ -509,7 +562,17 @@ class LLMAgent(Agent):
         # Keep accounting aligned with LLM runs for downstream summaries.
         self.llm_call_count += 1
 
-        choose_move = random.random() < move_probability
+        agent_id = getattr(self, "agent_id", None)
+        keyed = (VF_RNG_SCHEME == "keyed" and self.run_id is not None
+                 and self.step is not None and agent_id is not None)
+        if VF_RNG_SCHEME == "keyed" and not keyed and not LLMAgent._warned_unkeyed:
+            LLMAgent._warned_unkeyed = True
+            print("[LLMAgent] value-function decision without run_id/step/agent_id: "
+                  "falling back to the shared random stream for this process")
+
+        u_accept = (keyed_uniform(self.run_id, self.step, agent_id, 0) if keyed
+                    else random.random())
+        choose_move = u_accept < move_probability
         if self.store_llm_responses:
             self.last_llm_response_raw = (
                 f"VALUE_FUNCTION(comp={n_sim}/{n_occ}, move={move_probability:.6f})"
@@ -523,7 +586,12 @@ class LLMAgent(Agent):
                         for row in range(cfg.GRID_SIZE)
                         for col in range(cfg.GRID_SIZE)
                         if grid[row][col] is None]
-        return random.choice(empty_spaces) if empty_spaces else None
+        if not empty_spaces:
+            return None
+        if keyed:
+            u_dest = keyed_uniform(self.run_id, self.step, agent_id, 1)
+            return empty_spaces[int(u_dest * len(empty_spaces))]
+        return random.choice(empty_spaces)
 
     def get_context_grid(self, r, c, grid):
         """
@@ -1449,6 +1517,10 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             'n_processes': n_processes if parallel else 1,
             'cpu_count': cpu_count(),
             'value_function_file': value_function_path,
+            # Decision-RNG scheme for value-function runs (keyed_uniform doc):
+            # 'keyed' since 2026-09-04, 'shared' before. Live-LLM runs draw
+            # no decision uniforms, so the field is None for them.
+            'rng_scheme': (VF_RNG_SCHEME if value_function_policy else None),
             'value_function_meta': ({k: vf_meta.get(k) for k in
                                      ('label', 'model', 'url', 'style', 'arm',
                                       'scenario', 'temperature', 'grammar_sha256',
