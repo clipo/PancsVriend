@@ -56,7 +56,7 @@ contexts_args:
   temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
   scenario_file: "scenarios_a2.py"
   llm_model: "llama-3.3-70b-vf-s"
-  processes: 4
+  processes: 15        # 2026-09-07: one model at a time on the 20-core box, 5 cores left free for other work
   no_parallel: false
   new: true
 
@@ -92,6 +92,6 @@ profiles:
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "llama-3.3-70b-vf-s"
-      processes: 4
+      processes: 15       # see contexts_args note
       no_parallel: false
       new: true
