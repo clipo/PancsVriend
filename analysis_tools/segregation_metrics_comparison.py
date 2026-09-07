@@ -9,9 +9,9 @@ from experiment_list_for_analysis import (
 )
 from analysis_tools.output_paths import get_reports_dir
 try:  # works whether the repo root or analysis_tools/ is the one on sys.path
-    from analysis_tools.plot_style import overlay_run_points
+    from analysis_tools.plot_style import overlay_run_points, mark_chance_on_axis
 except ImportError:
-    from plot_style import overlay_run_points
+    from plot_style import overlay_run_points, mark_chance_on_axis
 
 # Publication-ready style
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
@@ -40,6 +40,43 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # (llm_baseline, race_white_black, ...) becomes `scenario` here.
 from analysis_tools.anova_by_metric import load_final_metrics  # noqa: E402
 combined_df = load_final_metrics(OUT_DIR)
+
+
+def _chance_levels():
+    """{metric: random-allocation mean} for this run's board, from the same
+    null the rank-stability stage uses (vf_rank_stability.metric_null,
+    cached per board); {} if the board cannot be determined."""
+    import json
+    from pathlib import Path
+    from experiment_list_for_analysis import SCENARIOS
+    board = None
+    for folder in SCENARIOS.values():
+        cfg_path = Path('experiments') / folder / 'config.json'
+        if cfg_path.exists():
+            cfg = json.loads(cfg_path.read_text())
+            if all(k in cfg for k in ('grid_size', 'num_type_a', 'num_type_b')):
+                board = {k: cfg[k] for k in ('grid_size', 'num_type_a', 'num_type_b')}
+                break
+    if board is None:
+        return {}
+    try:
+        try:
+            from analysis_tools.vf_rank_stability import metric_null
+        except ImportError:
+            from vf_rank_stability import metric_null
+        from DissimilarityIndex import random_baseline
+        levels = {m: v['mean'] for m, v in metric_null(board)['metrics'].items()}
+        # DI's published chance level is random_baseline's (the canonical DI
+        # null, the number rank_status.json carries); keep the marker identical.
+        levels['dissimilarity_index'] = float(random_baseline(
+            int(board['grid_size']), int(board['num_type_a']), int(board['num_type_b']))['mean'])
+        return levels
+    except Exception as exc:                       # never let the marker sink the figure
+        print(f"[segregation_metrics_comparison] no chance levels: {exc}")
+        return {}
+
+
+CHANCE = _chance_levels()
 
 # Scenario labels imported from shared module
 
@@ -122,6 +159,7 @@ for idx, metric in enumerate(metrics):
 
     # Individual runs (outliers only past 200 runs) on top of the box
     overlay_run_points(ax, plot_data, positions)
+    mark_chance_on_axis(ax, CHANCE.get(metric))
 
     # Axes formatting
     ax.set_xticks(positions)
@@ -196,6 +234,7 @@ for cap in di_bp['caps']:
 
 # Individual runs (outliers only past 200 runs) on top of the box
 overlay_run_points(ax_di, di_plot_data, di_positions)
+mark_chance_on_axis(ax_di, CHANCE.get('dissimilarity_index'))
 
 ax_di.set_xticks(di_positions)
 ax_di.set_xticklabels(di_labels, rotation=30, ha='right')

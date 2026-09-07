@@ -75,6 +75,30 @@ def overlay_run_points(ax, plot_data, positions, jitter=POINT_JITTER,
                    edgecolors="white", linewidths=0.6, zorder=3)
 
 
+def mark_chance_on_axis(ax, value, label="chance", color="#444444", fontsize=7.5):
+    """A minimal marker of the random-allocation level on the y-axis: a small
+    triangle on the left spine at `value` and a minor tick labelled `label`
+    outside the axis. No line across the data (reference lines on result
+    plots were rejected); the reader can see at a glance where the
+    distributions sit relative to "no segregation". The tick label is
+    dropped when a major tick label already sits at (nearly) that value —
+    share's chance level is exactly 0.5 — so the two never overprint.
+    """
+    if value is None or not np.isfinite(value):
+        return
+    ax.plot([0], [value], marker=">", ms=5, color=color, clip_on=False, zorder=5,
+            transform=ax.get_yaxis_transform())
+    lo, hi = ax.get_ylim()
+    majors = np.asarray(ax.get_yticks(), dtype=float)
+    majors = majors[(majors >= min(lo, hi)) & (majors <= max(lo, hi))]
+    if len(majors) and np.min(np.abs(majors - value)) < 0.06 * abs(hi - lo):
+        return
+    ax.set_yticks([value], minor=True)
+    ax.set_yticklabels([label], minor=True, fontsize=fontsize, color=color, va="center")
+    # No tick line; pad the label clear of the triangle on the spine.
+    ax.tick_params(axis="y", which="minor", length=0, pad=9)
+
+
 def violin_box_points(ax, plot_data, positions, colors, jitter=POINT_JITTER,
                       seed=POINT_SEED, point_size=18):
     """The house distribution figure: violin + narrow box + every run as a point.

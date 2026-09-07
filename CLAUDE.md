@@ -196,8 +196,21 @@ Columns:
 ```
 run_id, scenario, converged, convergence_step, dissimilarity_index,
 clusters, switch_rate, distance, mix_deviation, share, ghetto_rate,
+initial_dissimilarity_index, ... initial_ghetto_rate,
 final_step, n_steps, stop_reason, experiment, llm_model, metrics_source
 ```
+
+* `initial_<metric>` (2026-09-05) — the same seven metrics on the run's
+  initial grid (frame 0), a uniformly random allocation: the run's own
+  paired draw from the chance distribution. "Chance" is tested as a scenario
+  like any other — paired t on final − initial across runs, Holm-corrected —
+  in the ranking table and the cross-model bump charts; a scenario not
+  significantly above its initial grids "shows no segregation". Every
+  significance statement in those outputs is a paired t on per-run
+  differences with no normality gate and no practical floor (solid =
+  statistically distinguishable, not necessarily large); the 0.01 DI
+  FLOOR-TIE remains only in `vf_rank_stability`'s certification, where it
+  bounds GPU top-up quotes.
 
 * `convergence_step` is the **first** of the `NO_MOVE_THRESHOLD` consecutive
   zero-move steps, so `final_step == convergence_step + NO_MOVE_THRESHOLD - 1`

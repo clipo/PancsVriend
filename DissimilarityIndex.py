@@ -41,7 +41,7 @@ DEFAULT_SIZES = (10, 20, 30, 40, 50)
 # exactly (multivariate hypergeometric on tract counts, not a shuffled grid),
 # so 5000 already puts the standard error of the mean near 5e-4 — two orders
 # below anything visible in a figure.
-DEFAULT_DRAWS = 5000
+DEFAULT_DRAWS = 20000   # was 5000; see vf_rank_stability.metric_null
 DEFAULT_SEED = 0
 
 

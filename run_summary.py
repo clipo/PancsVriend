@@ -31,6 +31,9 @@ Column contract (order is the file's order):
 * the seven metric columns — the metrics_history row with the largest step for
   that run. For a converged run these equal the values at convergence_step,
   since by definition nothing moved in between.
+* initial_<metric> — the same seven metrics on the run's initial grid (frame
+  0), i.e. the run's own random-allocation value: the paired "chance"
+  observation (2026-09-05). Empty when the frames are unreadable.
 * stop_reason — converged / max_steps / incomplete.
 * metrics_source — live (read straight from metrics_history.csv) or rebuilt
   (reconstructed from the run's move log because the stored rows were missing
@@ -59,9 +62,17 @@ METRIC_COLUMNS = [
     "ghetto_rate",
 ]
 
+# The same seven metrics on the run's INITIAL grid (frame 0 of its record):
+# a uniformly random allocation, so per run this is a draw from the chance
+# distribution paired with that run's final value. "Chance" is thereby a
+# scenario like any other and is tested the same way (paired t on final -
+# initial across runs), 2026-09-05.
+INITIAL_COLUMNS = [f"initial_{column}" for column in METRIC_COLUMNS]
+
 SUMMARY_COLUMNS = (
     ["run_id", "scenario", "converged", "convergence_step"]
     + METRIC_COLUMNS
+    + INITIAL_COLUMNS
     + ["final_step", "n_steps", "stop_reason", "experiment", "llm_model", "metrics_source"]
 )
 
@@ -136,6 +147,20 @@ def _rebuild_from_move_log(output_dir, run_id, threshold):
         return None, None, None, None
     converged, convergence_step, _ = convergence_from_step_moves(step_moves, threshold)
     return converged, convergence_step, max(step_moves), run_files.load_final_grid(output_dir, run_id)
+
+
+def _initial_metrics(output_dir, run_id):
+    """{initial_<metric>: value} from frame 0 of the run's record, or {}."""
+    frames = run_files.load_frames(output_dir, run_id)
+    if frames is None or len(frames) == 0:
+        return {}
+    try:
+        from Metrics import calculate_all_metrics
+        computed = calculate_all_metrics(np.asarray(frames[0]))
+    except Exception as exc:
+        print(f"[run_summary] Warning: could not compute initial metrics for run {run_id} ({exc})")
+        return {}
+    return {f"initial_{column}": computed.get(column) for column in METRIC_COLUMNS}
 
 
 def _final_grid_from_states(output_dir, run_id):
@@ -391,6 +416,15 @@ def build_run_summary(output_dir, results=None, reuse_existing=True):
             row["stop_reason"] = "incomplete"
 
         summary_rows.append(row)
+
+    # Initial-grid metrics: computed once per run and then carried by the
+    # cached row; rows from before the column existed get them filled here.
+    for row in summary_rows:
+        if any(row.get(column) is None or (isinstance(row.get(column), float) and np.isnan(row[column]))
+               for column in INITIAL_COLUMNS):
+            row.update(_initial_metrics(output_dir, _to_int_or_none(row["run_id"])))
+            for column in INITIAL_COLUMNS:
+                row.setdefault(column, None)
 
     if not summary_rows:
         return pd.DataFrame(columns=SUMMARY_COLUMNS)

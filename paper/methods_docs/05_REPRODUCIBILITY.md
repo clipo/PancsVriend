@@ -78,7 +78,8 @@ Each is documented where it is established; this is the index.
 | 3 | Forced-choice arms — grammar readings on models that will not answer unconstrained are protocol-constructed | 02 |
 | 4 | `step_statistics.csv` (pre-2026-09-05 dirs) is survivor-biased; use `metrics_history.csv.gz` with forward-fill | 01 |
 | 5 | `ghetto_rate` is a count, not a rate; 4- vs 8-neighbourhood split is historical | 01 |
-| 6 | Two run-record formats; read both through `run_files.py` | 01 |
-| 7 | DI is partition-dependent — levels do not compare across grid sizes | 01 |
-| 8 | Live-LLM production runs (A2/A3) ran cache-on: extra near-tie noise, no stable bias | 04 |
-| 9 | Multi-slot FP jitter flips ~3% of near-tie draws; bitwise claims need the serial audit tier | 04 |
+| 6 | Ordering and "at chance" verdicts are paired t-tests with NO practical floor (2026-09-05): at n = 10,000 a ~0.002 DI gap is significant, so "distinguishable" is not "large" — whether to state a minimum effect size is an open decision (OPEN_QUESTIONS.md) | 01 |
+| 7 | Two run-record formats; read both through `run_files.py` | 01 |
+| 8 | DI is partition-dependent — levels do not compare across grid sizes | 01 |
+| 9 | Live-LLM production runs (A2/A3) ran cache-on: extra near-tie noise, no stable bias | 04 |
+| 10 | Multi-slot FP jitter flips ~3% of near-tie draws; bitwise claims need the serial audit tier | 04 |

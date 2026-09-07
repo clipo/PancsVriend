@@ -493,18 +493,13 @@ def _write_single_model_scenario_ranking_table(
     output_csv = reports_dir / f"segregation_scenario_rankings_{safe_model}.csv"
     output_md = reports_dir / f"segregation_scenario_rankings_{safe_model}.md"
 
-    # Normality gating (analysis_tools/normality_tests.py runs earlier in the
-    # pipeline): an adjacent-pair comparison uses Welch's t-test only when
-    # BOTH scenarios' per-run finals pass Shapiro-Wilk for that metric;
-    # otherwise Mann-Whitney U. Missing table -> Mann-Whitney throughout.
-    normal_lookup: Dict[tuple, bool] = {}
-    normality_csv = reports_dir / "normality_tests.csv"
-    if normality_csv.exists():
-        norm_df = pd.read_csv(normality_csv)
-        for _, r in norm_df.iterrows():
-            normal_lookup[(str(r["metric"]), str(r["scenario"]))] = bool(
-                r["normal_at_0.05"]) if pd.notna(r["normal_at_0.05"]) else False
-
+    # Adjacent-pair comparison: paired t-test on the per-run differences,
+    # matched by run_id (run k shares its seed, hence its initial grid,
+    # across scenarios). Until 2026-09-05 this was an UNPAIRED Welch t /
+    # Mann-Whitney U gated on normality_tests.csv; the pairing removes the
+    # shared initial-configuration variance, and the normality gate was
+    # dropped for the reasons in cross_model_vf_comparison.rank_and_test.
+    # The normality step still runs and its Q-Q figures stay as diagnostics.
     def _stars(p: float) -> str:
         return ("***" if p < 0.001 else "**" if p < 0.01
                 else "*" if p < 0.05 else "")
@@ -513,10 +508,13 @@ def _write_single_model_scenario_ranking_table(
     markdown_lines: List[str] = [
         f"# Segregation Ranking by Scenario ({model_display})",
         "",
-        "Each scenario is compared with the NEXT-ranked one. The test is",
-        "normality-gated per normality_tests.csv (Shapiro-Wilk): Welch's",
-        "t-test when both scenarios' finals are normal for the metric,",
-        "Mann-Whitney U (two-sided) otherwise.",
+        "Each scenario is compared with the NEXT-ranked one with a paired",
+        "t-test on the per-run differences (runs matched by run_id: the same",
+        "seed, hence the same initial grid, in every scenario), and with its",
+        "own INITIAL grids — a random allocation, i.e. chance — by the same",
+        "paired t (final - initial). 'Excess' is the mean final - initial in",
+        "the segregating direction; a scenario not significantly above its",
+        "initial grids shows no segregation on that metric.",
         "Significance levels: `***` p<0.001, `**` p<0.01, `*` p<0.05.",
         "",
         "Metrics are ordered with dissimilarity first when available.",
@@ -525,10 +523,14 @@ def _write_single_model_scenario_ranking_table(
 
     for metric in metrics:
         scenario_values: Dict[str, np.ndarray] = {}
+        scenario_series: Dict[str, pd.Series] = {}      # indexed by run_id, for pairing
         for scenario, scenario_df in combined_df.groupby("scenario"):
             vals = scenario_df[metric].dropna().to_numpy(dtype=float)
             if len(vals) > 0:
                 scenario_values[str(scenario)] = vals
+                if "run_id" in scenario_df.columns:
+                    scenario_series[str(scenario)] = (
+                        scenario_df.dropna(subset=[metric]).set_index("run_id")[metric])
 
         if not scenario_values:
             continue
@@ -542,14 +544,31 @@ def _write_single_model_scenario_ranking_table(
         markdown_lines.extend([
             f"## {metric}",
             "",
-            "| Rank | Scenario | Mean | Std dev | Runs | Sig. vs next | p-value vs next | Test |",
-            "|---:|---|---:|---:|---:|:---:|---:|---|",
+            "| Rank | Scenario | Mean | Std dev | Runs | Sig. vs next | p-value vs next | Test | Excess vs chance | Sig. vs chance | p-value vs chance |",
+            "|---:|---|---:|---:|---:|:---:|---:|---|---:|:---:|---:|",
         ])
 
+        init_col = f"initial_{metric}"
         for idx, (scenario, values) in enumerate(ranking):
             mean_value = float(np.mean(values))
             std_value = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
             n_runs = int(len(values))
+
+            # Chance as a paired scenario: final vs the run's own initial grid.
+            chance_excess = chance_p = None
+            chance_marker = ""
+            sdf = combined_df[combined_df["scenario"] == scenario]
+            if init_col in sdf.columns:
+                fin = sdf[metric].to_numpy(dtype=float)
+                ini = sdf[init_col].to_numpy(dtype=float)
+                ok = ~np.isnan(fin) & ~np.isnan(ini)
+                if ok.sum() >= 2:
+                    direction = -1 if metric in ("clusters", "switch_rate") else 1
+                    diff = fin[ok] - ini[ok]
+                    chance_excess = float(direction * diff.mean())
+                    chance_p = 1.0 if np.allclose(diff, 0.0) else float(
+                        stats.ttest_rel(fin[ok], ini[ok]).pvalue)
+                    chance_marker = _stars(chance_p) if chance_excess > 0 else ""
 
             sig_marker = ""
             p_value = None
@@ -557,21 +576,23 @@ def _write_single_model_scenario_ranking_table(
             if idx + 1 < len(ranking):
                 next_name, next_values = ranking[idx + 1]
                 if len(values) >= 2 and len(next_values) >= 2:
-                    both_normal = (normal_lookup.get((metric, scenario), False)
-                                   and normal_lookup.get((metric, next_name),
-                                                         False))
                     try:
-                        if both_normal:
-                            test_used = "Welch t"
-                            _, p_value = stats.ttest_ind(
-                                values, next_values, equal_var=False)
-                        else:
-                            test_used = "Mann-Whitney U"
-                            _, p_value = stats.mannwhitneyu(
-                                values,
-                                next_values,
-                                alternative="two-sided",
-                            )
+                        a = scenario_series.get(scenario)
+                        b = scenario_series.get(next_name)
+                        common = (a.index.intersection(b.index)
+                                  if a is not None and b is not None else [])
+                        if len(common) >= 2:
+                            diff = (a.loc[common] - b.loc[common]).to_numpy(dtype=float)
+                            if np.allclose(diff, 0.0):
+                                test_used, p_value = "degenerate (all differences zero)", 1.0
+                            else:
+                                test_used = "paired t"
+                                _, p_value = stats.ttest_rel(a.loc[common], b.loc[common],
+                                                             nan_policy="omit")
+                        else:                       # no run_id to pair on (legacy roll-up)
+                            test_used = "Welch t (unpaired)"
+                            _, p_value = stats.ttest_ind(values, next_values, equal_var=False)
+                        p_value = float(p_value)
                         sig_marker = _stars(p_value)
                     except Exception:
                         p_value = None
@@ -593,11 +614,16 @@ def _write_single_model_scenario_ranking_table(
                 "significant_vs_next": sig_marker,
                 "p_value_vs_next": None if p_value is None else round(float(p_value), 6),
                 "test_vs_next": test_used,
+                "excess_vs_chance": None if chance_excess is None else round(chance_excess, 6),
+                "significant_vs_chance": chance_marker,
+                "p_value_vs_chance": None if chance_p is None else round(chance_p, 6),
             })
 
             p_value_display = "" if p_value is None else f"{p_value:.6f}"
+            excess_display = "" if chance_excess is None else f"{chance_excess:+.4f}"
+            chance_p_display = "" if chance_p is None else f"{chance_p:.6f}"
             markdown_lines.append(
-                f"| {idx + 1} | {scenario_label} | {mean_value:.4f} | {std_value:.4f} | {n_runs} | {sig_marker} | {p_value_display} | {test_used or ''} |"
+                f"| {idx + 1} | {scenario_label} | {mean_value:.4f} | {std_value:.4f} | {n_runs} | {sig_marker} | {p_value_display} | {test_used or ''} | {excess_display} | {chance_marker} | {chance_p_display} |"
             )
 
         markdown_lines.append("")

@@ -1,12 +1,16 @@
-"""Normality tests + plots per metric, and normality-gated significance tests
-between social-context scenarios.
+"""Normality diagnostics per metric: Shapiro-Wilk table + Q-Q / histogram plots.
 
-Why: the choice of between-scenario significance test (parametric ANOVA /
-Welch t vs non-parametric Kruskal-Wallis / Mann-Whitney) must be justified by
-whether each metric's per-run final values are normal within each scenario.
-This module tests it (Shapiro-Wilk), PLOTS it (per-metric Q-Q + histogram
-grids), and then runs the appropriate omnibus + pairwise tests with Holm
-correction.
+DIAGNOSTIC ONLY (2026-09-05). This module used to gate the between-scenario
+significance tests on its Shapiro-Wilk verdicts (Welch t / ANOVA when normal,
+Mann-Whitney / Kruskal-Wallis otherwise) and write its own significance table.
+At n = 10,000 runs per scenario Shapiro-Wilk rejects any real deviation (and
+scipy flags its p-value as inaccurate above N = 5,000), while the tests that
+matter — the paired t on per-run differences in the ranking table and the
+cross-model ordering — rest on the CLT for the MEAN difference, which holds at
+this n whatever the per-run values look like. So the gate was dropped, the
+significance table (a duplicate of anova_by_metric + the ranking table) with
+it, and what remains is the evidence a reader wants to see: the W statistic
+per (metric, scenario) and the Q-Q plots.
 
 Pipeline mode (registered in run_all_scenario_analysis.py, after
 run_summary roll-up):
@@ -20,8 +24,6 @@ Outputs (into the reports dir, or <run_dir>/plots in --run-dir mode):
     normality_tests.csv            metric x scenario Shapiro-Wilk table
     normality/normality_<metric>.png   per-scenario Q-Q plot + histogram w/ fit
                                    (in a dedicated normality/ subfolder)
-    significance_tests.csv         omnibus test per metric (test chosen by
-                                   normality) + Holm-corrected pairwise tests
 """
 import argparse
 import itertools
@@ -95,48 +97,6 @@ def holm_correction(pvals):
     return adjusted
 
 
-def significance_tests(values_by_scenario, metric, all_normal):
-    """Omnibus + Holm-corrected pairwise tests; test family chosen by normality."""
-    groups = {s: np.asarray(v, dtype=float)[~np.isnan(np.asarray(v, dtype=float))]
-              for s, v in values_by_scenario.items()}
-    groups = {s: v for s, v in groups.items() if len(v) >= 2}
-    rows = []
-    if len(groups) < 2:
-        return rows
-    names = list(groups)
-    if all_normal:
-        omni_name = "one-way ANOVA"
-        stat, p = stats.f_oneway(*groups.values())
-        pair_name = "Welch t-test"
-        pair = lambda a, b: stats.ttest_ind(a, b, equal_var=False)
-    else:
-        omni_name = "Kruskal-Wallis"
-        stat, p = stats.kruskal(*groups.values())
-        pair_name = "Mann-Whitney U"
-        pair = lambda a, b: stats.mannwhitneyu(a, b, alternative="two-sided")
-    rows.append({"metric": metric, "comparison": "omnibus", "test": omni_name,
-                 "statistic": stat, "p_raw": p, "p_holm": p,
-                 "significant_at_0.05": bool(p < ALPHA),
-                 "sig_level": sig_stars(p)})
-    pairs = list(itertools.combinations(names, 2))
-    if pairs:
-        raw = []
-        for a, b in pairs:
-            s, pv = pair(groups[a], groups[b])
-            raw.append((a, b, s, pv))
-        adj = holm_correction(np.array([r[3] for r in raw]))
-        for (a, b, s, pv), ph in zip(raw, adj):
-            rows.append({"metric": metric, "comparison": f"{a} vs {b}",
-                         "test": pair_name, "statistic": s, "p_raw": pv,
-                         "p_holm": ph, "significant_at_0.05": bool(ph < ALPHA),
-                         "sig_level": sig_stars(ph)})
-    return rows
-
-
-# --------------------------------------------------------------------------
-# Plotting
-# --------------------------------------------------------------------------
-
 def plot_metric_normality(metric, values_by_scenario, shapiro_rows, out_path):
     """One figure per metric: per-scenario Q-Q plot (top) + histogram with
     fitted normal (bottom), annotated with Shapiro-Wilk W and p."""
@@ -197,24 +157,19 @@ def analyze(values_by_metric, out_dir, csv_prefix=""):
     os.makedirs(out_dir, exist_ok=True)
     plots_dir = os.path.join(out_dir, "normality")
     os.makedirs(plots_dir, exist_ok=True)
-    normality_rows, significance_rows = [], []
+    normality_rows = []
     for metric, values_by_scenario in values_by_metric.items():
         rows = shapiro_table(values_by_scenario, metric)
         normality_rows.extend(rows)
         plot_metric_normality(metric, values_by_scenario, rows,
                               os.path.join(plots_dir, f"normality_{metric}.png"))
-        decided = [r["normal_at_0.05"] for r in rows if r["normal_at_0.05"] is not None]
-        all_normal = bool(decided) and all(decided)
-        significance_rows.extend(
-            significance_tests(values_by_scenario, metric, all_normal))
     norm_csv = os.path.join(out_dir, f"{csv_prefix}normality_tests.csv")
-    sig_csv = os.path.join(out_dir, f"{csv_prefix}significance_tests.csv")
     pd.DataFrame(normality_rows).to_csv(norm_csv, index=False)
-    pd.DataFrame(significance_rows).to_csv(sig_csv, index=False)
+    stale = os.path.join(out_dir, f"{csv_prefix}significance_tests.csv")   # pre-2026-09-05 output
+    if os.path.exists(stale):
+        os.remove(stale)
     print(f"[normality] wrote {norm_csv}")
-    print(f"[normality] wrote {sig_csv} "
-          f"({sum(r['significant_at_0.05'] for r in significance_rows)} significant rows)")
-    return pd.DataFrame(normality_rows), pd.DataFrame(significance_rows)
+    return pd.DataFrame(normality_rows), None
 
 
 def run_from_summary_csv(csv_path=None, out_dir=None):
