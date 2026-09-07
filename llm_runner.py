@@ -217,7 +217,7 @@ def format_run_progress(scenario, done, total, elapsed_s, n_processes,
 
 
 def _sanitize_model_for_path_component(name: str) -> str:
-    """Return filesystem-safe model slug used by llm_token_probabilities outputs."""
+    """Return a filesystem-safe model slug (shared by the log-prob tooling removed 2026-09-05; kept for path compatibility)."""
     sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '-', str(name).strip())
     sanitized = sanitized.rstrip(' .')
     sanitized = re.sub(r'-{2,}', '-', sanitized)
@@ -225,7 +225,7 @@ def _sanitize_model_for_path_component(name: str) -> str:
 
 
 def _temp_slug(temperature: float) -> str:
-    """Format a temperature into a filesystem-safe slug matching branching_probability_estimator."""
+    """Format a temperature into a filesystem-safe slug (T0p3 style; the branching estimator that defined it was removed 2026-09-05)."""
     return f"T{float(temperature):.3f}".replace(".", "p")
 
 

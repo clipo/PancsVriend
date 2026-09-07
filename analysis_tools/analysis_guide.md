@@ -169,7 +169,7 @@ steps.append(("your_script", _run_new, {}))
 
 ```bash
 # 1. Run simulations (example)
-python run_experiments.py --config some_config.yaml
+python run_all_contexts.py --runs 10 --processes 5 --llm-model phi4:latest
 
 # 2. One-click analysis without movement (fast)
 python analysis_tools/experiment_list_for_analysis.py

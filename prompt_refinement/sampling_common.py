@@ -267,7 +267,7 @@ def wilson_ci(count: int, total: int, z: float = 1.96) -> tuple:
     """Wilson score interval, clamped to [0, 1]; (0, 1) when total <= 0.
 
     Canonical home going forward; original in
-    llm_utility_approximation/branching_vs_sampling_comparison.py:136 (not
+    the branching_vs_sampling_comparison.py that was removed 2026-09-05 (not
     imported from there because that module pulls numpy + local modules).
     """
     if total <= 0:

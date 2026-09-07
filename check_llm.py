@@ -177,7 +177,7 @@ Your choice:"""}],
     if success_count >= 4:
         print("OVERALL: ✅ LLM is ready for experiments")
         print("\nYou can proceed with:")
-        print("  python run_experiments.py")
+        print("  python run_all_contexts.py")
     elif success_count >= 2:
         print("OVERALL: ⚠️  LLM works but may be slow/unreliable")
         print("\nConsider:")

@@ -35,17 +35,11 @@ python test_llm_parallel.py --llm-model "claude-3-sonnet" --llm-url "https://api
 
 ### Running Experiments
 ```bash
-# Full experiment suite (uses config.py by default)
-python run_experiments.py
+# Orchestrated value-function pipeline (simulation + analysis + cross-model stage)
+python run_llm_probability_simulation_analysis.py --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 
-# Full experiment suite with custom LLM
-python run_experiments.py --llm-model "gpt-4o" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
-
-# Quick test version
-python run_experiments.py --quick-test
-
-# Custom configuration with multiple parameters
-python run_experiments.py --baseline-runs 50 --llm-runs 20 --scenarios baseline race_white_black --llm-model "claude-3-sonnet"
+# Multi-scenario live-LLM runner
+python run_all_contexts.py --runs 10 --processes 5 --llm-model phi4:latest
 
 # Individual components
 python baseline_runner.py --runs 100
@@ -60,8 +54,6 @@ python SchellingSim.py
 # Generate statistical analysis
 python statistical_analysis.py
 
-# Create visualization reports
-python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs experiments/llm_*
 ```
 
 ## Architecture
@@ -73,14 +65,13 @@ python visualization.py --baseline-dir experiments/baseline_xxx --llm-dirs exper
 - **config.py**: Central configuration for all simulation parameters
 
 ### Experiment Framework
-- **run_experiments.py**: Master orchestrator for complete experiment suites
+- **run_all_contexts.py**: Multi-scenario runner (resume, manifests, run-summary roll-up)
 - **baseline_runner.py**: Runs mechanical agent simulations
 - **llm_runner.py**: Runs LLM agent simulations with social context scenarios
 - **plateau_detection.py**: Detects convergence points and calculates segregation speeds
 
 ### Analysis Pipeline
 - **statistical_analysis.py**: ANOVA, effect sizes, multivariate analysis
-- **visualization.py**: Comprehensive PDF reports with time series and comparisons
 - **run_llm_probability_simulation_analysis.py**: the orchestrated pipeline
   (vf build → contexts → scenario analysis → rank stability → cross-model);
   its final `cross_model` stage regenerates

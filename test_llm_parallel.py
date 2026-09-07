@@ -187,7 +187,7 @@ if __name__ == "__main__":
     if success1 and success2:
         print("✅ All tests passed - LLM parallel processing is robust")
         print("\nYou can safely run:")
-        print("  python run_experiments.py")
+        print("  python run_all_contexts.py")
     elif success1:
         print("⚠️  Basic functionality works, but failure handling needs review")
         print("Consider testing with smaller batch sizes")

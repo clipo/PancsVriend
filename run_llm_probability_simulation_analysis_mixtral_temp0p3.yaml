@@ -35,7 +35,7 @@ skip_analysis: false
 continue_on_error: false
 dry_run: false
 
-# Pass-through args for llm_utility_approximation/llm_token_probabilities.py
+# (token-probability stage removed 2026-08-25; its script llm_first_token_probabilities.py removed 2026-09-05 — key ignored)
 # Keep each field null/empty to omit that flag.
 token_args:
   scenario: all           # default: null (single-prompt mode unless set)

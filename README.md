@@ -256,10 +256,6 @@ python switch_llm.py --list
 # Test connectivity with different models
 python switch_llm.py --preset mixtral --test
 python switch_llm.py --preset qwen --test
-
-# Run experiments with different models
-python switch_llm.py --preset mixtral --quick-test
-python switch_llm.py --preset gpt4 --run-experiments  # (requires OpenAI API key)
 ```
 
 ### Basic Usage
@@ -273,8 +269,8 @@ python comprehensive_comparison_study.py --quick-test
 # Launch interactive dashboard with progress monitoring
 python launch_dashboard_menu.py
 
-# Full experiment suite
-python run_experiments.py
+# Multi-scenario runner
+python run_all_contexts.py --runs 10 --processes 5
 ```
 
 ## 📋 Available LLM Models
@@ -296,7 +292,6 @@ python run_experiments.py
 python comprehensive_comparison_study.py --quick-test
 
 # Test different models
-python switch_llm.py --preset qwen --quick-test
 python switch_llm.py --preset mixtral --test
 ```
 
@@ -309,7 +304,7 @@ python comprehensive_comparison_study.py --preset mixtral
 python switch_llm.py --preset qwen --llm race_white_black 30
 
 # Custom configuration
-python run_experiments.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
+python run_all_contexts.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
 ```
 
 ### Real-Time Monitoring
@@ -443,7 +438,7 @@ See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for
 
 ### Experiment Scripts
 - `comprehensive_comparison_study.py` - **Main entry point** for three-way comparisons
-- `run_experiments.py` - Master orchestrator for complete experiment suites
+- `run_all_contexts.py` - Multi-scenario runner (resume, manifests, run-summary roll-up)
 - `baseline_runner.py` - Runs mechanical agent simulations
 - `llm_runner.py` - Runs LLM agent simulations with social contexts
 
@@ -460,7 +455,6 @@ See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for
 
 ### Analysis Tools
 - `statistical_analysis.py` - ANOVA, effect sizes, multivariate analysis
-- `visualization.py` - Comprehensive PDF reports with time series and comparisons
 - `plateau_detection.py` - Convergence detection and segregation speed calculation
 
 ## 🔧 Configuration
@@ -555,15 +549,15 @@ python switch_llm.py --preset mixtral --llm race_white_black 30
 python switch_llm.py --preset qwen --llm economic_high_working 30
 
 # Multi-scenario comparison
-python run_experiments.py --scenarios baseline race_white_black economic_high_working
+python run_all_contexts.py --scenarios baseline race_white_black economic_high_working
 ```
 
 ### Model Comparisons
 ```bash
 # Test different models on same scenario
-python switch_llm.py --preset mixtral --quick-test
-python switch_llm.py --preset qwen --quick-test
-python switch_llm.py --preset gpt4 --quick-test  # (requires OpenAI key)
+python switch_llm.py --preset mixtral --llm race_white_black 30
+python switch_llm.py --preset qwen --llm race_white_black 30
+python switch_llm.py --preset gpt4 --llm race_white_black 30  # (requires OpenAI key)
 ```
 
 ## 📊 Output Structure
@@ -755,7 +749,6 @@ We welcome contributions! Please:
 - `pairwise_comparison_analysis.py` - Detailed pairwise comparisons
 - `convergence_analysis.py` - Convergence speed and rate analysis
 - `comprehensive_visualization_report.py` - Complete PDF report generator
-- `visualization.py` - Individual visualization tools
 - **NEW**: `analyze_experiment_results.py` - Extract and compare final metrics across scenarios
 - **NEW**: `analyze_convergence_patterns.py` - Time series analysis of segregation evolution
 - **NEW**: `visualize_experiment_comparison.py` - Generate comparison plots and heatmaps

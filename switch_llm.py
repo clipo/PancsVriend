@@ -56,9 +56,8 @@ def main():
 Examples:
   %(prog)s --list                           # List all available presets
   %(prog)s --preset mixtral --test          # Test Mixtral connectivity
-  %(prog)s --preset gpt4 --run-experiments  # Run experiments with GPT-4
+  %(prog)s --preset gpt4 --llm baseline 30   # Run one scenario with GPT-4
   %(prog)s --preset qwen --check            # Check Qwen connectivity
-  %(prog)s --preset mixtral --quick-test    # Quick experiment test with Mixtral
         """
     )
     
@@ -70,10 +69,6 @@ Examples:
     
     parser.add_argument('--test', action='store_true',
                        help='Test LLM connectivity (runs check_llm.py)')
-    parser.add_argument('--run-experiments', action='store_true',
-                       help='Run full experiments (runs run_experiments.py)')
-    parser.add_argument('--quick-test', action='store_true',
-                       help='Run quick experiment test (runs run_experiments.py --quick-test)')
     parser.add_argument('--check', action='store_true',
                        help='Check LLM connectivity (same as --test)')
     parser.add_argument('--baseline', type=int, metavar='RUNS',
@@ -107,13 +102,6 @@ Examples:
     if args.test or args.check:
         success = run_with_preset(args.preset, 'check_llm.py', args.extra_args)
     
-    elif args.run_experiments:
-        success = run_with_preset(args.preset, 'run_experiments.py', args.extra_args)
-    
-    elif args.quick_test:
-        extra = ['--quick-test'] + args.extra_args
-        success = run_with_preset(args.preset, 'run_experiments.py', extra)
-    
     elif args.baseline:
         extra = ['--runs', str(args.baseline)] + args.extra_args
         success = run_with_preset(args.preset, 'baseline_runner.py', extra)
@@ -124,7 +112,7 @@ Examples:
         success = run_with_preset(args.preset, 'llm_runner.py', extra)
     
     else:
-        print("❓ No action specified. Use one of: --test, --run-experiments, --quick-test, --baseline, --llm")
+        print("❓ No action specified. Use one of: --test, --baseline, --llm")
         print("   Or use --help for more options")
         sys.exit(1)
     

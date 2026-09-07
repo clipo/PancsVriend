@@ -21,12 +21,6 @@ python switch_llm.py --preset gpt4 --test  # (requires OpenAI API key)
 
 ### Run Experiments with Different Models
 ```bash
-# Quick test with Mixtral
-python switch_llm.py --preset mixtral --quick-test
-
-# Full experiments with Qwen
-python switch_llm.py --preset qwen --run-experiments
-
 # LLM experiments with specific scenario
 python switch_llm.py --preset mixtral --llm baseline 30
 ```
@@ -89,16 +83,13 @@ Edit `llm_presets.py` to add your API keys:
 python switch_llm.py --preset mixtral --test
 python switch_llm.py --preset qwen --test
 
-# Run quick experiments to compare
-python switch_llm.py --preset mixtral --quick-test
-python switch_llm.py --preset qwen --quick-test
+# Run the same scenario under each to compare
+python switch_llm.py --preset mixtral --llm baseline 30
+python switch_llm.py --preset qwen --llm baseline 30
 ```
 
 ### Production Experiments
 ```bash
-# Full experiment suite with your preferred model
-python switch_llm.py --preset mixtral --run-experiments
-
 # Specific LLM scenario testing
 python switch_llm.py --preset qwen --llm race_white_black 30
 python switch_llm.py --preset mixtral --llm economic_high_working 30
@@ -117,11 +108,8 @@ python update_default_llm.py --show
 
 ### Pass Additional Arguments
 ```bash
-# Run experiments with custom parameters
-python switch_llm.py --preset mixtral --run-experiments --extra-args --baseline-runs 50 --llm-runs 20
-
-# Quick test with specific scenarios
-python switch_llm.py --preset qwen --quick-test --extra-args --scenarios baseline race_white_black
+# Run a scenario with extra runner arguments
+python switch_llm.py --preset mixtral --llm baseline 30 --extra-args --max-steps 500
 ```
 
 ### Using with Other Scripts
@@ -129,10 +117,10 @@ You can still use the original command-line approach:
 
 ```bash
 # Original way (still works)
-python run_experiments.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
+python run_all_contexts.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
 
 # New easy way
-python switch_llm.py --preset gpt4 --run-experiments
+python switch_llm.py --preset gpt4 --llm baseline 30
 ```
 
 ## ✅ Current Status

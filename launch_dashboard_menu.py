@@ -88,7 +88,7 @@ def show_menu(experiments):
         print("\n❌ No experiments found!")
         print("\nTo start an experiment, run one of:")
         print("  python comprehensive_comparison_study.py --quick-test")
-        print("  python run_experiments.py")
+        print("  python run_all_contexts.py")
         return None
     
     print(f"\nFound {len(experiments)} experiment(s):\n")
