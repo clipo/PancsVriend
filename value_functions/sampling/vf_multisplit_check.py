@@ -139,7 +139,8 @@ import yaml  # noqa: E402
 _THIS = Path(__file__).resolve().parent
 REPO_ROOT = _THIS.parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import (MULTISPLIT_DIR, SAMPLED_DIR,  # noqa: E402
+                                   SAMPLED_TABLES_DIR, add_import_paths)
 add_import_paths()
 
 from build_value_function import _assemble_artifact, _blank_counts  # noqa: E402
@@ -147,7 +148,7 @@ from sampling_common import load_value_function  # noqa: E402
 from vf_simulation_evaluation import (ALL_METRICS, METRIC_LABELS,  # noqa: E402
                                       SCENARIO_ORDER, load_batch)
 
-VF_DIR = SAMPLED_DIR
+VF_DIR = SAMPLED_TABLES_DIR   # tables/ since 2026-09-07
 CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 
 
@@ -170,7 +171,7 @@ def load_raw_samples(vf, vf_path):
     for shard in shards:
         p = Path(shard)
         if not p.exists():                      # tolerate a moved repo
-            p = VF_DIR / "raw" / p.name
+            p = SAMPLED_DIR / "raw" / p.name
         if not p.exists():
             raise FileNotFoundError(f"raw shard missing: {shard}")
         with gzip.open(p, "rt", encoding="utf-8") as f:
@@ -538,7 +539,9 @@ def main() -> int:
         print(f"no artifacts for label {args.label!r} style {args.style!r}")
         return 1
 
-    out_dir = Path(args.out_dir or (VF_DIR / f"multisplit_{args.label}"))
+    # Rulers live in sampled/multisplit/ since 2026-09-07 so the store root
+    # holds only vf_*.json tables.
+    out_dir = Path(args.out_dir or (MULTISPLIT_DIR / f"multisplit_{args.label}"))
     out_dir.mkdir(parents=True, exist_ok=True)
     scratch = Path(args.scratch) if args.scratch else Path(tempfile.mkdtemp(
         prefix=f"vfsplit_{args.label}_"))

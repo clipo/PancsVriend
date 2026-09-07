@@ -614,6 +614,32 @@ def record_calibration_meta(vf_path, requested_w, converged, passes):
         json.dump(vf, fh, indent=1)
 
 
+
+
+def vf_table_path(out_dir, label, scenario, style):
+    """Where a vf-1 table lives: <out_dir>/tables/vf_<label>__<scenario>__<style>.json.
+
+    Moved out of the store root on 2026-09-07 (102 tables in sampled/ buried
+    every other artifact). Relative to out_dir so the sanity arm gets the same
+    layout in its own store without a second constant.
+    """
+    d = Path(out_dir) / TABLES_REL
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"vf_{label}__{scenario}__{style}.json"
+
+
+def vf_plot_path(out_dir, label, scenario, style, fmt):
+    """Per-SCENARIO figure path: <out_dir>/vf_mapping_plots/by_scenario/.
+
+    One level below the combined all-scenario figures, which are what normally
+    gets looked at. Relative to out_dir on purpose: every store (sampled,
+    sampled_small, llm_logprob) gets the same layout without another constant.
+    """
+    d = Path(out_dir) / VF_MAPPING_PLOTS_REL / BY_SCENARIO_REL
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"vf_{label}__{scenario}__{style}.{fmt}"
+
+
 def residual_deficit(out_dir, label, scenarios, styles, roles, precision):
     """(total_deficit, missing_slices, total_valid) across every configured slice.
 
@@ -626,7 +652,7 @@ def residual_deficit(out_dir, label, scenarios, styles, roles, precision):
     total, missing, valid = 0, [], 0
     for scenario in scenarios:
         for style in styles:
-            vf_path = out_dir / f"vf_{label}__{scenario}__{style}.json"
+            vf_path = vf_table_path(out_dir, label, scenario, style)
             if not vf_path.exists():
                 missing.append(f"{scenario}/{style}")
                 continue
@@ -656,7 +682,7 @@ def top_up(out_dir, label, scenarios, styles, roles, conf, url, arm,
     for scenario in scenarios:
         kw_by_role = role_keywords(scenario, conf.get("scenario_file"))
         for style in styles:
-            vf_path = out_dir / f"vf_{label}__{scenario}__{style}.json"
+            vf_path = vf_table_path(out_dir, label, scenario, style)
             if not vf_path.exists():
                 print(f"[top-up] SKIP {scenario}/{style}: {vf_path.name} not found")
                 continue
@@ -721,7 +747,7 @@ def top_up(out_dir, label, scenarios, styles, roles, conf, url, arm,
             if not tolerant:
                 load_value_function(vf_path)
             if plot:
-                fig_path = out_dir / f"vf_{label}__{scenario}__{style}.{fmt}"
+                fig_path = vf_plot_path(out_dir, label, scenario, style, fmt)
                 plot_vf(vf_new, fig_path, dpi=dpi)
                 print(f"[top-up] rewrote {fig_path}")
     return 0
@@ -790,11 +816,11 @@ def calibrate(out_dir, label, scenarios, styles, roles, conf, url, arm,
     if plot:  # once, at the end: per-pass figures are immediately superseded
         for scenario in scenarios:
             for style in styles:
-                vf_path = out_dir / f"vf_{label}__{scenario}__{style}.json"
+                vf_path = vf_table_path(out_dir, label, scenario, style)
                 if vf_path.exists():
                     with open(vf_path) as fh:
                         plot_vf(json.load(fh),
-                                out_dir / f"vf_{label}__{scenario}__{style}.{fmt}",
+                                vf_plot_path(out_dir, label, scenario, style, fmt),
                                 dpi=dpi)
         print(f"[calibrate] figures written for {len(scenarios) * len(styles)} slice(s)")
 
@@ -803,7 +829,7 @@ def calibrate(out_dir, label, scenarios, styles, roles, conf, url, arm,
     for scenario in scenarios:
         for style in styles:
             record_calibration_meta(
-                out_dir / f"vf_{label}__{scenario}__{style}.json",
+                vf_table_path(out_dir, label, scenario, style),
                 precision, converged=(total == 0), passes=max_passes)
 
     if total == 0:
@@ -835,7 +861,7 @@ def rebuild_from_raw(out_dir, label, scenarios, styles, keep, suffix):
     import gzip
     for scenario in scenarios:
         for style in styles:
-            vf_path = out_dir / f"vf_{label}__{scenario}__{style}.json"
+            vf_path = vf_table_path(out_dir, label, scenario, style)
             if not vf_path.exists():
                 print(f"[rebuild] SKIP {scenario}/{style}: {vf_path.name} not found")
                 continue
@@ -880,7 +906,7 @@ def rebuild_from_raw(out_dir, label, scenarios, styles, keep, suffix):
                                     "samples_kept": kept,
                                     "date": datetime.now().isoformat(timespec="seconds")}
             vf_new = _assemble_artifact(meta, counts, roles)
-            out_path = out_dir / f"vf_{new_label}__{scenario}__{style}.json"
+            out_path = vf_table_path(out_dir, new_label, scenario, style)
             if keep == "all":
                 # Round-trip identity check, NOT an overwrite of the original.
                 same = vf_new["compositions"] == vf["compositions"]

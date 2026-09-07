@@ -42,7 +42,7 @@ import pandas as pd  # noqa: E402
 
 _THIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS.parents[1]))
-from value_functions.paths import RULER_SCALING_DIR, SAMPLED_DIR  # noqa: E402
+from value_functions.paths import MULTISPLIT_DIR, RULER_SCALING_DIR, SAMPLED_DIR  # noqa: E402
 
 STORE = SAMPLED_DIR
 FRACTIONS = {"": 0.5, "_f075": 0.75, "_f0875": 0.875}
@@ -61,7 +61,7 @@ def load_rulers(label):
     """{f: (check DataFrame, deltas DataFrame)} for the fractions on disk."""
     out = {}
     for suffix, f in FRACTIONS.items():
-        d = STORE / f"multisplit_{label}_b32g20_keyed{suffix}"
+        d = MULTISPLIT_DIR / f"multisplit_{label}_b32g20_keyed{suffix}"
         if (d / "vf_multisplit_deltas.csv").exists():
             out[f] = (pd.read_csv(d / "vf_multisplit_check.csv"),
                       pd.read_csv(d / "vf_multisplit_deltas.csv"))

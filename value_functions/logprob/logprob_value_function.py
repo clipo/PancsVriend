@@ -51,14 +51,32 @@ geometrically; expansion stops at --max-depth or when a state's mass is
 below --mass-floor, with the dropped mass added to the bound.
 
 OUTPUTS (value_functions/results/llm_logprob/)
-  vflp_<label>__<scenario>__<style>.json      schema vf-lp-1: per (role, cell)
-      p_move, p_stay, mass_bound, n_requests, every path with its mass and
-      every state's top-n table (so the "\\n then flip" cases are visible)
-  raw/vflp_<label>__<scenario>__<style>_states.jsonl.gz   one record per request
-  validation_<label>.csv / .png               per cell: p_logprob vs the
-      CAMPAIGN's sampled p with its Wilson 95% CI — an ARTIFACT MAP, not the
-      pass/fail test (see below)
-  seqcheck_<label>.csv + validation_<label>.json   the pass/fail test:
+  tables/vf_<label>-lp__<scenario>__<style>.json   the CONSUMER table
+      (schema vf-1, the format the sampled route also writes) - what the _lp run
+      configs load. Exact rates in p_move_effective; the sampled campaign's
+      numbers demoted to p_move_sampled / ci95_sampled for provenance.
+  raw/vflp_<label>__<scenario>__<style>_states.jsonl.gz   the extraction record,
+      schema vf-lp-1. Line 0 is a {"_meta": true, ...} header (label, model,
+      grammar_sha256, server, sampled_artifact_sha256, T, mass_floor, ...); each
+      later line is ONE (role, cell) - 90 of them for 45 compositions x 2 roles,
+      NOT one per HTTP request (a cell costs 2-3 requests, ~251 per scenario;
+      the docstring claimed per-request until 2026-09-07). Per cell: p_move,
+      p_stay, mass_bound, n_requests, prompt_sha256, every path with its mass
+      and every state's top-n table. Until 2026-09-07 a vflp_<label>__....json
+      duplicated these cells plus the header at 7x the bytes; the header line
+      replaced it.
+  concurrent_sampling_vs_exact_logprob/OUTDATED_artifact_samples_vs_exact_<label>.csv / .png   per cell:
+      p_logprob vs the OUTDATED concurrency-4 campaign's sampled p with its
+      Wilson 95% CI — an ARTIFACT MAP, not the pass/fail test (see below).
+      Renamed from validation_* on 2026-09-07: the old name read as a pass/fail
+      record and the large disagreements it shows were being taken for
+      extraction errors. They are the batch-numerics artifact in the y-axis
+      series, which was sampled at concurrency 4 before that artifact was known.
+      The y-axis numbers are superseded and are kept only as evidence OF the
+      artifact; nothing downstream should read them as value functions.
+  validation_data/seqcheck_<label>.csv + validation_data/validation_<label>.json
+      the pass/fail test (moved into validation_data/ on 2026-09-07 so the
+      store's top level holds value-function tables only):
       the cells where exact and campaign disagree most are RE-SAMPLED
       SEQUENTIALLY (campaign payload, chat endpoint, one request in flight);
       a cell whose 95% CI misses the exact value is ESCALATED (--seq-escalate
@@ -105,6 +123,9 @@ from value_functions.paths import LOGPROB_DIR, SAMPLED_DIR, add_import_paths  # 
 add_import_paths()
 
 from sampling_common import load_value_function, role_keywords, wilson_ci  # noqa: E402
+from value_functions.paths import (LOGPROB_VALIDATION_DIR, LOGPROB_OUTDATED_MAP_DIR,  # noqa: E402
+                                   LOGPROB_TABLES_DIR, LOGPROB_RAW_DIR,
+                                   LOGPROB_DIR, VF_MAPPING_PLOTS_REL)
 from ratio_prompt_templates import ALL_COMPOSITIONS, RATIO_CANDIDATES  # noqa: E402
 from evaluate_ratio_prompts import render_prompt  # noqa: E402
 from llm_runner import MOVE_STAY_GRAMMAR, SAMPLER_PARAMS  # noqa: E402
@@ -342,6 +363,27 @@ def run_scenario(server, label, scenario, style, roles, scenario_file, args, raw
     return out
 
 
+
+def load_lp_trace(path):
+    """Read a vflp_*_states.jsonl.gz back into the {meta, compositions} shape.
+
+    Line 0 is the {"_meta": true, ...} header (the same convention the sampled
+    raw files use); every later line is one cell. Replaces the vflp_*.json that
+    carried the identical cells plus that header, dropped 2026-09-07.
+    """
+    meta, comps = {}, {}
+    with gzip.open(path, "rt") as fh:
+        for line in fh:
+            rec = json.loads(line)
+            if rec.get("_meta"):
+                meta = {k: v for k, v in rec.items() if k != "_meta"}
+                continue
+            comps.setdefault(rec["role"], []).append(rec)
+    if not meta:
+        raise ValueError(f"{path} has no _meta header line (pre-2026-09-07 trace?)")
+    return {"schema": "vf-lp-1", "meta": meta, "compositions": comps}
+
+
 def to_vf1(lp, sampled, label, style):
     """vf-1 artifact with exact rates, sampled counts kept for provenance."""
     vf = json.loads(json.dumps(sampled))       # deep copy
@@ -402,7 +444,16 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
                              "n_requests": e["n_requests"]})
     import pandas as pd
     df = pd.DataFrame(rows)
-    df.to_csv(out_dir / f"validation_{label}.csv", index=False)
+    # Named for what it IS: OUTDATED sampled numbers that carry the
+    # batch-numerics ARTIFACT, plotted against the exact tables. Called
+    # validation_*.csv until 2026-09-07, which read as a pass/fail record; it is
+    # not one. The verdict lives in validation_<label>.json and rests on
+    # seqcheck_<label>.csv. The leading OUTDATED_ is deliberate: it sorts these
+    # away from the live artifacts and warns anyone who only sees the filename.
+    # Filed in its own folder (concurrent_sampling_vs_exact_logprob/), away from
+    # the live tables.
+    LOGPROB_OUTDATED_MAP_DIR.mkdir(parents=True, exist_ok=True)
+    df.to_csv(LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.csv", index=False)
     uns = df[~df.saturated]
     sat = df[df.saturated]
     summary = {
@@ -470,7 +521,8 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
                              "escalated": escalated, "seq_n": n, "seq_move": mv,
                              "p_sequential": mv / n if n else None, "seq_ci_low": lo, "seq_ci_high": hi,
                              "inside_seq_ci": lo <= r.p_logprob <= hi})
-        pd.DataFrame(seq_rows).to_csv(out_dir / f"seqcheck_{label}.csv", index=False)
+        LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(seq_rows).to_csv(LOGPROB_VALIDATION_DIR / f"seqcheck_{label}.csv", index=False)
     sq = pd.DataFrame(seq_rows)
     summary["seq_check_cells"] = int(len(sq))
     summary["seq_check_inside_ci"] = float(sq.inside_seq_ci.mean()) if len(sq) else None
@@ -488,8 +540,9 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
     summary["pass"] = bool(
         (summary["seq_check_inside_ci"] is None or summary["seq_check_inside_ci"] >= 1.0)
         and (summary["saturated_inside_bound"] is None or summary["saturated_inside_bound"] >= 0.99))
-    (out_dir / f"validation_{label}.json").write_text(json.dumps(summary, indent=1))
-    fig_validation(df, label, out_dir / f"validation_{label}.png")
+    LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
+    (LOGPROB_VALIDATION_DIR / f"validation_{label}.json").write_text(json.dumps(summary, indent=1))
+    fig_validation(df, label, LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.png")
     return summary
 
 
@@ -501,7 +554,9 @@ def fig_validation(df, label, path):
     # Palette: two categorical hues (unsaturated / saturated) plus a neutral
     # for the identity line; error bars in the point's own hue at low alpha.
     uns, sat = df[~df.saturated], df[df.saturated]
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.8))
+    # Extra height reserved for the provenance banner and the footnote: without
+    # them a reader takes the scatter for an extraction failure (2026-09-07).
+    fig, axes = plt.subplots(1, 2, figsize=(11, 6.1))
     ax = axes[0]
     for sub, color, name, mk in ((uns, "#4C6EF5", "unsaturated (0 < n_move < n)", "o"),
                                  (sat, "#E8590C", "saturated (0/n or n/n)", "s")):
@@ -514,9 +569,9 @@ def fig_validation(df, label, path):
                     ecolor=color, elinewidth=0.6, alpha=0.75, label=name, zorder=3)
     ax.plot([0, 1], [0, 1], color="#868E96", lw=1, ls="--", zorder=2)
     ax.set_xlabel("P(MOVE) from grammar-masked logprobs (exact)")
-    ax.set_ylabel("sampled effective rate, Wilson 95% CI")
-    ax.set_title(f"{label}: {len(df)} cells, {int(uns.inside_ci.sum())}/{len(uns)} unsaturated inside CI",
-                 fontsize=10)
+    ax.set_ylabel("OLD CONCURRENT campaign: sampled rate\n(n=100/cell, concurrency 4), Wilson 95% CI")
+    ax.set_title(f"{len(df)} cells — {int(uns.inside_ci.sum())}/{len(uns)} unsaturated "
+                 f"inside the CAMPAIGN's CI", fontsize=10)
     ax.legend(fontsize=8, frameon=False, loc="upper left")
     ax.grid(alpha=0.2)
     ax = axes[1]
@@ -533,7 +588,21 @@ def fig_validation(df, label, path):
         ax.grid(alpha=0.2)
     else:
         ax.axis("off")
-    fig.tight_layout()
+    # The y-axis series predates the batch-numerics finding, so points off the
+    # identity line are the artifact being MEASURED, not an extraction error.
+    # Say so on the figure: the file travels without its docstring.
+    fig.suptitle(f"{label} — ARTIFACT MAP, NOT the validation test",
+                 fontsize=12, fontweight="bold", color="#C92A2A")
+    fig.text(
+        0.5, 0.015,
+        "y-axis = the pre-2026-09-06 SAMPLED CAMPAIGN (n=100/cell at concurrency 4). llama.cpp returns "
+        "batch-dependent probabilities at concurrency > 1,\n"
+        "so disagreement with the exact x-axis is EXPECTED HERE and is that artifact — not an error in "
+        "the log-probability extraction.\n"
+        "The pass/fail test is seqcheck_<label>.csv: the worst-disagreeing cells re-sampled SEQUENTIALLY "
+        "(n=300, escalated 3x on a miss); all 9 models pass at 100%.",
+        ha="center", va="bottom", fontsize=7.5, color="#495057", linespacing=1.5)
+    fig.tight_layout(rect=(0, 0.115, 1, 0.945))
     fig.savefig(path, dpi=200)
     plt.close(fig)
 
@@ -575,7 +644,7 @@ def main() -> int:
                     help="a first-stage miss gets this many x --seq-samples more draws; "
                          "pass requires every checked cell inside its final CI")
     ap.add_argument("--validate-only", action="store_true",
-                    help="skip extraction: load the existing vflp_*.json for the label "
+                    help="skip extraction: load the existing raw/vflp_*_states.jsonl.gz for the label "
                          "and run the validation (needs the model's server up)")
     ap.add_argument("--no-write-vf1", action="store_true")
     args = ap.parse_args()
@@ -602,10 +671,10 @@ def main() -> int:
     if args.validate_only:
         tpl, fn = RATIO_CANDIDATES[args.style]
         for scenario in scenarios:
-            f = out_dir / f"vflp_{args.label}__{scenario}__{args.style}.json"
+            f = LOGPROB_RAW_DIR / f"vflp_{args.label}__{scenario}__{args.style}_states.jsonl.gz"
             if not f.exists():
                 print(f"--validate-only: missing {f}"); return 2
-            lp_by_scenario[scenario] = json.loads(f.read_text())
+            lp_by_scenario[scenario] = load_lp_trace(f)
             kw_by_role = role_keywords(scenario, args.scenario_file)
             for role in args.roles:
                 for cell in ALL_COMPOSITIONS:
@@ -619,13 +688,9 @@ def main() -> int:
         return 0 if summary["pass"] else 4
     for scenario in scenarios:
         sampled, spath = sampled_artifact(args.label, scenario, args.style)
-        raw_path = out_dir / "raw" / f"vflp_{args.label}__{scenario}__{args.style}_states.jsonl.gz"
-        with gzip.open(raw_path, "wt") as raw:
-            def raw_writer(rec, raw=raw):
-                raw.write(json.dumps(rec) + "\n")
-            lp = run_scenario(server, args.label, scenario, args.style, args.roles,
-                              args.scenario_file, args, raw_writer)
-        lp["meta"] = {
+        LOGPROB_RAW_DIR.mkdir(parents=True, exist_ok=True)
+        raw_path = LOGPROB_RAW_DIR / f"vflp_{args.label}__{scenario}__{args.style}_states.jsonl.gz"
+        meta = {
             "label": args.label, "model": model, "url": args.url, "style": args.style,
             "scenario": scenario, "scenario_file": args.scenario_file or "scenarios_a2.py",
             "roles": args.roles, "temperature": temperature, "sampler_params": SAMPLER_PARAMS,
@@ -637,13 +702,20 @@ def main() -> int:
             "server": {k: props.get(k) for k in ("model_path", "build_info", "total_slots")},
             "sampled_artifact": str(spath), "sampled_artifact_sha256": sha256_file(spath) if spath.exists() else None,
             "created": datetime.now().isoformat(timespec="seconds"),
-            "raw_states": str(raw_path),
         }
-        (out_dir / f"vflp_{args.label}__{scenario}__{args.style}.json").write_text(json.dumps(lp, indent=1))
+        with gzip.open(raw_path, "wt") as raw:
+            raw.write(json.dumps({"_meta": True, **meta}) + "\n")
+
+            def raw_writer(rec, raw=raw):
+                raw.write(json.dumps(rec) + "\n")
+            lp = run_scenario(server, args.label, scenario, args.style, args.roles,
+                              args.scenario_file, args, raw_writer)
+        lp["meta"] = meta
         lp_by_scenario[scenario] = lp
         if not args.no_write_vf1 and sampled is not None:
             vf1 = to_vf1(lp, sampled, args.label, args.style)
-            p1 = out_dir / f"vf_{args.label}-lp__{scenario}__{args.style}.json"
+            LOGPROB_TABLES_DIR.mkdir(parents=True, exist_ok=True)
+            p1 = LOGPROB_TABLES_DIR / f"vf_{args.label}-lp__{scenario}__{args.style}.json"
             p1.write_text(json.dumps(vf1, indent=1))
             load_value_function(p1)              # consumer-side check
     print(f"total requests: {server.n_requests}")

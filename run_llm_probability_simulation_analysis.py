@@ -40,7 +40,7 @@ multi-split RULER (value_functions/comparison/vf_rank_stability.py). The stage d
 everything from the run itself — label from the value-function template
 (vf_<label>__{scenario}__<style>.json), the production board from
 contexts_args, the ruler as the newest multisplit_<label>*/ directory in
-value_functions/results/sampled/ whose multisplit_status.json
+value_functions/results/sampled/multisplit/ whose multisplit_status.json
 matches that board and max_steps (rng_scheme 'keyed' preferred over
 'shared'). `rank_stability_args` in the yaml overrides any of --label,
 --multisplit, --tie-mult, ...; `skip_rank_stability: true` disables the
@@ -104,6 +104,9 @@ CROSS_MODEL_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "cross_model
 # board it was measured on, so it lives with the table, never inside a
 # production run folder.
 VF_STORE = REPO_ROOT / "value_functions" / "results" / "sampled"
+# Rulers moved into a subfolder on 2026-09-07 so the store root holds only
+# vf_*.json tables; keep both names so the error text still points at the store.
+MULTISPLIT_STORE = VF_STORE / "multisplit"
 BOARD_KEYS = ("grid_size", "num_type_a", "num_type_b", "max_steps")
 
 DEPRECATED_TOKEN_KEYS = (
@@ -389,7 +392,8 @@ def _production_board(contexts_args: list[str]) -> dict[str, str | None]:
 def _resolve_ruler(label: str, board: dict[str, str | None]) -> tuple[Path | None, list[dict]]:
     """Newest multi-split ruler for `label` whose recorded board matches.
 
-    Scans VF_STORE/multisplit_<label>*/multisplit_status.json. A ruler is only
+    Scans MULTISPLIT_STORE/multisplit_<label>*/multisplit_status.json
+    (value_functions/results/sampled/multisplit/ since 2026-09-07). A ruler is only
     comparable to a production batch measured on the same board and step cap
     (a 10x10 ruler runs ~2x optimistic against a 20x20 batch), and only on the
     current tau scale (tau_definition == 'se'). Among matches, a 'keyed'
@@ -397,7 +401,7 @@ def _resolve_ruler(label: str, board: dict[str, str | None]) -> tuple[Path | Non
     then the newest wins. Returns (chosen dir or None, every candidate seen).
     """
     seen: list[dict] = []
-    for st in sorted(VF_STORE.glob(f"multisplit_{label}*/multisplit_status.json")):
+    for st in sorted(MULTISPLIT_STORE.glob(f"multisplit_{label}*/multisplit_status.json")):
         try:
             d = json.loads(st.read_text())
         except (OSError, ValueError):
@@ -973,7 +977,7 @@ def _run_rank_stability_stage(args, run_layout, rs_args, vf_label, board,
              "splits": d.get("splits")} for d in seen]
         if chosen is None:
             failure = (f"no multi-split ruler for {label!r} matching board {board} "
-                       f"under {VF_STORE} (saw {len(seen)}; run "
+                       f"under {MULTISPLIT_STORE} (saw {len(seen)}; run "
                        f"run_vf_multisplit_backfill.sh on the production board first)")
         else:
             ms_dir = str(chosen)

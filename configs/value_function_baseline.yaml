@@ -10,7 +10,7 @@
 # P(MOVE) tables, which llm_runner.py consumes directly:
 #
 #   python llm_runner.py --scenario baseline --runs 5 \
-#       --value-function value_functions/results/sampled/vf_gemma-4-31b-chat-grammar__baseline__R1_count_opposite.json
+#       --value-function value_functions/results/sampled/tables/vf_gemma-4-31b-chat-grammar__baseline__R1_count_opposite.json
 #
 # No LLM server is needed for the simulation once the artifact exists; the
 # server is only needed while SAMPLING (and not at all with

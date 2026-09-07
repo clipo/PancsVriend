@@ -125,8 +125,15 @@ Per model, all 540 cells:
   `vflp_<label>__<scenario>__R3_dual_count.json`   schema vf-lp-1: per cell
       p_move (exact), mass_bound, n_paths, per-path breakdown, allowed-token
       logits per state, provenance (gguf sha, template hash, T, grammar sha)
-  `validation_<label>.csv` + `.png`                 per-cell logprob vs sampled,
-      with Wilson CIs; pass/fail summary
+  `seqcheck_<label>.csv` + `seqcheck_plots/seqcheck_<label>.png`   THE TEST:
+      adversarially chosen cells re-sampled SEQUENTIALLY (n=300, escalated to
+      900 on a first-stage CI miss). The plot shows the sequential arm only.
+      `validation_<label>.json` carries the PASS/FAIL verdict.
+  `OUTDATED_artifact_samples_vs_exact_<label>.csv` + `.png`   one-off map of
+      the superseded concurrency-4 samples against the exact tables (was
+      `validation_*`, then `exact_vs_concurrent_campaign_*`, renamed
+      2026-09-07). Evidence OF the batch-numerics artifact; not a pass/fail
+      record, not a value function, and not used going forward.
   `raw/`                                           per-prompt traces (jsonl.gz)
 The script: `value_functions/logprob/logprob_value_function.py`, standalone, reusing
 the branching estimator's model loading / expansion / trace / resume
