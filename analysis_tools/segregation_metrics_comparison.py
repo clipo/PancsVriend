@@ -36,7 +36,10 @@ plt.rcParams.update({
 # Load combined results from reports
 OUT_DIR = get_reports_dir()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-combined_df = pd.read_csv(OUT_DIR / 'combined_final_metrics.csv')
+# One row per run with its final-step metrics; the analysis scenario key
+# (llm_baseline, race_white_black, ...) becomes `scenario` here.
+from analysis_tools.anova_by_metric import load_final_metrics  # noqa: E402
+combined_df = load_final_metrics(OUT_DIR)
 
 # Scenario labels imported from shared module
 

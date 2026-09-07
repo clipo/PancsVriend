@@ -228,7 +228,10 @@ survivor-biased per-step average; plot from `metrics_history` with
 `plot_style.step_stats_forward_filled`). Readers fall back to a legacy
 `convergence_summary.csv` only in directories that have no
 `run_summary.csv` yet. At the campaign level the roll-up is
-`analysis/run_summary_by_run.csv` (`scenario_key` = the analysis scenario).
+`analysis/run_summary_by_run.csv` (`scenario_key` = the analysis scenario);
+`combined_final_metrics.csv` — the same rows under another name — is gone
+with it, and `analysis_tools/anova_by_metric.py` computes the ANOVA table
+from the roll-up.
 
 ### Metrics are whole-array functions of the int grid
 

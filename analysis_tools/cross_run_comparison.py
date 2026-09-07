@@ -1,7 +1,7 @@
 """Compare finished production runs against each other: model x prompt set x endpoint.
 
 Every run under experiments_with_llama_cpp/ already ships
-``analysis/combined_final_metrics.csv`` (one row per simulation run, final-step
+``analysis/run_summary_by_run.csv`` (one row per simulation run, final-step
 values, including dissimilarity_index and scenario). This script concatenates
 those, labels each row with the variant it came from, and draws the
 cross-variant comparisons. Nothing is recomputed from states/ or move_logs/, so
@@ -135,7 +135,7 @@ def variant_color(model, endpoint):
 def collect(runs_root, include_legacy=False):
     """-> (tidy DataFrame, ordered list of variant dicts, list of skip messages)."""
     frames, variants, skipped = [], [], []
-    pattern = os.path.join(runs_root, "run_*", "analysis", "combined_final_metrics.csv")
+    pattern = os.path.join(runs_root, "run_*", "analysis", "run_summary_by_run.csv")
     for csv_path in sorted(glob.glob(pattern)):
         run_dirname = os.path.basename(os.path.dirname(os.path.dirname(csv_path)))
         info = parse_variant(run_dirname)
@@ -144,6 +144,8 @@ def collect(runs_root, include_legacy=False):
             continue
 
         df = pd.read_csv(csv_path)
+        if "scenario_key" in df.columns:          # the roll-up's analysis key
+            df = df.drop(columns=["scenario"]).rename(columns={"scenario_key": "scenario"})
         df["scenario"] = df["scenario"].str.replace("^llm_", "", regex=True)
         n_scen = df["scenario"].nunique()
         if n_scen < MIN_SCENARIOS:

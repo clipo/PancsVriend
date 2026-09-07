@@ -27,7 +27,7 @@ Need the reports somewhere else? Add `--output-folder <path>` to point the orche
 
 This will run (in order):
 
-1. `combined_final_metrics` (aggregates final metrics across scenarios)
+1. `repair_stored_metrics` (verifies each experiment's metrics_history), then `run_summary` (the per-run roll-up) and `anova_by_metric`
 2. (Movement analysis is skipped by default for speed)
 3. `analyze_stability_patterns`
 4. `convergence_patterns_and_speed`
@@ -84,7 +84,8 @@ All generated artifacts are written under `reports/`:
 
 | Component | Outputs |
 |-----------|---------|
-| combined_final_metrics | `reports/combined_final_metrics.csv` |
+| run_summary | `reports/run_summary_by_run.csv` (one row per run, all scenarios) |
+| anova_by_metric | `reports/anova_results_by_metric.csv` / `.md` |
 | movement analysis (if enabled) | `reports/movement_analysis/<experiment>/...` (per-experiment) + summary plots |
 | stability patterns | `reports/stability_analysis.png`, `reports/trajectory_variance.png` |
 | convergence patterns | `reports/convergence_patterns.(png\|pdf)` |

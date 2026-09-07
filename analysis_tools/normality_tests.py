@@ -9,8 +9,8 @@ grids), and then runs the appropriate omnibus + pairwise tests with Holm
 correction.
 
 Pipeline mode (registered in run_all_scenario_analysis.py, after
-combined_final_metrics):
-    run_from_combined_csv()        # reads <reports>/combined_final_metrics.csv
+run_summary roll-up):
+    run_from_combined_csv()        # reads <reports>/run_summary_by_run.csv
 
 Standalone mode against an (in-progress) llama.cpp production run:
     .venv/bin/python analysis_tools/normality_tests.py \
@@ -217,21 +217,26 @@ def analyze(values_by_metric, out_dir, csv_prefix=""):
     return pd.DataFrame(normality_rows), pd.DataFrame(significance_rows)
 
 
-def run_from_combined_csv(csv_path=None, out_dir=None):
-    """Pipeline mode: consume combined_final_metrics.csv from the reports dir."""
+def run_from_summary_csv(csv_path=None, out_dir=None):
+    """Pipeline mode: consume run_summary_by_run.csv from the reports dir
+    (one row per run; `scenario_key` is the analysis scenario)."""
     from analysis_tools.output_paths import get_reports_dir
     reports = get_reports_dir()
-    csv_path = csv_path or os.path.join(reports, "combined_final_metrics.csv")
+    csv_path = csv_path or os.path.join(reports, "run_summary_by_run.csv")
     if not os.path.exists(csv_path):
-        print(f"[normality] SKIP: {csv_path} not found (run combined_final_metrics first)")
+        print(f"[normality] SKIP: {csv_path} not found (run the run_summary step first)")
         return None, None
     df = pd.read_csv(csv_path)
+    scenario_col = "scenario_key" if "scenario_key" in df.columns else "scenario"
     metrics = [m for m in METRICS_DEFAULT + ["dissimilarity_index"] if m in df.columns]
     values_by_metric = {
-        m: {s: g[m].to_numpy() for s, g in df.groupby("scenario")}
+        m: {s: g[m].to_numpy() for s, g in df.groupby(scenario_col)}
         for m in metrics
     }
     return analyze(values_by_metric, out_dir or str(reports))
+
+
+run_from_combined_csv = run_from_summary_csv      # former name
 
 
 def run_from_run_dir(run_dir, out_dir=None):
@@ -258,13 +263,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--run-dir", help="run_<timestamp>_<model> dir (mid-campaign OK)")
-    src.add_argument("--combined-csv", help="explicit combined_final_metrics.csv path")
+    src.add_argument("--summary-csv", "--combined-csv", dest="summary_csv",
+                     help="explicit run_summary_by_run.csv path")
     ap.add_argument("--out", default=None, help="output dir override")
     args = ap.parse_args()
     if args.run_dir:
         run_from_run_dir(args.run_dir, args.out)
     else:
-        run_from_combined_csv(args.combined_csv, args.out)
+        run_from_combined_csv(args.summary_csv, args.out)
 
 
 if __name__ == "__main__":

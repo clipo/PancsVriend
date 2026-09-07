@@ -139,29 +139,30 @@ def run_all_analyses(
 
     steps.append(("dissimilarity_index_over_time", _run_dissimilarity_index, {}))
 
-    # 1. Combined metrics (foundation for many downstream plots)
-    def _run_combined_final_metrics():
-        mod = importlib.import_module('analysis_tools.combined_final_metrics')
-        mod.process_scenarios(recompute=recompute)
-
-    steps.append(("combined_final_metrics", _run_combined_final_metrics, {}))
-
-    # 1a. Per-run summary: convergence step + every metric at the final step,
-    #     one row per run. Each experiment folder gets its own run_summary.csv
-    #     (rebuilt here so pre-2026-09-01 experiments and resume placeholders
-    #     are repaired), and the selected experiments are rolled up into a
-    #     single run_summary_by_run.csv for this model.
+    # 2. Per-run summary: convergence step + every metric at the final step,
+    #    one row per run. Each experiment folder gets its own run_summary.csv
+    #    (rebuilt here so pre-2026-09-01 experiments and resume placeholders
+    #    are repaired), and the selected experiments are rolled up into a
+    #    single run_summary_by_run.csv for this model — the file every
+    #    cross-scenario step below reads.
     def _run_run_summary():
         build_run_summaries_for_selection(reports_dir, verbose=verbose)
 
     steps.append(("run_summary", _run_run_summary, {}))
 
-    # 1b. Normality tests + normality-gated significance tests (consumes
-    #     combined_final_metrics.csv; justifies parametric vs non-parametric
-    #     between-scenario comparisons and plots Q-Q/histograms per metric)
+    # 2a. One-way ANOVA per metric across scenarios (from the roll-up)
+    def _run_anova():
+        mod = importlib.import_module('analysis_tools.anova_by_metric')
+        mod.anova_by_metric(scenario_order=list(experiment_list.SCENARIOS))
+
+    steps.append(("anova_by_metric", _run_anova, {}))
+
+    # 2b. Normality diagnostics (consumes run_summary_by_run.csv): Shapiro-Wilk
+    #     table + Q-Q/histograms per metric. Diagnostic only since 2026-09-05;
+    #     the ranking table's paired t does not depend on it.
     def _run_normality_tests():
         mod = importlib.import_module('analysis_tools.normality_tests')
-        mod.run_from_combined_csv()
+        mod.run_from_summary_csv()
 
     steps.append(("normality_tests", _run_normality_tests, {}))
 
@@ -203,7 +204,7 @@ def run_all_analyses(
         mod.main()
     steps.append(("per_metric_panels", _run_per_metric_panels, {}))
 
-    # 8. Segregation metrics comparison (depends on combined_final_metrics output)
+    # 8. Segregation metrics comparison (depends on run_summary_by_run.csv)
     def _run_segregation_metrics_comparison():
         import importlib as _il
         mod = _il.import_module('analysis_tools.segregation_metrics_comparison')
@@ -463,15 +464,13 @@ def _write_single_model_scenario_ranking_table(
     reports_dir: Path,
     llm_model: Optional[str],
 ) -> None:
-    combined_path = reports_dir / "combined_final_metrics.csv"
-    if not combined_path.exists():
-        raise FileNotFoundError(f"Missing combined metrics file: {combined_path}")
+    from analysis_tools.anova_by_metric import load_final_metrics
 
-    combined_df = pd.read_csv(combined_path)
+    combined_df = load_final_metrics(reports_dir)
     if combined_df.empty:
-        raise RuntimeError(f"Combined metrics file is empty: {combined_path}")
+        raise RuntimeError(f"run_summary_by_run.csv is empty in {reports_dir}")
     if "scenario" not in combined_df.columns:
-        raise RuntimeError("combined_final_metrics.csv is missing required 'scenario' column")
+        raise RuntimeError("run_summary_by_run.csv is missing required 'scenario' column")
 
     metrics = [
         metric
@@ -487,7 +486,7 @@ def _write_single_model_scenario_ranking_table(
         if metric in combined_df.columns
     ]
     if not metrics:
-        raise RuntimeError("No ranking metrics found in combined_final_metrics.csv")
+        raise RuntimeError("No ranking metrics found in run_summary_by_run.csv")
 
     model_display = (llm_model or "unknown-model").strip() or "unknown-model"
     safe_model = _sanitize_model_for_path_component(model_display)
