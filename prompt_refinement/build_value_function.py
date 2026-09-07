@@ -162,10 +162,23 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
     request_seed(stage|scenario|style|role|sim|occ|i) per request, recorded in
     each raw record. None keeps the legacy payload (no cache/seed fields).
     """
+    # One request queue per ROLE rather than one per (role, cell)
+    # (2026-09-05). The 45 cells of a role used to be sampled strictly one
+    # after another, each through its own thread pool, so a calibration pass
+    # buying the 25-sample floor for most cells kept a server with 8-18
+    # slots mostly idle between cells. Prompts are still rendered cell by
+    # cell in the same order (the grid_context RNG advances exactly as
+    # before), every request carries the same seed, and the raw records,
+    # their order and the counts are unchanged — only how many requests are
+    # in flight at once differs. NOTE (2026-09-06): that is not harmless on
+    # this server — replies depend on the batch they are processed in
+    # (KV_CACHE_SAMPLING_ARTIFACT.md §8), so a sampled table is only exact
+    # at `concurrency` 1; the exact tables come from logprob_value_function.py.
     n_new = 0
     for role in roles:
         role_kw = kw_by_role[role]
         g0_rng = random.Random(seed) if fn is grid_context else None
+        jobs = []                                  # (cell, rendered, seed_fn), cell order
         for cell in ALL_COMPOSITIONS:
             n_sim, n_occ = cell
             k = alloc_fn(role, cell)
@@ -179,34 +192,47 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
                 rendered = [render_prompt(style, tpl, fn, n_sim, n_occ,
                                           role_kw)] * k
             if seed_ctx is None:
-                cache_prompt, seed_fn = None, None
+                seed_fn = None
             else:
                 stage, scenario = seed_ctx
-                cache_prompt = False
                 # default-arg binding pins the loop variables at definition time
                 seed_fn = (lambda i, s=stage, sc=scenario, r=role,
                            ns=n_sim, no=n_occ:
                            request_seed(s, sc, style, r, ns, no, i))
-            replies = sample_batch(url, model, [p for p, _ in rendered],
-                                   temperature,
+            jobs.append((cell, rendered, seed_fn))
+        if jobs:
+            prompts = [p for _, rendered, _ in jobs for p, _ in rendered]
+            if seed_ctx is None:
+                cache_prompt, flat_seed_fn = None, None
+            else:
+                cache_prompt = False
+                seeds = [seed_fn(i) for _, rendered, seed_fn in jobs
+                         for i in range(len(rendered))]
+                flat_seed_fn = seeds.__getitem__
+            replies = sample_batch(url, model, prompts, temperature,
                                    GRAMMAR if grammar_on else None,
                                    concurrency,
-                                   cache_prompt=cache_prompt, seed_fn=seed_fn)
-            for i, (r, (_, ctx)) in enumerate(zip(replies, rendered)):
-                rec = {"agent_role": role, "n_occupied": n_occ,
-                       "n_similar": n_sim, "sample": i,
-                       "context": ctx, "text": r["text"],
-                       "finish_reason": r["finish_reason"],
-                       "completion_tokens": r["completion_tokens"],
-                       "parse": parse(r["text"])}
-                if seed_fn is not None:
-                    rec["seed"] = seed_fn(i)
-                raw.write(rec)
-            mv, st, bd = aggregate_counts(replies)
-            c = counts[(role, cell)]
-            c["move"] += mv; c["stay"] += st
-            c["bad"] += bd; c["samples"] += len(replies)
-            n_new += len(replies)
+                                   cache_prompt=cache_prompt, seed_fn=flat_seed_fn)
+            pos = 0
+            for cell, rendered, seed_fn in jobs:
+                n_sim, n_occ = cell
+                cell_replies = replies[pos:pos + len(rendered)]
+                pos += len(rendered)
+                for i, (r, (_, ctx)) in enumerate(zip(cell_replies, rendered)):
+                    rec = {"agent_role": role, "n_occupied": n_occ,
+                           "n_similar": n_sim, "sample": i,
+                           "context": ctx, "text": r["text"],
+                           "finish_reason": r["finish_reason"],
+                           "completion_tokens": r["completion_tokens"],
+                           "parse": parse(r["text"])}
+                    if seed_fn is not None:
+                        rec["seed"] = seed_fn(i)
+                    raw.write(rec)
+                mv, st, bd = aggregate_counts(cell_replies)
+                c = counts[(role, cell)]
+                c["move"] += mv; c["stay"] += st
+                c["bad"] += bd; c["samples"] += len(cell_replies)
+                n_new += len(cell_replies)
         slice_ping(ping_label, f"{ping_ctx} [{role}]")
     return n_new
 

@@ -4,7 +4,8 @@ build_value_function.py).
 
 Single home for everything that used to be duplicated between the two evaluate
 scripts (2026-08-21 dedup): the slice-ping ntfy helper, the role->keyword
-mapping, the per-cell ThreadPool sampling block, the gzip raw-reply writer, and
+mapping, the ThreadPool sampling block (one keep-alive session; build_value_function
+queues a whole role's cells through it at once), the gzip raw-reply writer, and
 the production-payload sampler itself (moved here verbatim from
 evaluate_prompts.py; that module re-exports the old names so existing imports
 keep working).
@@ -27,6 +28,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import requests
+from requests.adapters import HTTPAdapter
 
 _PKG_DIR = Path(__file__).resolve().parent
 REPO_ROOT = _PKG_DIR.parent
@@ -110,6 +112,32 @@ def server_fingerprint(url: str) -> dict | None:
         return None
 
 
+_SESSION = None
+
+
+def _session():
+    """One keep-alive Session for every request this process sends.
+
+    A bare requests.post() builds and discards a Session — a fresh TCP
+    connection, handshake and close per sample, ~100k+ times per value
+    function, and a TIME_WAIT socket left behind each time. Reusing pooled
+    connections changes nothing the server sees in the request (same
+    headers, same body: requests.post is itself a throw-away Session), and
+    nothing about the sample: with cache_prompt=false and a per-request
+    seed the reply is a function of the payload alone
+    (KV_CACHE_SAMPLING_ARTIFACT.md). pool_maxsize bounds concurrent
+    connections; sample_batch's concurrency is far below it.
+    """
+    global _SESSION
+    if _SESSION is None:
+        session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=4, pool_maxsize=256)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        _SESSION = session
+    return _SESSION
+
+
 def sample_once(url: str, model: str, prompt: str, temperature: float,
                 grammar: str | None = None, cache_prompt: bool | None = None,
                 seed: int | None = None) -> dict:
@@ -162,7 +190,7 @@ def sample_once(url: str, model: str, prompt: str, temperature: float,
     last_err = None
     for attempt in range(3):
         try:
-            r = requests.post(url, timeout=600, json=payload)
+            r = _session().post(url, timeout=600, json=payload)
             r.raise_for_status()
             j = r.json()
             c = j["choices"][0]
