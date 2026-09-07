@@ -9,7 +9,7 @@ llm_configurations:
   default:
     model: "mixtral:8x22b-instruct"  # Uses config.py OLLAMA_MODEL by default
     url: "https://chat.binghamton.edu/api/chat/completions"  # Uses config.py OLLAMA_URL by default
-    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"  # Uses config.py OLLAMA_API_KEY by default
+    api_key: null  # null = OLLAMA_API_KEY from .env (config.py)
 
 # COMPLETE AGENT COMPARISON MATRIX
 agent_types:

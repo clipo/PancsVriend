@@ -37,11 +37,7 @@ def update_config_file(preset_name):
         f'OLLAMA_URL = "{config["url"]}"',
         content
     )
-    content = re.sub(
-        r'OLLAMA_API_KEY = "[^"]*"',
-        f'OLLAMA_API_KEY = "{config["api_key"]}"',
-        content
-    )
+    # The API key is not stored in config.py; it comes from .env / the environment.
     
     # Write back to file
     try:

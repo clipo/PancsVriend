@@ -4,19 +4,21 @@ LLM Presets and Easy Switching
 Provides predefined LLM configurations and easy switching between models
 """
 
+import config as cfg  # OLLAMA_API_KEY comes from .env / the environment
+
 LLM_PRESETS = {
     "mixtral": {
         "name": "Mixtral 8x22B (Default)",
         "model": "mixtral:8x22b-instruct",
         "url": "https://chat.binghamton.edu/api/chat/completions",
-        "api_key": "sk-571df6eec7f5495faef553ab5cb2c67a",
+        "api_key": cfg.OLLAMA_API_KEY,
         "description": "High-performance open model via Binghamton University"
     },
     "qwen": {
         "name": "Qwen 2.5 Coder 32B",
         "model": "qwen2.5-coder:32B",
         "url": "https://chat.binghamton.edu/api/chat/completions",
-        "api_key": "sk-571df6eec7f5495faef553ab5cb2c67a",
+        "api_key": cfg.OLLAMA_API_KEY,
         "description": "Code-optimized model, good for structured responses"
     },
     "gpt4": {

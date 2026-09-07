@@ -6,7 +6,7 @@ llm_configurations:
   default:
     model: "mixtral:8x22b-instruct"
     url: "https://chat.binghamton.edu/api/chat/completions"
-    api_key: "sk-571df6eec7f5495faef553ab5cb2c67a"
+    api_key: null  # null = OLLAMA_API_KEY from .env (config.py)
 
 # Three agent types for comprehensive comparison
 agent_types:

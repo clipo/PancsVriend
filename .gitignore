@@ -148,3 +148,6 @@ experiments/**/*.json.gz
 
 # Shell scripts (run/queue helpers, machine-specific)
 *.sh
+
+# secrets
+.env

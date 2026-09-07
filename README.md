@@ -465,7 +465,7 @@ The system uses **Mixtral 8x22B** by default via Binghamton University's endpoin
 # config.py
 OLLAMA_MODEL = "mixtral:8x22b-instruct"
 OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"  
-OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")  # set in .env (copy .env.example)
 ```
 
 ### Easy Model Switching

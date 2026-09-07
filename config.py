@@ -1,3 +1,12 @@
+import os
+
+# Secrets live in .env (gitignored; copy .env.example) or the process environment.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+except ImportError:  # python-dotenv missing: the environment must supply OLLAMA_API_KEY
+    pass
+
 # ===== Common Model Settings (used by baseline_runner.py & llm_runner.py) =====
 # DO NOT CHANGE THE DIMENSIONS AND DENSITY OF THE GRID
 GRID_SIZE = 10                          # number of cells per side of the grid 
@@ -13,7 +22,7 @@ AGENT_SATISFACTION_THRESHOLD = 0         # minimum utility for agent satisfactio
 # ===== LLM Runner Settings (used by llm_runner.py) =====
 OLLAMA_MODEL = "mixtral:8x22b-instruct"    # LLM model identifier for Ollama
 OLLAMA_URL = "https://chat.binghamton.edu/api/chat/completions"  # API endpoint for LLM service
-OLLAMA_API_KEY = "sk-571df6eec7f5495faef553ab5cb2c67a"  # authentication key for LLM API
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")  # from the environment or .env (see .env.example); never hard-code it here
 ENABLE_AGENT_MEMORY = True                   # Enable agent memory and persistent context (makes agents more human-like)
 STORE_LLM_RESPONSES = True                   # If True, persist raw LLM responses + parsed decision in move logs
 
