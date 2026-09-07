@@ -1,6 +1,6 @@
 # Plan: exact value functions from grammar-masked logprobs
 
-Status: IMPLEMENTED 2026-09-05 as `prompt_refinement/logprob_value_function.py`
+Status: IMPLEMENTED 2026-09-05 as `value_functions/logprob/logprob_value_function.py`
 (+ `run_logprob_vf_campaign.sh`, `batch_numerics/`). The plan below is kept as
 written; what was actually built differs in three ways, recorded here:
 
@@ -118,16 +118,17 @@ Per model, all 540 cells:
 
 ## Outputs
 
-`llm_log_probs/value_functions_logprob/`  (moved here 2026-09-07 from
-`prompt_refinement/results/value_functions_logprob/`, so every
-log-probability artifact lives under `llm_log_probs/`)
+`value_functions/results/llm_logprob/`  (moved here 2026-09-07 from
+`prompt_refinement/results/value_functions_logprob/`, then briefly
+`llm_log_probs/value_functions_logprob/`; since 2026-09-07 it is
+`value_functions/results/llm_logprob/`, see value_functions/paths.py)
   `vflp_<label>__<scenario>__R3_dual_count.json`   schema vf-lp-1: per cell
       p_move (exact), mass_bound, n_paths, per-path breakdown, allowed-token
       logits per state, provenance (gguf sha, template hash, T, grammar sha)
   `validation_<label>.csv` + `.png`                 per-cell logprob vs sampled,
       with Wilson CIs; pass/fail summary
   `raw/`                                           per-prompt traces (jsonl.gz)
-The script: `prompt_refinement/logprob_value_function.py`, standalone, reusing
+The script: `value_functions/logprob/logprob_value_function.py`, standalone, reusing
 the branching estimator's model loading / expansion / trace / resume
 skeleton. It must not touch `results/value_functions/` (the sampled store).
 

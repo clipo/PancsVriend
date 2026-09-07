@@ -22,9 +22,9 @@ llama-server -m llms/gemma-4-31B-it-Q5_K_M.gguf --alias gemma-4-31B-it-Q5_K_M \
 **Build the value functions** (pilot → ±2 pp top-up loop → figures):
 
 ```bash
-python prompt_refinement/build_value_function.py --config configs/value_function_scenarios_gemma.yaml --plot
-python prompt_refinement/build_value_function.py --config <same> --top-up --precision 0.02
-python prompt_refinement/plot_value_functions.py --label gemma-4-31b-chat-grammar
+python value_functions/sampling/build_value_function.py --config configs/value_function_scenarios_gemma.yaml --plot
+python value_functions/sampling/build_value_function.py --config <same> --top-up --precision 0.02
+python value_functions/sampling/plot_value_functions.py --label gemma-4-31b-chat-grammar
 ```
 
 Repeat the top-up until `--dry-run` reports zero deficits.
@@ -40,7 +40,7 @@ One command per model: simulation, per-campaign analysis
 (`<run_dir>/analysis/`), the DI rank-stability verdict
 (`<run_dir>/analysis/rank_stability/`) and, as the final stage, the
 cross-model bump/level charts and test tables
-(`prompt_refinement/results/figures/cross_model_*`) rebuilt from every
+(`experiments_with_llama_cpp/cross_model/cross_model_*`) rebuilt from every
 model's newest full run under `experiments_with_llama_cpp/`.
 
 **Bitwise audit** (same server build):
@@ -60,10 +60,10 @@ and not versioned; the Python commands above are the reproducible interface.
 
 | data | location |
 |---|---|
-| value-function artifacts (vf-1 JSON) + figures | `prompt_refinement/results/value_functions/` |
-| per-reply raw logs (with seeds) | `prompt_refinement/results/value_functions/raw/` |
-| archived cache-on artifacts (evidence) | `prompt_refinement/results/value_functions_cacheon_archive/` |
-| contamination map | `prompt_refinement/results/value_functions/vf_contamination_map.{csv,png}` |
+| value-function artifacts (vf-1 JSON) + figures | `value_functions/results/sampled/` |
+| per-reply raw logs (with seeds) | `value_functions/results/sampled/raw/` |
+| archived cache-on artifacts (evidence) | `value_functions/results/sampled/cacheon_archive/` |
+| contamination map | `value_functions/results/sampled/vf_contamination_map.{csv,png}` |
 | bitwise replication reference | `prompt_refinement/results/replication_reference_*.json` |
 | sweep tables, raws, figures | `prompt_refinement/results/` |
 | simulation experiments | `experiments/` (ad hoc), `experiments_with_llama_cpp/run_*/` (orchestrated) |

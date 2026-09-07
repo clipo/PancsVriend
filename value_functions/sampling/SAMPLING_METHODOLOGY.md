@@ -3,7 +3,7 @@
 How we decide how many LLM samples each neighbourhood composition gets, how
 the top-up recalibrates after new data arrives, and why the loop is guaranteed
 to terminate. Companion figure: `results/figures/sampling_requirements.png`
-(regenerate with `python prompt_refinement/plot_sampling_requirements.py`).
+(regenerate with `python value_functions/sampling/plot_sampling_requirements.py`).
 Implementation: `build_value_function.py --top-up --precision <w>`
 (`topup_deficits()`); outcome-level verification:
 `analysis_tools/vf_simulation_evaluation.py` (half-vs-full check).

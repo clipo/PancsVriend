@@ -70,12 +70,32 @@ python statistical_analysis.py
 - **llm_runner.py**: Runs LLM agent simulations with social context scenarios
 - **plateau_detection.py**: Detects convergence points and calculates segregation speeds
 
+### Value functions (`value_functions/`, since 2026-09-07)
+- `sampling/`: `build_value_function.py` samples P(MOVE | context) into vf-1
+  tables (the retired `-vf-r3` route; `vf_multisplit_check.py` rulers,
+  `vf_ruler_scaling.py`, the vfS/vfH plots).
+- `logprob/`: `logprob_value_function.py` extracts the exact tables from token
+  log-probabilities (`-vf-lp`, the result).
+- `batch_numerics/`: the probe that showed served probabilities depend on the
+  batch, which retired sampling (results tracked).
+- `comparison/`: `vf_rank_stability.py` (per-run certification) and
+  `cross_model_vf_comparison.py` (bump/level charts across models).
+- `results/` (gitignored): `sampled/` (r3 tables, half arms, rulers, `sanity/`),
+  `llm_logprob/` (exact tables, `vflp_*`, raw traces), `figures/`, `chance_null/`.
+  Every location is defined once in `value_functions/paths.py`; the
+  cross-model figures live with the runs in `experiments_with_llama_cpp/cross_model/`.
+  `value_functions/migrate_stores.py` moved the pre-2026-09-07 stores
+  (`prompt_refinement/results/value_functions*`, `llm_log_probs/`).
+- `prompt_refinement/` keeps the prompt templates and the sampling harness
+  (`sampling_common.py`, `ratio_prompt_templates.py`, `evaluate_ratio_prompts.py`)
+  that both the prompt sweeps and the value-function code import.
+
 ### Analysis Pipeline
 - **statistical_analysis.py**: ANOVA, effect sizes, multivariate analysis
 - **run_llm_probability_simulation_analysis.py**: the orchestrated pipeline
   (vf build → contexts → scenario analysis → rank stability → cross-model);
   its final `cross_model` stage regenerates
-  `prompt_refinement/results/figures/cross_model_{bump,level}_*.png` and the
+  `experiments_with_llama_cpp/cross_model/cross_model_{bump,level}_*.png` and the
   `cross_model_*_tests.csv` tables from every model's newest full run under
   the run root, so those figures are never hand-run (analysis_guide.md §7b).
   Only the exact logprob tables (`-vf-lp`) are a result: the sampled

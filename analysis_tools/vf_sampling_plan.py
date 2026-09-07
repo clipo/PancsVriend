@@ -62,13 +62,13 @@ from pathlib import Path
 
 _THIS = Path(__file__).resolve().parent
 REPO_ROOT = _THIS.parent
-for _p in (REPO_ROOT, REPO_ROOT / "prompt_refinement"):
+for _p in (REPO_ROOT, REPO_ROOT / "prompt_refinement", REPO_ROOT / "value_functions" / "sampling"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
 from build_value_function import project_total  # noqa: E402
 
-VF_DIR = REPO_ROOT / "prompt_refinement" / "results" / "value_functions"
+VF_DIR = REPO_ROOT / "value_functions" / "results" / "sampled"
 SCENARIOS = ["baseline", "race_white_black", "ethnic_asian_hispanic",
              "income_high_low", "political_liberal_conservative", "green_yellow"]
 
@@ -214,7 +214,7 @@ def main() -> int:
         print(f"    {sc:32s} {d:9,d}")
     print(f"\n  command:\n    ./run_vf_model_campaign.sh <label> <sampling.yaml> <model.gguf> ...\n"
           f"    # or, server already up:\n"
-          f"    .venv/bin/python prompt_refinement/build_value_function.py \\\n"
+          f"    .venv/bin/python value_functions/sampling/build_value_function.py \\\n"
           f"        --config configs/value_function_scenarios_<m>.yaml \\\n"
           f"        --calibrate --precision {w_next:.4f} --plot")
     emit({"label": args.label, "action": "resample", "ratio": ratio,

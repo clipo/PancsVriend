@@ -52,7 +52,7 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "prompt_refinement/results/value_functions/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
+  value_function: "value_functions/results/sampled/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
   temperature: 0.3           # recorded in config.json; the VF was sampled at 0.3
   scenario_file: "scenarios_a2.py"
   llm_model: "mistral-small-4-119b-vf-r3"
@@ -72,7 +72,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "mistral-small-4-119b-vf-r3"
@@ -88,7 +88,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled/vf_mistral-small-4-119b-chat-grammar__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "mistral-small-4-119b-vf-r3"

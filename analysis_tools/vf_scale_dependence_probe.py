@@ -22,7 +22,7 @@ Standalone by design — NOT part of any pipeline or workflow; run by hand.
     python analysis_tools/vf_scale_dependence_probe.py --label qwen3.6-27b-chat-grammar
 
 Outputs:
-    prompt_refinement/results/figures/vf_<label>_scale_dependence.png
+    value_functions/results/figures/vf_<label>_scale_dependence.png
         Family-strip view (lines would overlap: most families sit flat at
         0.00). 6 scenarios x 2 roles; each ROW is one ratio family, x = the
         number of opposite neighbours, cell colour = P(MOVE). A flat row
@@ -44,10 +44,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 _THIS = Path(__file__).resolve().parent
-sys.path.insert(0, str(_THIS.parent / "prompt_refinement"))
+sys.path.insert(0, str(_THIS.parent))
+from value_functions.paths import FIGURES_DIR, SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
-VF_DIR = _THIS.parent / "prompt_refinement" / "results" / "value_functions"
-FIG_DIR = _THIS.parent / "prompt_refinement" / "results" / "figures"
+VF_DIR = SAMPLED_DIR
+FIG_DIR = FIGURES_DIR
 LABEL = "gemma-4-31b-chat-grammar"      # --label overrides
 OUT = FIG_DIR / "vf_gemma-4-31b-chat-grammar_scale_dependence.png"
 STYLE = "R3_dual_count"

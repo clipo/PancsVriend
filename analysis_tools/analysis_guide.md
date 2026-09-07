@@ -104,9 +104,9 @@ scenario ORDERING per model (bump charts) and the metric LEVELS behind it
 final `cross_model` stage every time any model's
 `run_llm_probability_simulation_analysis.py` pipeline completes, from every
 model's newest full run under that run's `run_root`
-(`analysis_tools/cross_model_vf_comparison.py --run-root <run_root>`):
+(`value_functions/comparison/cross_model_vf_comparison.py --run-root <run_root>`):
 
-| Output (`prompt_refinement/results/figures/`) | Content |
+| Output (`experiments_with_llama_cpp/cross_model/`, i.e. `<run_root>/cross_model/`) | Content |
 |---|---|
 | `cross_model_bump_all_metrics.png` | 7 bump-chart panels, one per metric |
 | `cross_model_level_all_metrics.png` | 7 level-chart panels, same grid (y inverted for clusters / switch rate) |
@@ -116,7 +116,7 @@ model's newest full run under that run's `run_root`
 
 The comparison is built from the EXACT token-probability tables (runs with
 `llm_model` suffix `-vf-lp`, tables from
-`prompt_refinement/logprob_value_function.py`); the stage derives the family
+`value_functions/logprob/logprob_value_function.py`); the stage derives the family
 from the run's suffix. The sampled `-vf-r3` tables are superseded
 (2026-09-06): sampled at concurrency > 1 they carry the llama-server
 batch-numerics artifact and are not treated as a result or a ground truth,
@@ -134,8 +134,8 @@ smoke-test run never displaces the production run. Concurrent pipelines
 passes `--out-dir` / `--dpi`. To refresh by hand:
 
 ```bash
-python analysis_tools/cross_model_vf_comparison.py               # exact tables   -> cross_model_*
-python analysis_tools/cross_model_vf_comparison.py --family r3   # sampled tables -> cross_model_sampled_* (superseded)
+python value_functions/comparison/cross_model_vf_comparison.py               # exact tables   -> cross_model_*
+python value_functions/comparison/cross_model_vf_comparison.py --family r3   # sampled tables -> cross_model_sampled_* (superseded)
 ```
 
 ## 8. Adding New Analyses

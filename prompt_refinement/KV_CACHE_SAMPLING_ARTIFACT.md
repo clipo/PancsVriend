@@ -201,9 +201,9 @@ difference is median 0.012, 90th percentile 0.073, max 0.114.
 sampling measurement.** Sequential requests are bit-reproducible on this
 server. Throughput cost is ~4×, which the exact extraction makes irrelevant
 (≈2 requests per cell instead of ≥100). The standalone probe
-`prompt_refinement/batch_numerics/batch_numerics_probe.py` (chat endpoint)
+`value_functions/batch_numerics/batch_numerics_probe.py` (chat endpoint)
 reproduces this table for any model and writes the per-request values, a
-summary and a figure to `prompt_refinement/batch_numerics/results/`
+summary and a figure to `value_functions/batch_numerics/results/`
 (`run_batch_numerics_study.sh`, a one-time study over all models). Whether the artifact moved any
 scenario ORDERING is answered by the exact-table simulations (`-vf-lp` runs),
 not assumed either way — for qwen it did not (levels shifted ≤ 0.013 DI, the

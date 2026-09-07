@@ -1,16 +1,16 @@
 # =============================================================================
 # Value-function build config — gemma-4-31B, baseline scenario, R1 style
 # =============================================================================
-# Consumed by prompt_refinement/build_value_function.py:
+# Consumed by value_functions/sampling/build_value_function.py:
 #
-#   python prompt_refinement/build_value_function.py \
+#   python value_functions/sampling/build_value_function.py \
 #       --config configs/value_function_baseline.yaml --plot
 #
 # Produces one vf-1 JSON per (scenario, style) with BOTH roles' 23-ratio
 # P(MOVE) tables, which llm_runner.py consumes directly:
 #
 #   python llm_runner.py --scenario baseline --runs 5 \
-#       --value-function prompt_refinement/results/value_functions/vf_gemma-4-31b-chat-grammar__baseline__R1_count_opposite.json
+#       --value-function value_functions/results/sampled/vf_gemma-4-31b-chat-grammar__baseline__R1_count_opposite.json
 #
 # No LLM server is needed for the simulation once the artifact exists; the
 # server is only needed while SAMPLING (and not at all with
@@ -69,4 +69,4 @@ merge_from:
   - ratio-gemma-4-31b-chat-grammar
 
 # --- output -----------------------------------------------------------------
-out_dir: null      # default: prompt_refinement/results/value_functions/
+out_dir: null      # default: value_functions/results/sampled/

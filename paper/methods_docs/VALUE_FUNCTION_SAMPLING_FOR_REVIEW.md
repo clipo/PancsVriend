@@ -3,7 +3,7 @@
 *Self-contained note for colleagues vetting the measurement design: what is
 being estimated, the interval used, the rule deciding how many samples a cell
 buys, why the loop terminates, how cells aggregate, and the assumptions the
-design rests on. Implementation: `prompt_refinement/build_value_function.py`
+design rests on. Implementation: `value_functions/sampling/build_value_function.py`
 (`topup_deficits()`, `build_rows()`); interval in `sampling_common.wilson_ci()`.*
 
 ---
@@ -219,7 +219,7 @@ Result on the production artifacts: **42/42 (scenario × metric) PASS**. This
 is the standard we treat as certifying, because it is stated in the units the
 paper reports. A single even/odd split is one draw from a distribution, so it
 has since been generalised to a multi-split test
-(`analysis_tools/vf_multisplit_check.py --label <label> --splits 32`).
+(`value_functions/sampling/vf_multisplit_check.py --label <label> --splits 32`).
 
 ---
 
@@ -227,12 +227,12 @@ has since been generalised to a multi-split test
 
 ```bash
 # what the current artifacts still owe, without spending anything
-python prompt_refinement/build_value_function.py \
+python value_functions/sampling/build_value_function.py \
     --config configs/value_function_scenarios_gemma.yaml \
     --top-up --precision 0.02 --dry-run
 
 # top up repeatedly until every cell is within ±2 pp
-python prompt_refinement/build_value_function.py \
+python value_functions/sampling/build_value_function.py \
     --config configs/value_function_scenarios_gemma.yaml \
     --calibrate --precision 0.02 --max-passes 4 --plot
 ```

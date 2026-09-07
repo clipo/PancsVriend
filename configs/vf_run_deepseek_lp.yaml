@@ -4,7 +4,7 @@
 # sampled -vf-r3 tables carry the batch-numerics artifact and are not a result;
 # the _r3 yaml is kept only to reproduce those runs), and
 # configs/make_sanity_configs.py derives the -sanity arm from this file.
-# value_function points at llm_log_probs/value_functions_logprob/…-lp…, llm_model
+# value_function points at value_functions/results/llm_logprob/…-lp…, llm_model
 # is <model>-vf-lp, and rank stability runs in --exact mode (no ruler).
 # VALUE-FUNCTION simulation run — DeepSeek-V4-Flash R3 dual-count, all scenarios
 # =============================================================================
@@ -54,7 +54,7 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "llm_log_probs/value_functions_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
+  value_function: "value_functions/results/llm_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
   temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
   scenario_file: "scenarios_a2.py"
   llm_model: "deepseek-v4-flash-vf-lp"
@@ -74,7 +74,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "llm_log_probs/value_functions_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/llm_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "deepseek-v4-flash-vf-lp"
@@ -90,7 +90,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "llm_log_probs/value_functions_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/llm_logprob/vf_deepseek-v4-flash-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "deepseek-v4-flash-vf-lp"

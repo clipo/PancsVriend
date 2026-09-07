@@ -19,7 +19,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "analysis_tools"))
+sys.path.insert(0, str(REPO_ROOT / "value_functions" / "comparison"))
 
 import cross_model_vf_comparison as cm  # noqa: E402
 import run_llm_probability_simulation_analysis as orch  # noqa: E402

@@ -3,9 +3,9 @@
 for both agent roles, over the 23 distinct opposite-neighbour ratios reachable in
 a Moore neighbourhood (+ the no-neighbours point), per prompt style and scenario.
 
-    python prompt_refinement/build_value_function.py --config configs/value_function_baseline.yaml
-    python prompt_refinement/build_value_function.py --config ... --dry-run
-    python prompt_refinement/build_value_function.py --config ... --from-existing-only --plot
+    python value_functions/sampling/build_value_function.py --config configs/value_function_baseline.yaml
+    python value_functions/sampling/build_value_function.py --config ... --dry-run
+    python value_functions/sampling/build_value_function.py --config ... --from-existing-only --plot
 
 Everything is driven by the YAML config (see configs/value_function_baseline.yaml):
 which scenarios, which prompt styles, both roles, and the sampling allocation —
@@ -17,11 +17,11 @@ with 1 opposite). Counts from earlier ratio-sweep runs can be merged in via
 samples are never re-bought.
 
 Output: one JSON artifact per (scenario, style) with BOTH roles —
-    results/value_functions/vf_<label>__<scenario>__<style>.json   (schema vf-1)
+    value_functions/results/sampled/vf_<label>__<scenario>__<style>.json   (schema vf-1)
 carrying the per-composition counts (ground truth), the 23+1 ratio datapoints
 (effective P(MOVE) = equal-weight mean over member compositions, propagated 95% CI; pooled counts kept alongside), and full provenance. The
 simulation consumes it directly:  python llm_runner.py --value-function <file>.
-Raw replies stream to results/value_functions/raw/ incrementally (a killed run
+Raw replies stream to value_functions/results/sampled/raw/ incrementally (a killed run
 keeps everything sampled so far).
 
 All rates are EFFECTIVE move rates n_move/(n_move+n_stay) — the production-
@@ -38,8 +38,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
 import yaml  # noqa: E402
 
@@ -76,7 +77,7 @@ from llm_runner import (  # noqa: E402
     resolve_llm_request_url,
 )
 
-VF_DIR_DEFAULT = RESULTS_DIR / "value_functions"
+VF_DIR_DEFAULT = SAMPLED_DIR
 
 
 # ---------------------------------------------------------------------------

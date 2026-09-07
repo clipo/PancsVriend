@@ -37,7 +37,7 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "prompt_refinement/results/value_functions_sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+  value_function: "value_functions/results/sampled/sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
   temperature: 0.3
   scenario_file: "scenarios_a2.py"
   llm_model: "hermes-4.3-36b-vf-s"
@@ -57,7 +57,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions_sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled/sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "hermes-4.3-36b-vf-s"
@@ -73,7 +73,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "prompt_refinement/results/value_functions_sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled/sanity/vf_hermes-4.3-36b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "hermes-4.3-36b-vf-s"

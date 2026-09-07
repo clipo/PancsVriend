@@ -2,7 +2,7 @@
 """Companion figure for SAMPLING_METHODOLOGY.md: what per-composition sample
 size the CI target implies, and why extreme cells are cheap.
 
-    python prompt_refinement/plot_sampling_requirements.py
+    python value_functions/sampling/plot_sampling_requirements.py
         -> results/figures/sampling_requirements.png
 
 Panel A: n required for a 95% CI half-width <= w, as a function of the true
@@ -22,10 +22,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from value_functions.paths import FIGURES_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 from sampling_common import wilson_ci  # noqa: E402
 
-OUT = Path(__file__).resolve().parent / "results" / "figures" / "sampling_requirements.png"
+OUT = FIGURES_DIR / "sampling_requirements.png"
 
 # House palette (plot_results.py categorical slots)
 S1_BLUE, S2_AQUA, S3_YELLOW, S4_GREEN = "#2a78d6", "#1baf7a", "#eda100", "#008300"

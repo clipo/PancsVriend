@@ -7,7 +7,7 @@ artifact, so its verdict is a single draw from a distribution — qwen's
 2026-08-25 FLAG (political/share, |Δ|/τ = 1.05) could not be distinguished
 from an unlucky partition. This script estimates the distribution instead.
 
-    python analysis_tools/vf_multisplit_check.py \
+    python value_functions/sampling/vf_multisplit_check.py \
         --config-yaml configs/vf_run_qwen_sanity.yaml --splits 32
     # any SAMPLED-table run config (the check resplits raw samples; the exact
     # -lp tables have none, and the retired _r3 configs are kept only to
@@ -137,17 +137,17 @@ import pandas as pd  # noqa: E402
 import yaml  # noqa: E402
 
 _THIS = Path(__file__).resolve().parent
-REPO_ROOT = _THIS.parent
-for _p in (_THIS, REPO_ROOT, REPO_ROOT / "prompt_refinement"):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+REPO_ROOT = _THIS.parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
 from build_value_function import _assemble_artifact, _blank_counts  # noqa: E402
 from sampling_common import load_value_function  # noqa: E402
 from vf_simulation_evaluation import (ALL_METRICS, METRIC_LABELS,  # noqa: E402
                                       SCENARIO_ORDER, load_batch)
 
-VF_DIR = REPO_ROOT / "prompt_refinement" / "results" / "value_functions"
+VF_DIR = SAMPLED_DIR
 CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 
 

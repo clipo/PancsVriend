@@ -4,7 +4,7 @@
 # sampled -vf-r3 tables carry the batch-numerics artifact and are not a result;
 # the _r3 yaml is kept only to reproduce those runs), and
 # configs/make_sanity_configs.py derives the -sanity arm from this file.
-# value_function points at llm_log_probs/value_functions_logprob/…-lp…, llm_model
+# value_function points at value_functions/results/llm_logprob/…-lp…, llm_model
 # is <model>-vf-lp, and rank stability runs in --exact mode (no ruler).
 # VALUE-FUNCTION simulation run — Qwen3.6-27B R3 dual-count, all scenarios
 # =============================================================================
@@ -16,7 +16,7 @@
 #   python run_llm_probability_simulation_analysis.py \
 #       --config-yaml configs/vf_run_qwen_lp.yaml --config-profile production
 #
-# Sufficiency is checked by analysis_tools/vf_multisplit_check.py, which builds
+# Sufficiency is checked by value_functions/sampling/vf_multisplit_check.py, which builds
 # and simulates its own half-split arms in scratch. The production_half profile
 # and the E3 check it fed were retired 2026-09-01.
 # =============================================================================
@@ -27,7 +27,7 @@ run_id: null
 llm_model: "qwen3.6-27b-vf-lp"
 
 manifest_file: null
-skip_vf_build: true          # exact tables come from prompt_refinement/logprob_value_function.py, not the sampler
+skip_vf_build: true          # exact tables come from value_functions/logprob/logprob_value_function.py, not the sampler
 skip_contexts: false
 skip_analysis: false
 continue_on_error: false
@@ -44,7 +44,7 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "llm_log_probs/value_functions_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
+  value_function: "value_functions/results/llm_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
   temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
   scenario_file: "scenarios_a2.py"
   llm_model: "qwen3.6-27b-vf-lp"
@@ -64,7 +64,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "llm_log_probs/value_functions_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/llm_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "qwen3.6-27b-vf-lp"
@@ -80,7 +80,7 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "llm_log_probs/value_functions_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/llm_logprob/vf_qwen3.6-27b-chat-grammar-lp__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
       llm_model: "qwen3.6-27b-vf-lp"

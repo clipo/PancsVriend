@@ -61,7 +61,7 @@ def _chance_levels():
         return {}
     try:
         try:
-            from analysis_tools.vf_rank_stability import metric_null
+            from value_functions.comparison.vf_rank_stability import metric_null
         except ImportError:
             from vf_rank_stability import metric_null
         from DissimilarityIndex import random_baseline

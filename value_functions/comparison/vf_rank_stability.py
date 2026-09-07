@@ -2,7 +2,7 @@
 """Rank-stability classification: THE criterion for whether a value function
 needs more sampling (user decision 2026-09-03).
 
-    python analysis_tools/vf_rank_stability.py --label <label> \
+    python value_functions/comparison/vf_rank_stability.py --label <label> \
         --multisplit <dir with vf_multisplit_check.csv + vf_multisplit_deltas.csv> \
         [--production-experiments <run_dir>/experiments] [--out-dir <dir>]
 
@@ -68,7 +68,7 @@ and (c) smaller than the ruler is thick. That gives five terminal states:
               same fraction of its own chance spread. Polarity is honoured
               (clusters, switch_rate: higher = LESS segregation), so "at
               chance" always means "no more segregated than random". The
-              null is cached per board in prompt_refinement/results/.
+              null is cached per board in value_functions/results/chance_null/.
   CERTIFIED   g - z*SE_g > z*s : even the sceptical gap beats even the
               un-decomposed ruler. Order citable as-is. Terminal.
   TIE         (g + z*SE_g)/z < tie_mult * s : even the OPTIMISTIC gap would
@@ -126,9 +126,9 @@ import numpy as np
 import pandas as pd
 
 _THIS = Path(__file__).resolve().parent
-for _p in (_THIS, _THIS.parent, _THIS.parent / "prompt_refinement"):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+sys.path.insert(0, str(_THIS.parents[1]))
+from value_functions.paths import CHANCE_NULL_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
 from vf_simulation_evaluation import ALL_METRICS, SCENARIO_ORDER  # noqa: E402
 
@@ -236,7 +236,7 @@ def check_board(meta, exp_root):
 # switch_rate). Same table as cross_model_vf_comparison.SEGREGATION_DIRECTION.
 DIRECTION = {"dissimilarity_index": +1, "clusters": -1, "switch_rate": -1,
              "distance": +1, "mix_deviation": +1, "share": +1, "ghetto_rate": +1}
-NULL_CACHE_DIR = _THIS.parent / "prompt_refinement" / "results"
+NULL_CACHE_DIR = CHANCE_NULL_DIR
 
 
 def metric_null(board, draws=20000, seed=0):

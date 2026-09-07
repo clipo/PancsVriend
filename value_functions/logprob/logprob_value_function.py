@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """EXACT value functions from grammar-masked token probabilities (vf-lp-1).
 
-    python prompt_refinement/logprob_value_function.py --label qwen3.6-27b-chat-grammar
-    python prompt_refinement/logprob_value_function.py --label ... --scenarios baseline --no-write-vf1
+    python value_functions/logprob/logprob_value_function.py --label qwen3.6-27b-chat-grammar
+    python value_functions/logprob/logprob_value_function.py --label ... --scenarios baseline --no-write-vf1
 
-Plan: prompt_refinement/LOGPROB_PLAN.md. Nothing here touches the sampled
-store (prompt_refinement/results/value_functions/); everything lands in
-llm_log_probs/value_functions_logprob/ (moved there 2026-09-07 so that every
-log-probability artifact in the repo lives under llm_log_probs/; it was
-prompt_refinement/results/value_functions_logprob/ before).
+Plan: value_functions/logprob/LOGPROB_PLAN.md. Nothing here touches the sampled
+store (value_functions/results/sampled/); everything lands in
+value_functions/results/llm_logprob/ (value_functions/paths.py; it was
+prompt_refinement/results/value_functions_logprob/ and then, briefly,
+llm_log_probs/value_functions_logprob/ earlier on 2026-09-07).
 
 WHAT IS COMPUTED
 
@@ -50,7 +50,7 @@ States are expanded in order of mass; whitespace prefixes decay
 geometrically; expansion stops at --max-depth or when a state's mass is
 below --mass-floor, with the dropped mass added to the bound.
 
-OUTPUTS (llm_log_probs/value_functions_logprob/)
+OUTPUTS (value_functions/results/llm_logprob/)
   vflp_<label>__<scenario>__<style>.json      schema vf-lp-1: per (role, cell)
       p_move, p_stay, mass_bound, n_requests, every path with its mass and
       every state's top-n table (so the "\\n then flip" cases are visible)
@@ -99,23 +99,19 @@ from pathlib import Path
 import requests
 
 _THIS = Path(__file__).resolve().parent
-REPO_ROOT = _THIS.parent
-for _p in (_THIS, REPO_ROOT):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+REPO_ROOT = _THIS.parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from value_functions.paths import LOGPROB_DIR, SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
-from sampling_common import RESULTS_DIR, load_value_function, role_keywords, wilson_ci  # noqa: E402
+from sampling_common import load_value_function, role_keywords, wilson_ci  # noqa: E402
 from ratio_prompt_templates import ALL_COMPOSITIONS, RATIO_CANDIDATES  # noqa: E402
 from evaluate_ratio_prompts import render_prompt  # noqa: E402
 from llm_runner import MOVE_STAY_GRAMMAR, SAMPLER_PARAMS  # noqa: E402
 
-VF_DIR = RESULTS_DIR / "value_functions"
+VF_DIR = SAMPLED_DIR       # the sampled tables this extraction is checked against
 USER_PROMPTS = {}          # (scenario, role, (n_sim, n_occ)) -> user prompt text
-# The exact (log-probability) store sits OUTSIDE prompt_refinement/results/,
-# under the repo-level llm_log_probs/ that already holds the earlier
-# logprob-vs-sampled comparisons (moved 2026-09-07). The sampled store above
-# is unchanged.
-LP_DIR = REPO_ROOT / "llm_log_probs" / "value_functions_logprob"
+LP_DIR = LOGPROB_DIR       # the exact store (value_functions/paths.py)
 WORDS = ("move", "stay")
 WS = " \t\n"
 # prefix + piece must fully match this to stay inside the language

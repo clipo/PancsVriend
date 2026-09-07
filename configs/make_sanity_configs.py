@@ -6,7 +6,7 @@
 
 WHY THIS EXISTS (user request 2026-09-07)
 The production result set is built from the EXACT (log-probability) value
-functions in llm_log_probs/value_functions_logprob/. The sampled route was
+functions in value_functions/results/llm_logprob/. The sampled route was
 closed on 2026-09-06 because llama-server returns batch-dependent
 probabilities at concurrency > 1, so the -vf-r3 tables are not a result.
 This generates a small SAMPLED arm purely as a cross-check on the exact
@@ -26,7 +26,7 @@ Two deliberate differences from the retired -vf-r3 campaign:
                    standard error (~0.011) already dominates, so buying table
                    precision beyond this would not sharpen the answer.
 
-Artifacts land in prompt_refinement/results/value_functions_sanity/ under the
+Artifacts land in value_functions/results/sampled/sanity/ under the
 label suffix -sanity, and simulations use llm_model <model>-vf-s, so nothing
 here can be confused with either the exact (-vf-lp) or retired sampled
 (-vf-r3) sets in any run folder, figure or roll-up.
@@ -45,7 +45,7 @@ CONFIGS = Path(__file__).resolve().parent
 # compare two flat lines.
 KEYS = ["qwen", "gemma", "hermes", "llama", "deepseek"]
 
-SANITY_STORE = "prompt_refinement/results/value_functions_sanity"
+SANITY_STORE = "value_functions/results/sampled/sanity"
 SAMPLES = 25
 CONCURRENCY = 1
 RUNS = 10
@@ -87,10 +87,10 @@ def make_build_config(text):
 
 def make_run_config(text):
     # Source is the canonical _lp yaml (2026-09-07; the _r3 lineage is retired):
-    # its value_function is the exact table under llm_log_probs/…/vf_<label>-lp__…
+    # its value_function is the exact table under value_functions/results/llm_logprob/vf_<label>-lp__…
     # and its llm_model is <model>-vf-lp.
     text = re.sub(
-        r'value_function: "llm_log_probs/value_functions_logprob/vf_([^_"]+(?:-[^_"]+)*)-lp__\{scenario\}__(\w+)\.json"',
+        r'value_function: "value_functions/results/llm_logprob/vf_([^_"]+(?:-[^_"]+)*)-lp__\{scenario\}__(\w+)\.json"',
         lambda m: f'value_function: "{SANITY_STORE}/vf_{m.group(1)}-sanity__{{scenario}}__{m.group(2)}.json"',
         text)
     text = re.sub(r'(llm_model: "[^"]*?)-vf-lp"', r'\1-vf-s"', text)

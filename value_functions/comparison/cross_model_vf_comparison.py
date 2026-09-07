@@ -4,22 +4,22 @@
 Compares the nine campaign models on the SAME pipeline (R3_dual_count value
 functions, composition-level lookup, 6 scenarios each; the run count is read from the data):
 
-    python analysis_tools/cross_model_vf_comparison.py                 # exact logprob tables (default)
-    python analysis_tools/cross_model_vf_comparison.py --family r3     # sampled tables (superseded)
-    python analysis_tools/cross_model_vf_comparison.py --run-root <dir>
+    python value_functions/comparison/cross_model_vf_comparison.py                 # exact logprob tables (default)
+    python value_functions/comparison/cross_model_vf_comparison.py --family r3     # sampled tables (superseded)
+    python value_functions/comparison/cross_model_vf_comparison.py --run-root <dir>
 
 Input: the newest FULL analysis/run_summary_by_run.csv per model under
 <run-root>/run_*_<model>-vf-<family>/ (final-step value per run; pick_run).
 The two table FAMILIES are never mixed in one figure. `lp` (DEFAULT, the
 result): the exact token-probability tables (llm_model suffix -vf-lp,
-prompt_refinement/logprob_value_function.py). `r3`: the sampled R3_dual_count
+value_functions/logprob/logprob_value_function.py). `r3`: the sampled R3_dual_count
 tables (suffix -vf-r3) — SUPERSEDED 2026-09-06: sampled at concurrency > 1
 they carry the llama-server batch-numerics artifact, so the user does not
 consider them a meaningful output or a ground truth; they are kept only for
 the artifact write-up, written under cross_model_sampled_* with a title that
 says so, and the orchestrator's cross_model stage does not regenerate them.
 
-Outputs (prompt_refinement/results/figures/ by default):
+Outputs (experiments_with_llama_cpp/cross_model/ by default):
   cross_model_level_all_metrics.png  7 level-chart panels (one per metric), same grid
   cross_model_bump_all_metrics.png  7 bump-chart panels (one per metric): scenario
                                 ordering per model (was absolute levels until 2026-09-05);
@@ -90,9 +90,10 @@ import pandas as pd
 from scipy import stats
 
 _THIS = Path(__file__).resolve().parent
-REPO = _THIS.parent
+REPO = _THIS.parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+from value_functions.paths import CROSS_MODEL_DIR  # noqa: E402
 
 from analysis_tools.normality_tests import holm_correction  # noqa: E402
 
@@ -443,7 +444,7 @@ def chance_stats(metric, board=None):
     try:
         from vf_rank_stability import metric_null
     except ImportError:
-        from analysis_tools.vf_rank_stability import metric_null
+        from value_functions.comparison.vf_rank_stability import metric_null
     m = metric_null(board)["metrics"][metric]
     return float(m["mean"]), float(m["sd"])
 
@@ -979,8 +980,9 @@ def rankings(data, scenarios, csv_path):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run-root", default=str(REPO / "experiments_with_llama_cpp"))
-    ap.add_argument("--out-dir",
-                    default=str(REPO / "prompt_refinement" / "results" / "figures"))
+    ap.add_argument("--out-dir", default=None,
+                    help="default: <run-root>/cross_model (experiments_with_llama_cpp/cross_model "
+                         "for the production root), so the figures sit next to the runs they summarise")
     ap.add_argument("--dpi", type=int, default=300)
     ap.add_argument("--family", choices=sorted(FAMILIES), default=DEFAULT_FAMILY,
                     help="table family to compare: lp = exact logprob tables (run_*-vf-lp, "
@@ -999,7 +1001,8 @@ def main() -> int:
     scenarios += extra
     print(f"scenarios: {scenarios}")
 
-    out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
+    out = Path(args.out_dir) if args.out_dir else Path(args.run_root) / CROSS_MODEL_DIR.name
+    out.mkdir(parents=True, exist_ok=True)
     rows, chance_rows = fig_metrics(data, scenarios, out / f"{P}bump_all_metrics.png", args.dpi)
     fig_levels_grid(data, scenarios, out / f"{P}level_all_metrics.png", args.dpi)
     for metric in METRICS:                     # bump + level chart per metric

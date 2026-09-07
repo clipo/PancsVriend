@@ -8,17 +8,18 @@ Example:
         --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 
 Each stage allows pass-through arguments:
-- --vf-build-args -> prompt_refinement/build_value_function.py
+- --vf-build-args -> value_functions/sampling/build_value_function.py
 - --contexts-args -> run_all_contexts.py
 - --analysis-args -> analysis_tools/run_all_scenario_analysis.py
-- --rank-stability-args -> analysis_tools/vf_rank_stability.py
-- --cross-model-args -> analysis_tools/cross_model_vf_comparison.py
+- --rank-stability-args -> value_functions/comparison/vf_rank_stability.py
+- --cross-model-args -> value_functions/comparison/cross_model_vf_comparison.py
 
 Cross-model stage (added 2026-09-06): the last stage regenerates the
-cross-model figures and tables (analysis_tools/cross_model_vf_comparison.py
+cross-model figures and tables (value_functions/comparison/cross_model_vf_comparison.py
 --run-root <run_root>: cross_model_bump_*.png, cross_model_level_*.png,
 cross_model_{chance_tests,pairwise_tests,rankings}.csv under
-prompt_refinement/results/figures/) from every model's newest full run OF THE
+<run_root>/cross_model/, i.e. experiments_with_llama_cpp/cross_model/ for the
+production root) from every model's newest full run OF THE
 SAME TABLE FAMILY under this run's --run-root, so the comparison is
 refreshed whenever one of its models' pipelines completes and never has to
 be run by hand. Only the exact logprob tables (-vf-lp) are a result: the
@@ -35,11 +36,11 @@ A `cross_model` block in run_layout_manifest.json records the command.
 
 Rank-stability stage (added 2026-09-04): after the scenario analysis, the DI
 ordering of this run's scenarios is classified against the value function's
-multi-split RULER (analysis_tools/vf_rank_stability.py). The stage derives
+multi-split RULER (value_functions/comparison/vf_rank_stability.py). The stage derives
 everything from the run itself — label from the value-function template
 (vf_<label>__{scenario}__<style>.json), the production board from
 contexts_args, the ruler as the newest multisplit_<label>*/ directory in
-prompt_refinement/results/value_functions/ whose multisplit_status.json
+value_functions/results/sampled/ whose multisplit_status.json
 matches that board and max_steps (rng_scheme 'keyed' preferred over
 'shared'). `rank_stability_args` in the yaml overrides any of --label,
 --multisplit, --tie-mult, ...; `skip_rank_stability: true` disables the
@@ -53,7 +54,7 @@ Value-function guide:
   (build_value_function.py --config <sampling yaml>); it only runs when
   `vf_build_args` provides a `config` and `skip_vf_build` is false. Skip it
   when the artifacts already exist under the canonical store
-  (prompt_refinement/results/value_functions/).
+  (value_functions/results/sampled/).
 - When `contexts_args.value_function` is set, the resolved artifacts (JSON +
   figures) are FROZEN into <run_dir>/value_functions/ together with a
   composition-heatmap grid rendered from the frozen copies, and the contexts
@@ -93,16 +94,16 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-VF_BUILD_SCRIPT = REPO_ROOT / "prompt_refinement" / "build_value_function.py"
+VF_BUILD_SCRIPT = REPO_ROOT / "value_functions" / "sampling" / "build_value_function.py"
 CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 ANALYSIS_SCRIPT = REPO_ROOT / "analysis_tools" / "run_all_scenario_analysis.py"
-RANK_STABILITY_SCRIPT = REPO_ROOT / "analysis_tools" / "vf_rank_stability.py"
-CROSS_MODEL_SCRIPT = REPO_ROOT / "analysis_tools" / "cross_model_vf_comparison.py"
+RANK_STABILITY_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "vf_rank_stability.py"
+CROSS_MODEL_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "cross_model_vf_comparison.py"
 # Canonical store of value-function artifacts AND their multi-split rulers
 # (multisplit_<label>[_suffix]/). A ruler is a property of the table and the
 # board it was measured on, so it lives with the table, never inside a
 # production run folder.
-VF_STORE = REPO_ROOT / "prompt_refinement" / "results" / "value_functions"
+VF_STORE = REPO_ROOT / "value_functions" / "results" / "sampled"
 BOARD_KEYS = ("grid_size", "num_type_a", "num_type_b", "max_steps")
 
 DEPRECATED_TOKEN_KEYS = (
@@ -269,9 +270,9 @@ def _render_vf_heatmaps(frozen_jsons: list[Path], out_path: Path) -> None:
     """Composition-surface heatmap grid — the exact lookup table the simulation
     uses — rendered FROM THE FROZEN artifacts. plot_value_functions.fig_heatmaps
     is reused so this rendering cannot drift from the sweep figures."""
-    pr_dir = str(REPO_ROOT / "prompt_refinement")
-    if pr_dir not in sys.path:
-        sys.path.insert(0, pr_dir)
+    for extra in (REPO_ROOT / "value_functions" / "sampling", REPO_ROOT / "prompt_refinement"):
+        if str(extra) not in sys.path:
+            sys.path.insert(0, str(extra))
     try:
         from sampling_common import load_value_function
         from plot_value_functions import SCENARIO_ORDER, fig_heatmaps
@@ -601,7 +602,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--vf-build-args",
         type=str,
         default="",
-        help="Quoted passthrough args for prompt_refinement/build_value_function.py "
+        help="Quoted passthrough args for value_functions/sampling/build_value_function.py "
              "(the stage only runs when these include --config)",
     )
     parser.add_argument(
@@ -620,7 +621,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--rank-stability-args",
         type=str,
         default="",
-        help="Quoted passthrough args for analysis_tools/vf_rank_stability.py; "
+        help="Quoted passthrough args for value_functions/comparison/vf_rank_stability.py; "
              "--label, --multisplit, --production-experiments and --out-dir are "
              "derived from the run when absent",
     )
@@ -628,7 +629,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cross-model-args",
         type=str,
         default="",
-        help="Quoted passthrough args for analysis_tools/cross_model_vf_comparison.py "
+        help="Quoted passthrough args for value_functions/comparison/cross_model_vf_comparison.py "
              "(--run-root is this run's --run-root unless given here)",
     )
     parser.add_argument(
@@ -841,7 +842,7 @@ def main() -> None:
             vf_build_cmd.extend(vf_build_base_args)
             try:
                 # cwd stays at the repo root so artifacts land in the canonical
-                # store (prompt_refinement/results/value_functions/); the run
+                # store (value_functions/results/sampled/); the run
                 # folder then freezes copies of what it uses.
                 _run_command(vf_build_cmd, dry_run=args.dry_run)
             except subprocess.CalledProcessError as exc:
@@ -1079,7 +1080,7 @@ def _run_cross_model_stage(args, run_layout, cm_args) -> None:
         cmd.extend(["--family", family])
     cmd.extend(cm_args)
     out_dir = _get_flag_value(cm_args, "--out-dir") or str(
-        REPO_ROOT / "prompt_refinement" / "results" / "figures")
+        Path(run_root).resolve() / "cross_model")
     record: dict[str, Any] = {"run_root": str(run_root), "family": family,
                               "out_dir": out_dir, "command": shlex.join(cmd)}
     print("[cmd]", shlex.join(cmd))

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """How does the multi-split ruler scale with value-function precision?
 
-    python analysis_tools/vf_ruler_scaling.py [--labels ...] [--out-dir DIR]
+    python value_functions/sampling/vf_ruler_scaling.py [--labels ...] [--out-dir DIR]
 
 Reads, per model, the keyed rulers measured at keep fractions 1/2, 3/4 and 7/8
-(prompt_refinement/results/value_functions/multisplit_<label>_b32g20_keyed,
+(value_functions/results/sampled/multisplit_<label>_b32g20_keyed,
 ..._keyed_f075, ..._keyed_f0875) and fits the exponent alpha in
 
     s  ∝  (injected table error)^alpha,    error_f ∝ sqrt(1/f - 1)
@@ -41,7 +41,10 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 _THIS = Path(__file__).resolve().parent
-STORE = _THIS.parent / "prompt_refinement" / "results" / "value_functions"
+sys.path.insert(0, str(_THIS.parents[1]))
+from value_functions.paths import FIGURES_DIR, SAMPLED_DIR  # noqa: E402
+
+STORE = SAMPLED_DIR
 FRACTIONS = {"": 0.5, "_f075": 0.75, "_f0875": 0.875}
 LABELS = ["qwen3.6-27b-chat-grammar", "deepseek-v4-flash-chat-grammar",
           "hermes-4.3-36b-chat-grammar", "llama-3.3-70b-chat-grammar",
@@ -88,7 +91,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--labels", nargs="*", default=LABELS)
     ap.add_argument("--metric", default="dissimilarity_index")
-    ap.add_argument("--out-dir", default=str(_THIS.parent / "prompt_refinement" / "results" / "figures"))
+    ap.add_argument("--out-dir", default=str(FIGURES_DIR))
     ap.add_argument("--dpi", type=int, default=200)
     args = ap.parse_args()
 

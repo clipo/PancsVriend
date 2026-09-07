@@ -1,6 +1,6 @@
 # 03 — The sampled value function: what is measured, artifacts, coupling
 
-Pipeline: `prompt_refinement/build_value_function.py` (config:
+Pipeline: `value_functions/sampling/build_value_function.py` (config:
 `configs/value_function_scenarios_<model>.yaml`), consumed by
 `llm_runner.py --value-function`. The sample-size rule and its statistics are
 in `VALUE_FUNCTION_SAMPLING_FOR_REVIEW.md`.
@@ -37,7 +37,7 @@ protocol of 04.
 ## 2. The artifact (schema vf-1)
 
 One JSON per (scenario, style), under
-`prompt_refinement/results/value_functions/vf_<label>__<scenario>__R3_dual_count.json`:
+`value_functions/results/sampled/vf_<label>__<scenario>__R3_dual_count.json`:
 
 - `meta` — model, endpoint arm, temperature, sampler params, grammar hash,
   scenario and identity labels, role→type map, sampling stages, and

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare value functions ACROSS SCENARIOS: one panel per scenario, both roles.
 
-    python prompt_refinement/plot_value_functions.py \
+    python value_functions/sampling/plot_value_functions.py \
         --label gemma-4-31b-chat-grammar --style R1_count_opposite
 
 Reads every results/value_functions/vf_<label>__<scenario>__<style>.json (the
@@ -24,10 +24,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sampling_common import NO_NEIGHBORS_KEY, RESULTS_DIR  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from value_functions.paths import FIGURES_DIR, SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
+from sampling_common import NO_NEIGHBORS_KEY  # noqa: E402
 
-VF_DIR = RESULTS_DIR / "value_functions"
+VF_DIR = SAMPLED_DIR
 ROLE_COLORS = {"red": "#d62728", "blue": "#1f77b4"}
 # Canonical panel order: control first, then the loaded contexts as they
 # appear in scenarios_a2.py, then anything unexpected alphabetically.
@@ -240,7 +242,7 @@ def main() -> int:
     fig.subplots_adjust(top=0.885, bottom=0.06, left=0.06, right=0.985)
 
     out = Path(args.out) if args.out else (
-        RESULTS_DIR / "figures" / f"vfS_{args.label}__{args.style}.{args.format}")
+        FIGURES_DIR / f"vfS_{args.label}__{args.style}.{args.format}")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=args.dpi)
     print(f"wrote {out}  ({len(scenarios)} scenarios: {', '.join(scenarios)})")

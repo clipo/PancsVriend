@@ -3,7 +3,7 @@
 
 RETIRED 2026-09-01 — the E3 CLI (`main()` below). Use instead:
 
-    python analysis_tools/vf_multisplit_check.py --label <label> --splits 32
+    python value_functions/sampling/vf_multisplit_check.py --label <label> --splits 32
 
 E3 compared the full artifact against ONE half-data artifact built from the
 even-indexed raw samples. That is exactly the multi-split statistic at B=1 with

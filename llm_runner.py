@@ -273,7 +273,7 @@ def _resolve_value_function_file(vf_path, scenario):
 
 
 def load_value_function_policy(vf_path, scenario=None):
-    """Load a vf-1 value-function artifact (prompt_refinement/build_value_function.py)
+    """Load a vf-1 value-function artifact (value_functions/sampling/build_value_function.py)
     into {(type_key, "comp:n_similar,n_occupied"): move_probability}.
 
     COMPOSITION-level lookup only (user decision 2026-08-25, ratio mode
@@ -1698,7 +1698,7 @@ if __name__ == "__main__":
         '--value-function',
         type=str,
         default=None,
-        help='Path to a vf-1 value-function JSON (prompt_refinement/build_value_function.py), '
+        help='Path to a vf-1 value-function JSON (value_functions/sampling/build_value_function.py), '
              'or a DIRECTORY of them (the per-scenario file is resolved by filename, '
              'vf_<label>__<scenario>__<style>.json; a '
              'missing/ambiguous match is a hard error). Decides MOVE/STAY from the exact '

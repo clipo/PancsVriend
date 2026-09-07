@@ -43,7 +43,7 @@ def _placebo_policy():
 @pytest.mark.slow
 def test_composition_blind_dynamics_leave_a_random_allocation(tmp_path):
     import llm_runner as L
-    from analysis_tools.vf_rank_stability import metric_null
+    from value_functions.comparison.vf_rank_stability import metric_null
     from DissimilarityIndex import random_baseline
 
     grid_cfg = L.grid_config_from_args(BOARD["grid_size"], BOARD["num_type_a"], BOARD["num_type_b"])

@@ -25,7 +25,7 @@ FLOOR-TIE, where it bounds GPU top-up quotes.
   as a minimum effect size (and, if so, test against it rather than cut on
   the point estimate).
 - Decide: does FLOOR-TIE stay in the certification stage regardless?
-- Numbers to bring: `prompt_refinement/results/figures/cross_model_pairwise_tests.csv`
+- Numbers to bring: `experiments_with_llama_cpp/cross_model/cross_model_pairwise_tests.csv`
   (`mean_gap` vs `p_holm`) and `cross_model_chance_tests.csv` (`excess`).
 
 

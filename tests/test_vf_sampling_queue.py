@@ -16,7 +16,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 PR = REPO / "prompt_refinement"
-for path in (str(REPO), str(PR)):
+for path in (str(REPO), str(PR), str(REPO / "value_functions" / "sampling")):
     if path not in sys.path:
         sys.path.insert(0, path)
 

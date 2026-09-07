@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Does the probability a llama-server returns depend on the BATCH it is in?
 
-    python prompt_refinement/batch_numerics/batch_numerics_probe.py --label qwen3.6-27b-chat-grammar
-    python prompt_refinement/batch_numerics/batch_numerics_probe.py --label ... --cells 8 --repeats 16 --seq-samples 300
+    python value_functions/batch_numerics/batch_numerics_probe.py --label qwen3.6-27b-chat-grammar
+    python value_functions/batch_numerics/batch_numerics_probe.py --label ... --cells 8 --repeats 16 --seq-samples 300
 
 Everything about this artifact lives in this folder: the probe (this file), its
 results (results/probe_<label>*.csv/json/png) and README.md. All requests go
@@ -27,7 +27,7 @@ the chat endpoint's post-sampling probabilities under:
 
 and the campaign's sampled rate with its Wilson CI for reference.
 
-Outputs (prompt_refinement/batch_numerics/results/):
+Outputs (value_functions/batch_numerics/results/):
     probe_<label>.csv           one row per request (condition, repeat, p_move, prompt_n)
     probe_<label>_summary.csv   one row per cell: sequential value, its spread,
                                 concurrent mean/sd/min/max, interleaved same,
@@ -48,19 +48,18 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-_THIS = Path(__file__).resolve().parent            # prompt_refinement/batch_numerics
-PR_DIR = _THIS.parent                               # prompt_refinement
-REPO_ROOT = PR_DIR.parent
-for _p in (PR_DIR, REPO_ROOT):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+_THIS = Path(__file__).resolve().parent            # value_functions/batch_numerics
+REPO_ROOT = _THIS.parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+add_import_paths()
 
-from sampling_common import RESULTS_DIR, load_value_function, role_keywords, wilson_ci  # noqa: E402
+from sampling_common import load_value_function, role_keywords, wilson_ci  # noqa: E402
 from ratio_prompt_templates import RATIO_CANDIDATES  # noqa: E402
 from evaluate_ratio_prompts import render_prompt  # noqa: E402
 from llm_runner import MOVE_STAY_GRAMMAR, SAMPLER_PARAMS  # noqa: E402
 
-VF_DIR = RESULTS_DIR / "value_functions"
+VF_DIR = SAMPLED_DIR
 OUT_DIR = _THIS / "results"
 
 
