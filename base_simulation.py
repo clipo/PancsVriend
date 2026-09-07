@@ -376,7 +376,12 @@ class Simulation:
         else:
             decisions = sum(row['decisions'] for row in self.step_log)
             moves = sum(row['moved'] for row in self.step_log)
-        print(f"[Run {self.run_id}] Move summary: {moves} moves, {decisions - moves} stays, {self.step} steps")
+        # Per-run narration only for live-LLM runs (minutes each, and the
+        # summary is how a stalled run shows) or when a progress bar was
+        # asked for. Value-function campaigns run 60k runs per model, and
+        # these lines were 120k of the 240k lines in each campaign log.
+        if show_progress or self.full_move_log:
+            print(f"[Run {self.run_id}] Move summary: {moves} moves, {decisions - moves} stays, {self.step} steps")
         
         return {
             'run_id': self.run_id,

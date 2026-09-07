@@ -160,7 +160,6 @@ def _collect_decisions_for_scenario(folder_name: str) -> Optional[pd.DataFrame]:
             continue
         if df_run is not None and not df_run.empty:
             frames.append(df_run)
-            print(f"movement_decision_counts:   run {run_id} contributed {len(df_run)} step rows")
         else:
             print(f"movement_decision_counts:   run {run_id} missing usable move log; skipped")
     if not frames:

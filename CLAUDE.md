@@ -216,6 +216,14 @@ shares it with the frame log. The pre-2026-09-05 object-grid loops live in
 to, bit for bit (real campaign frames + adversarial grids). Per 20x20 step:
 4.4 ms -> 0.3 ms; a value-function run halves overall.
 
+### Logging cadence
+
+Value-function runs print no per-run lines; `[run-progress]` appears every
+`llm_runner.PROGRESS_EVERY` (100) completions and always on the last (the
+watchers read the latest line). Live-LLM runs keep per-run lines and a
+progress line per run. A 60k-run campaign log is a few hundred lines, not
+240k.
+
 
 ## Development Notes
 

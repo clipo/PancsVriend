@@ -196,6 +196,9 @@ def apply_scenario_file(scenario_file):
     return path
 
 
+PROGRESS_EVERY = 100     # [run-progress] cadence for value-function runs
+
+
 def format_run_progress(scenario, done, total, elapsed_s, n_processes,
                         progress_offset=0, progress_total=None):
     """One structured, machine-readable log line per completed run.
@@ -930,7 +933,9 @@ class LLMSimulation(Simulation):
     def run_single_simulation(self, output_dir=None, max_steps=1000, show_progress=False, save_every_steps=None):
         """Override to show progress bar for LLM simulations and add timestamps"""
         start_time = datetime.now()
-        print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
+        live = not self.value_function_policy      # per-run lines only for live-LLM runs
+        if live:
+            print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LLM simulation run {self.run_id}")
         
         result = super().run_single_simulation(
             output_dir=output_dir,
@@ -942,7 +947,8 @@ class LLMSimulation(Simulation):
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Completed LLM simulation run {self.run_id} in {duration:.1f}s")
+        if live:
+            print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Completed LLM simulation run {self.run_id} in {duration:.1f}s")
         
         return result
 
@@ -1579,6 +1585,18 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             parallel = False
 
     _run_started_at = time.time()
+    # A [run-progress] line per completed run for live-LLM runs (minutes
+    # each); every PROGRESS_EVERY for value-function runs (tens of ms each,
+    # 10k per scenario), and always the last, which is what the watchers
+    # read (they take the latest line, watch_progress.sh / watch_campaign_eta.sh).
+    progress_every = 1 if not value_function_policy else PROGRESS_EVERY
+
+    def _progress(done, procs):
+        if done % progress_every == 0 or done == runs_to_execute:
+            print(format_run_progress(scenario, done, runs_to_execute,
+                                      time.time() - _run_started_at, procs,
+                                      progress_offset, progress_total), flush=True)
+
     if parallel and n_processes > 1:
         print(f"Running {runs_to_execute} simulations using {n_processes} parallel processes...")
         results = []
@@ -1586,17 +1604,13 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
             for _res in tqdm(pool.imap(run_single_simulation, args_list),
                              total=runs_to_execute, desc="Running LLM simulations", ncols=80):
                 results.append(_res)
-                print(format_run_progress(scenario, len(results), runs_to_execute,
-                                          time.time() - _run_started_at, n_processes,
-                                          progress_offset, progress_total), flush=True)
+                _progress(len(results), n_processes)
     else:
         print(f"Running {runs_to_execute} simulations sequentially...")
         results = []
         for args in tqdm(args_list, desc="Running LLM simulations", ncols=80):
             results.append(run_single_simulation(args))
-            print(format_run_progress(scenario, len(results), runs_to_execute,
-                                      time.time() - _run_started_at, 1,
-                                      progress_offset, progress_total), flush=True)
+            _progress(len(results), 1)
 
     # Load existing results if resuming
     if resume_experiment and completed_runs > 0:
