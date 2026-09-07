@@ -478,6 +478,18 @@ def keyed_uniform(run_id, step, agent_id, salt):
     return (h >> 11) * _U53
 
 
+def _empty_cells(grid):
+    """Empty cells in row-major order — the order the destination draw indexes.
+
+    One vectorised None-mask over the object grid instead of a Python scan of
+    every cell for every mover (2026-09-05). Same list, so int(u * len) and
+    random.choice pick the same cell as before.
+    """
+    if not isinstance(grid, np.ndarray):
+        grid = np.asarray(grid, dtype=object)
+    return [(int(row), int(col)) for row, col in np.argwhere(grid == None)]  # noqa: E711
+
+
 class LLMAgent(Agent):
     def __init__(self, type_id, scenario='baseline', llm_model=None, llm_url=None, llm_api_key=None,
                  run_id=None, step=None, temperature=None, llm_style=None,
@@ -551,9 +563,21 @@ class LLMAgent(Agent):
         behaviour; it is also used, with a one-time warning, if a caller never
         gave the agent a run_id/step/agent_id (base_simulation always does).
         """
-        code = self._context_arrangement_code(r, c, grid)
-        n_sim = code.count("S")
-        n_occ = n_sim + code.count("O")
+        # Count neighbours directly rather than rendering the 8-character
+        # arrangement code and counting letters in it: this ran for every
+        # agent every step and was the single largest line in the profile.
+        n_sim = n_occ = 0
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0:
+                    continue
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < cfg.GRID_SIZE and 0 <= nc < cfg.GRID_SIZE:
+                    neighbor = grid[nr][nc]
+                    if neighbor is not None:
+                        n_occ += 1
+                        if neighbor.type_id == self.type_id:
+                            n_sim += 1
 
         type_key = self._agent_role_key()
         move_probability = self.value_function_policy[
@@ -582,10 +606,7 @@ class LLMAgent(Agent):
 
         if not choose_move:
             return None
-        empty_spaces = [(row, col)
-                        for row in range(cfg.GRID_SIZE)
-                        for col in range(cfg.GRID_SIZE)
-                        if grid[row][col] is None]
+        empty_spaces = _empty_cells(grid)
         if not empty_spaces:
             return None
         if keyed:
@@ -876,29 +897,22 @@ class LLMSimulation(Simulation):
             value_function_path=self.value_function_path,
         )
 
-    def run_step(self, verbose_move_log: bool = False):
-        """Override run_step to track LLM metrics and add timestamps"""
-        step_start_time = datetime.now()
-        
-        # Sync step/run_id to agents (for accurate logging) and update total LLM metrics
-        for r in range(cfg.GRID_SIZE):
-            for c in range(cfg.GRID_SIZE):
-                agent = self.grid[r][c]
-                if agent is not None:
-                    # Ensure agents know the current simulation step and run id
-                    try:
-                        agent.step = self.step
-                        agent.run_id = self.run_id
-                    except Exception:
-                        pass
+    def _collect_llm_counters(self):
+        """Fold every agent's call count / time into the run totals and reset
+        them. Once per run, after the loop (2026-09-05): this used to be a
+        400-cell scan at the top of every step, and the step/run_id sync it
+        also did is redundant — update_agents sets agent.step before each
+        decision and run_id is fixed at construction."""
+        for agent in self.grid[self.grid != None]:  # noqa: E711
+            if hasattr(agent, 'llm_call_count'):
+                self.total_llm_calls += agent.llm_call_count
+                self.total_llm_time += agent.llm_call_time
+                agent.llm_call_count = 0
+                agent.llm_call_time = 0.0
 
-                    # Aggregate and reset LLM metrics if present
-                    if hasattr(agent, 'llm_call_count'):
-                        self.total_llm_calls += agent.llm_call_count
-                        self.total_llm_time += agent.llm_call_time
-                        # Reset agent counters to avoid double counting
-                        agent.llm_call_count = 0
-                        agent.llm_call_time = 0.0
+    def run_step(self, verbose_move_log: bool = False):
+        """Override run_step to track step timing"""
+        step_start_time = datetime.now()
 
         # Call parent run_step
         result = super().run_step(verbose_move_log=verbose_move_log)
@@ -924,6 +938,7 @@ class LLMSimulation(Simulation):
             show_progress=show_progress,
             save_every_steps=save_every_steps,
         )
+        self._collect_llm_counters()
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
