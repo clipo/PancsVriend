@@ -60,6 +60,7 @@ GLOB_MOVES = [
 # Path strings to rewrite in the gitignored runner scripts (order matters).
 TEXT_SUBS = [
     (r"llm_log_probs/value_functions_logprob", P.LOGPROB_REL),
+    (r"prompt_refinement/results/value_functions_logprob", P.LOGPROB_REL),   # the original home, still in older runner scripts
     (r"prompt_refinement/results/value_functions_sanity", P.SANITY_REL),
     (r"prompt_refinement/results/value_functions_cacheon_archive", P.SAMPLED_REL + "/cacheon_archive"),
     (r"prompt_refinement/results/value_functions(?![_a-zA-Z])", P.SAMPLED_REL),
