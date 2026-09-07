@@ -77,6 +77,17 @@ fraction needing no rescaling, which is what lets RMS(Δ) be read directly as
 "how far the published table's simulation output plausibly sits from the
 truth". (Odd n keeps n//2, marginally below half; negligible at n >= 100.)
 
+KEEP FRACTIONS OTHER THAN HALF (--keep-fraction, 2026-09-05) are a DIAGNOSTIC
+of how the ruler scales with table precision, not a sufficiency check. At
+fraction f the injected table error has variance (1/f - 1) x the full table's
+own: 1 at f=1/2, 1/3 at f=3/4, 1/7 at f=7/8. vf_sampling_plan prices top-ups
+on s ∝ (table error), i.e. s(3/4)/s(1/2) = sqrt(1/3) = 0.577; if the
+displacement is instead dominated by discrete decision flips amplified by the
+dynamics, s ∝ sqrt(table error) and the ratio is 0.76. The exponent alpha in
+s ∝ (error)^alpha follows from two fractions: alpha = ln(s_f/s_half) /
+ln(sqrt(1/f - 1)). The verdict/ratio columns are still written at f != 1/2
+but must not be read as sufficiency (they are optimistic by (1/f - 1)^(-a/2)).
+
 RMS rather than the mean because the sign of Δ_b depends on which half was
 kept and would cancel; RMS² = (E[Δ])² + Var(Δ) retains both the systematic
 component (the metric is a nonlinear function of the table) and the random one.
@@ -185,18 +196,18 @@ def verify_ledger(samples, vf, vf_path):
                     f"the raw shards — the ledger is incomplete, refusing to split")
 
 
-def split_counts(samples, roles, rng):
-    """Count store keeping a random half of EACH cell's samples.
+def split_counts(samples, roles, rng, keep_fraction=0.5):
+    """Count store keeping a random fraction (default half) of EACH cell's samples.
 
-    Per-cell rather than one global draw: a global half would leave cells with
+    Per-cell rather than one global draw: a global draw would leave cells with
     unequal counts by chance, adding variance unrelated to the quantity being
-    measured. Per-cell halving fixes n_half = n_full // 2 everywhere.
+    measured. Per-cell keeps n_kept = int(n_full * keep_fraction) everywhere.
     """
     counts = _blank_counts(roles)
     for key, verdicts in samples.items():
         if key not in counts:                   # role absent from this artifact
             continue
-        keep = rng.sample(range(len(verdicts)), len(verdicts) // 2)
+        keep = rng.sample(range(len(verdicts)), int(len(verdicts) * keep_fraction))
         c = counts[key]
         for i in keep:
             v = verdicts[i]
@@ -238,18 +249,19 @@ def load_ledgers(label, style, scenarios):
     return ledgers, scenario_files.pop()
 
 
-def write_split_artifacts(label, style, ledgers, split_id, rng, dest):
-    """Build one half artifact per scenario for a single split.
+def write_split_artifacts(label, style, ledgers, split_id, rng, dest, keep_fraction=0.5):
+    """Build one reduced artifact per scenario for a single split.
 
     Returns the '{scenario}' template path the simulation consumes.
     """
     dest.mkdir(parents=True, exist_ok=True)
     new_label = f"{label}-split{split_id:02d}"
     for scenario, (vf, roles, samples, vf_path) in ledgers.items():
-        counts = split_counts(samples, roles, rng)
+        counts = split_counts(samples, roles, rng, keep_fraction)
         meta = dict(vf["meta"])
         meta["label"] = new_label
-        meta["rebuilt_from"] = {"artifact": str(vf_path), "keep": "random-half",
+        meta["rebuilt_from"] = {"artifact": str(vf_path),
+                                "keep": f"random-{keep_fraction:g}",
                                 "split_id": split_id,
                                 "samples_kept": sum(c["samples"] for c in counts.values())}
         out = dest / f"vf_{new_label}__{scenario}__{style}.json"
@@ -472,6 +484,11 @@ def main() -> int:
                          "(~12.5%% relative SE); 128 when pricing a large "
                          "resample. 8 is NOT enough to decide — it passes a "
                          "truly-0.75 model 39%% of the time")
+    ap.add_argument("--keep-fraction", type=float, default=0.5,
+                    help="fraction of each cell's samples a split keeps. 0.5 is "
+                         "THE sufficiency check (injected error == the table's "
+                         "own); other values (3/4, 7/8) are a scaling "
+                         "diagnostic, see the docstring")
     ap.add_argument("--runs", type=int, default=100,
                     help="simulations per arm; τ scales as 1/sqrt(runs), so "
                          "changing it moves the bar — keep 100 for comparability")
@@ -568,7 +585,7 @@ def main() -> int:
             # safe — a split's partition does not depend on execution order.
             rng = random.Random(args.seed * 100003 + b)
             tpl = write_split_artifacts(args.label, args.style, ledgers, b, rng,
-                                        scratch / f"vf_split{b:02d}")
+                                        scratch / f"vf_split{b:02d}", args.keep_fraction)
             dirs = simulate_arm(str(tpl), scratch / f"arm_split{b:02d}", scenarios,
                                 args.runs, args.max_steps, args.processes,
                                 f"{args.label}-split{b:02d}", scenario_file, grid)
@@ -637,6 +654,9 @@ def main() -> int:
         # missing artifact as converged.
         status = {
             "label": args.label, "style": args.style, "splits": args.splits,
+            "keep_fraction": args.keep_fraction,
+            "injected_variance_factor": (1.0 / args.keep_fraction - 1.0),
+            "is_sufficiency_check": args.keep_fraction == 0.5,
             "seed": args.seed, "margin": args.margin,
             "runs": args.runs, "max_steps": args.max_steps,
             # Board recorded explicitly: the 2026-09-01 rechecks silently used
