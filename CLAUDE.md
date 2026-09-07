@@ -180,7 +180,6 @@ directory's files are mutually consistent.
   existing experiments (~1M per-run files predate this). Full-format
   (per-move) runs are never packed.
 
-
 Re-running an incomplete experiment without `--new` resumes it. Aborted
 live-LLM runs continue from their last saved grid and the files keep the
 pre-abort steps (`Simulation.preload_record`); aborted value-function runs
@@ -249,6 +248,21 @@ watchers read the latest line). Live-LLM runs keep per-run lines and a
 progress line per run. A 60k-run campaign log is a few hundred lines, not
 240k.
 
+### metrics_history is a cache, verified rather than regenerated
+
+`metrics_history.csv.gz` is a pure function of the frames in `states/` (the
+same `calculate_all_metrics` on the same grids). The analysis pipeline checks
+it against the run record with `run_files.stale_metrics_runs` — one row per
+logged step, same first and last step, all seven metric columns — and
+`Simulation.repair_stored_metrics` rebuilds only the runs that fail (all of
+them when the file lacks a column). Since 2026-09-05; before that
+the `combined_final_metrics` step rebuilt every run on every pass,
+750–960 s per campaign for byte-identical rows; it is now the pipeline's
+`repair_stored_metrics` step (`--no-recompute` skips it, `--force-recompute`
+rebuilds everything). Count and first step matter, not just the
+last: a live-LLM run resumed after an abort stores only its post-resume rows.
+The merge readers in `analyze_results` / `run_summary` parse floats with
+`float_precision='round_trip'` so a merge never perturbs stored values.
 
 ## Development Notes
 

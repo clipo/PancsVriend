@@ -25,15 +25,17 @@ Manifest report outputs (when --manifest-file is used):
     experiment_details_{model}.json
 
 Pipeline order (when not movement-only):
-    0) dissimilarity_index_over_time
-    1) combined_final_metrics
-    1a) run_summary (per-experiment run_summary.csv + run_summary_by_run.csv)
-    2) analyze_agent_movement (optional via --include-movement)
-    3) analyze_stability_patterns
-    4) convergence_patterns_and_speed
-    5) movement_decision_counts
-    6) per_metric_panels
-    7) segregation_metrics_comparison
+    0) repair_stored_metrics (unless --no-recompute; --force-recompute rebuilds all)
+    1) dissimilarity_index_over_time
+    2) run_summary (per-experiment run_summary.csv + run_summary_by_run.csv)
+    2a) anova_by_metric
+    2b) normality_tests
+    3) analyze_agent_movement (optional via --include-movement)
+    4) analyze_stability_patterns
+    5) convergence_patterns_and_speed
+    6) movement_decision_counts
+    7) per_metric_panels
+    8) segregation_metrics_comparison
 
 Config lives in `analysis_tools/experiment_list_for_analysis.py`
 (scenarios, labels, colors). This file only orchestrates execution.
@@ -64,6 +66,7 @@ from scipy import stats
 from analysis_tools.output_paths import set_reports_dir
 
 import experiment_list_for_analysis as experiment_list
+import run_files
 
 
 def run_all_analyses(
@@ -73,8 +76,15 @@ def run_all_analyses(
     verbose: bool = True,
     output_folder: Union[str, Path] = "reports",
     llm_model: Optional[str] = None,
+    force: bool = False,
 ):
-    """Run the suite of analysis scripts in a recommended order."""
+    """Run the suite of analysis scripts in a recommended order.
+
+    recompute: verify each selected experiment's stored metrics_history
+    against its step logs first and rebuild only the runs that disagree
+    (Simulation.repair_stored_metrics). force: rebuild every run from its
+    frames regardless (the pre-2026-09-05 behaviour of every pass).
+    """
     at_path = Path(__file__).resolve().parent
     if str(at_path) not in sys.path:
         sys.path.append(str(at_path))
@@ -115,7 +125,14 @@ def run_all_analyses(
         steps.append(movement_step)
         return _execute_steps(steps, verbose=verbose)
 
-    # 0. Dissimilarity index over time (requires states + move logs)
+    # 0. Stored metrics_history verified against the run record; only runs
+    #    that disagree are rebuilt (everything downstream reads that file).
+    if recompute or force:
+        def _run_repair():
+            repair_selected_experiments(force=force, verbose=verbose)
+        steps.append(("repair_stored_metrics", _run_repair, {}))
+
+    # 1. Dissimilarity index over time (stored column; frames for legacy runs)
     def _run_dissimilarity_index():
         mod = importlib.import_module('analysis_tools.dissimilarity_index_over_time')
         mod.run_all(Path('experiments'), recompute=recompute)
@@ -194,6 +211,31 @@ def run_all_analyses(
     steps.append(("segregation_metrics_comparison", _run_segregation_metrics_comparison, {}))
 
     return _execute_steps(steps, verbose=verbose)
+
+
+def repair_selected_experiments(experiments_dir: Union[str, Path] = 'experiments',
+                                force: bool = False, verbose: bool = True) -> Dict[str, list]:
+    """Verify (or, with force, fully rebuild) every selected experiment's
+    stored metrics_history. Returns {experiment folder: run ids rebuilt}."""
+    from base_simulation import Simulation
+
+    rebuilt: Dict[str, list] = {}
+    experiments_root = Path(experiments_dir)
+    for scenario_key, folder in dict(experiment_list.SCENARIOS).items():
+        exp_dir = experiments_root / folder
+        if not (exp_dir / 'move_logs').is_dir():
+            if verbose:
+                print(f"[repair] Skipping '{scenario_key}': {exp_dir / 'move_logs'} not found")
+            continue
+        try:
+            if force:
+                Simulation.load_and_analyze_results(str(exp_dir), force_recompute=True)
+                rebuilt[folder] = run_files.list_run_ids(str(exp_dir))
+            else:
+                rebuilt[folder] = Simulation.repair_stored_metrics(str(exp_dir))
+        except Exception as exc:
+            print(f"[repair] WARN {scenario_key}: {exc}")
+    return rebuilt
 
 
 def build_run_summaries_for_selection(reports_dir: Path,
@@ -303,7 +345,8 @@ def _execute_steps(steps, verbose: bool = True):
 
 def _parse_args_and_run():
     p = argparse.ArgumentParser(description="Run all PancsVriend analyses from a single entry point.")
-    p.add_argument('--no-recompute', action='store_true', default=False, help='Do not force recomputation of metrics in combined_final_metrics.')
+    p.add_argument('--no-recompute', action='store_true', default=False, help='Skip verifying stored metrics_history against the step logs.')
+    p.add_argument('--force-recompute', action='store_true', default=False, help="Rebuild every run's metrics_history from its frames (slow; the pre-2026-09-05 default).")
     group = p.add_mutually_exclusive_group()
     group.add_argument('--movement-only', action='store_true', default=False, help='Run only movement analysis.')
     p.add_argument('--include-movement', action='store_true', default=False, help='Include movement analysis (off by default).')
@@ -349,6 +392,7 @@ def _parse_args_and_run():
         _apply_scenarios_to_plot()
         run_all_analyses(
             recompute=not args.no_recompute,
+            force=args.force_recompute,
             movement_only=args.movement_only,
             include_movement=args.include_movement,
             verbose=not args.quiet,

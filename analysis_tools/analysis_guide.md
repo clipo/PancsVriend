@@ -52,10 +52,22 @@ python analysis_tools/experiment_list_for_analysis.py --movement-only
 
 ## 5. Controlling Metric Recomputation
 
-By default, `combined_final_metrics` will attempt to (re)compute metrics for scenarios (if the simulation `Simulation` helper is available) to ensure files exist. To skip recomputation and only read existing CSVs:
+By default, the `repair_stored_metrics` step verifies each experiment's stored
+`metrics_history` against its step logs (`run_files.stale_metrics_runs`: one
+row per logged step, same first/last step, all seven metrics present) and
+rebuilds only the runs that disagree (`Simulation.repair_stored_metrics`).
+On a complete 10k-run experiment that is a ~1 s read-only check; before
+2026-09-05 every pass rebuilt every run from its frames (750-960 s per
+model campaign for byte-identical rows). Experiments predating the
+`dissimilarity_index` column, missing runs, resume placeholders and
+front-truncated histories are still rebuilt. `dissimilarity_index_over_time`
+applies the same check and reads the stored column for complete runs.
+
+To skip the check and only read existing CSVs, or to force the old full rebuild:
 
 ```bash
-python analysis_tools/experiment_list_for_analysis.py --no-recompute
+python analysis_tools/run_all_scenario_analysis.py --no-recompute
+python analysis_tools/run_all_scenario_analysis.py --force-recompute
 ```
 
 ## 6. Quiet Mode
@@ -129,7 +141,7 @@ xdg-open reports/convergence_patterns.png
 ## 11. Best Practices
 
 1. Commit generated CSVs if you need reproducible downstream statistical work (figures can be regenerated).
-2. Use `--no-recompute` when you are sure the metrics are up-to-date to save time.
+2. `--no-recompute` skips the completeness check entirely; it is rarely needed now that the check itself is cheap.
 3. Keep experiments tidy—archive or move old runs if they clutter the reports.
 4. Add docstrings and clear function names in any new analysis script so orchestration stays readable.
 

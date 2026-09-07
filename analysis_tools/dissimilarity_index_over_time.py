@@ -28,6 +28,7 @@ import pandas as pd
 
 from experiment_list_for_analysis import SCENARIOS as scenarios
 from analysis_tools.output_paths import get_reports_dir
+import run_files
 from run_files import list_run_ids, load_step_frames
 
 # Tract map + DI now live in Metrics.py (batch C, 2026-08-25): the simulation
@@ -78,6 +79,47 @@ def compute_run_timeseries(
     return pd.DataFrame(rows)
 
 
+def stored_run_timeseries(
+    experiment_dir: Path,
+    run_ids: List[int],
+    scenario_key: str,
+) -> Tuple[Optional[pd.DataFrame], List[int]]:
+    """(per-step DI rows read from metrics_history, run ids still to compute).
+
+    Metrics.calculate_all_metrics has written dissimilarity_index per step
+    into metrics_history since 2026-08-25, so for every run whose stored
+    history is complete (run_files.stale_metrics_runs) the series this module
+    used to recompute from the frames is already on disk — the same function
+    on the same grids, checked equal to the last bit on the hermes 10k
+    campaign (2026-09-05; 80 s and 60k npz reads per campaign saved). Runs the
+    check flags, and every run of an experiment predating the column, still
+    go through compute_run_timeseries. Read with round-trip float parsing so
+    the values written out are the ones the simulation wrote, not a
+    re-rounding of them.
+    """
+    path = run_files.metrics_history_path(experiment_dir)
+    if not os.path.exists(path):
+        return None, list(run_ids)
+    try:
+        metrics = pd.read_csv(path, float_precision='round_trip')
+    except Exception as exc:
+        print(f"  [WARN] Could not read {path} ({exc}); computing from frames")
+        return None, list(run_ids)
+    stale = run_files.stale_metrics_runs(experiment_dir, run_ids, metrics=metrics)
+    if stale is None:
+        return None, list(run_ids)
+    complete = sorted(set(run_ids) - set(stale))
+    if not complete:
+        return None, list(run_ids)
+    rows = metrics.loc[metrics['run_id'].isin(complete), ['run_id', 'step', 'dissimilarity_index']].copy()
+    rows['run_id'] = rows['run_id'].astype(int)
+    rows['step'] = rows['step'].astype(int)
+    rows['dissimilarity_index'] = rows['dissimilarity_index'].astype(float)
+    rows.insert(0, 'experiment', experiment_dir.name)
+    rows.insert(0, 'scenario', scenario_key)
+    return rows.reset_index(drop=True), list(stale)
+
+
 def _compute_run_timeseries_worker(task: Tuple[str, int, str, bool]) -> Optional[pd.DataFrame]:
     experiment_dir_str, run_id, scenario_key, recompute = task
     return compute_run_timeseries(
@@ -120,6 +162,15 @@ def process_experiment(
         print(f"  [WARN] No move logs found in {exp_dir}; skipping.")
         return None, None
 
+    stored, run_ids = stored_run_timeseries(exp_dir, run_ids, scenario_key)
+    frames: List[pd.DataFrame] = []
+    if stored is not None:
+        print(f"  [INFO] {stored['run_id'].nunique()} run(s) read from metrics_history; "
+              f"{len(run_ids)} to compute from frames")
+        frames.append(stored)
+    if not run_ids:
+        return _write_outputs(exp_dir, out_dir, frames)
+
     workers_env = os.environ.get('DISSIMILARITY_WORKERS', '')
     if workers_env.strip():
         try:
@@ -134,7 +185,6 @@ def process_experiment(
         (str(exp_dir), rid, scenario_key, recompute) for rid in run_ids
     ]
 
-    frames: List[pd.DataFrame] = []
     if max_workers > 1 and len(tasks) > 1:
         print(f"  [INFO] Processing {len(tasks)} runs with {max_workers} workers")
         try:
@@ -144,7 +194,7 @@ def process_experiment(
                         frames.append(df)
         except Exception as exc:
             print(f"  [WARN] Parallel processing failed ({exc}); falling back to sequential")
-            frames = []
+            frames = [] if stored is None else [stored]
             for rid in run_ids:
                 df = compute_run_timeseries(exp_dir, rid, scenario_key, recompute=recompute)
                 if df is not None and not df.empty:
@@ -155,6 +205,10 @@ def process_experiment(
             if df is not None and not df.empty:
                 frames.append(df)
 
+    return _write_outputs(exp_dir, out_dir, frames)
+
+
+def _write_outputs(exp_dir: Path, out_dir: Path, frames: List[pd.DataFrame]):
     if not frames:
         print(f"  [WARN] No usable runs for {exp_dir}; no output written.")
         return None, None

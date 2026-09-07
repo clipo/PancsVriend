@@ -59,6 +59,12 @@ REASONS = ("successful_move", "target_occupied", "invalid_target",
 # `parse_failed` = LLM replies that did not parse (0 for value-function runs).
 STEP_LOG_COLUMNS = ("step", "decisions", "moved", "parse_failed") + REASONS
 
+# The seven per-step metrics Metrics.calculate_all_metrics writes to
+# metrics_history, in its order. A stored history is only complete when every
+# row carries all of them (runs before 2026-08-25 lack dissimilarity_index).
+METRIC_COLUMNS = ("clusters", "switch_rate", "distance", "mix_deviation",
+                  "share", "ghetto_rate", "dissimilarity_index")
+
 
 def step_log_path(output_dir, run_id):
     return os.path.join(output_dir, "move_logs", f"step_moves_run_{run_id}.csv")
@@ -398,6 +404,91 @@ def load_final_grid(output_dir, run_id):
     if loaded is None:
         return None
     return loaded[1][-1]
+
+
+# ---------------------------------------------------------------------------
+# Completeness of the stored metrics_history against the run record
+# ---------------------------------------------------------------------------
+
+def step_log_extent(output_dir, run_id):
+    """(n_steps, first_step, last_step) of the run's step log, or None.
+
+    Reads the per-step CSV with the csv module rather than pandas: the
+    completeness check below calls this once per run, and pandas' fixed
+    per-file cost made 10k calls take ~20 s against ~1 s this way. Full-format
+    runs go through load_step_log (they are the legacy ones, and rare).
+    """
+    path = step_log_path(output_dir, run_id)
+    if os.path.exists(path):
+        try:
+            with open(path, newline="") as fh:
+                reader = csv.reader(fh)
+                col = next(reader).index("step")
+                steps = [int(row[col]) for row in reader if row]
+        except (OSError, ValueError, StopIteration, IndexError) as exc:
+            print(f"[run_files] Warning: could not read {path} ({exc})")
+            return None
+        if not steps:
+            return None
+        return len(steps), min(steps), max(steps)
+    packed = _packed_step_log(output_dir, run_id)
+    log = packed if packed is not None else load_step_log(output_dir, run_id)
+    if log is None or log.empty:
+        return None
+    steps = log["step"].astype(int)
+    return int(len(steps)), int(steps.min()), int(steps.max())
+
+
+def stale_metrics_runs(output_dir, run_ids=None, metrics=None):
+    """Run ids whose stored metrics_history rows do not match their step log.
+
+    None when there is no usable metrics_history at all (no file, or missing
+    run_id/step/METRIC_COLUMNS), meaning every run needs rebuilding; an empty
+    list when every run is complete. A run is complete when the file holds
+    exactly one row per logged step — same count, same first and last step —
+    with every metric present. Count and first step matter, not just the last:
+    a live-LLM run resumed after an abort restarts with an empty in-memory
+    history, so its stored rows begin at the resume step while its step log
+    (kept by preload_record) begins at 0; only the front-truncated history
+    gives it away (2026-09-05, seen in 20+ pre-2026-09 experiment dirs).
+
+    `run_ids` limits the check (default: every run with a move log);
+    `metrics` is an already-loaded metrics_history frame, to spare a re-read.
+    """
+    if metrics is None:
+        path = metrics_history_path(output_dir)
+        if not os.path.exists(path):
+            return None
+        try:
+            metrics = pd.read_csv(path)
+        except Exception as exc:
+            print(f"[run_files] Warning: could not read {path} ({exc})")
+            return None
+    needed = {"run_id", "step", *METRIC_COLUMNS}
+    if metrics is None or not needed <= set(metrics.columns):
+        return None
+    run_ids = list_run_ids(output_dir) if run_ids is None else sorted(run_ids)
+    by_run = metrics.groupby("run_id")
+    stored = pd.DataFrame({
+        "n": by_run.size(),
+        "lo": by_run["step"].min(),
+        "hi": by_run["step"].max(),
+        "clean": metrics[list(METRIC_COLUMNS)].notna().all(axis=1)
+                 .groupby(metrics["run_id"]).all(),
+    })
+    stale = []
+    for run_id in run_ids:
+        if run_id not in stored.index:
+            stale.append(run_id)
+            continue
+        extent = step_log_extent(output_dir, run_id)
+        if extent is None:        # no record to rebuild from; keep the rows
+            continue
+        row = stored.loc[run_id]
+        if not bool(row["clean"]) or \
+                (int(row["n"]), int(row["lo"]), int(row["hi"])) != extent:
+            stale.append(run_id)
+    return stale
 
 
 # ---------------------------------------------------------------------------

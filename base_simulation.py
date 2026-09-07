@@ -731,32 +731,63 @@ class Simulation:
             run_ids = run_files.list_run_ids(output_dir)
 
             print(f"Found {len(run_ids)} simulation runs: {run_ids}")
-            threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
-            tasks = [(run_id, output_dir, threshold) for run_id in run_ids]
-
-            max_workers = min(len(tasks), max(1, os.cpu_count() or 1)) if tasks else 1
-
-            if max_workers > 1 and len(tasks) > 1:
-                print(f"Processing runs in parallel with {max_workers} workers")
-                try:
-                    with ProcessPoolExecutor(max_workers=max_workers, mp_context=Simulation._process_pool_context()) as executor:
-                        results = list(executor.map(_load_single_run_result, tasks))
-                except Exception as e:
-                    print(f"Warning: Parallel processing failed ({e}), falling back to sequential")
-                    for task in tasks:
-                        run_id = task[0]
-                        print(f"Loading run {run_id}...")
-                        results.append(_load_single_run_result(task))
-            else:
-                for task in tasks:
-                    run_id = task[0]
-                    print(f"Loading run {run_id}...")
-                    results.append(_load_single_run_result(task))
-            
+            results = Simulation._load_runs_from_raw(output_dir, run_ids)
             n_runs = len(results)
             print(f"Loaded {n_runs} simulation runs from raw data")
         
         return results, n_runs
+
+    @staticmethod
+    def _load_runs_from_raw(output_dir, run_ids):
+        """Rebuild the given runs' results from their step logs and frames."""
+        threshold = getattr(cfg, 'NO_MOVE_THRESHOLD', 5)
+        tasks = [(run_id, output_dir, threshold) for run_id in run_ids]
+        max_workers = min(len(tasks), max(1, os.cpu_count() or 1)) if tasks else 1
+        results = []
+        if max_workers > 1 and len(tasks) > 1:
+            print(f"Processing runs in parallel with {max_workers} workers")
+            try:
+                with ProcessPoolExecutor(max_workers=max_workers, mp_context=Simulation._process_pool_context()) as executor:
+                    return list(executor.map(_load_single_run_result, tasks))
+            except Exception as e:
+                print(f"Warning: Parallel processing failed ({e}), falling back to sequential")
+                results = []
+        for task in tasks:
+            print(f"Loading run {task[0]}...")
+            results.append(_load_single_run_result(task))
+        return results
+
+    @staticmethod
+    def repair_stored_metrics(output_dir):
+        """Rebuild metrics_history / convergence_summary / run_summary rows
+        only for runs whose stored rows disagree with their step log.
+
+        Returns the run ids rebuilt. The analysis pipeline used to call
+        load_and_analyze_results(force_recompute=True) on every experiment on
+        every pass, re-deriving all seven metrics for every frame of every run
+        — 2.7M frames per model campaign, 750–960 s, to regenerate rows that
+        were byte-identical to what run_step had already written (checked
+        2026-09-05 on the hermes 10k campaign). The check behind
+        run_files.stale_metrics_runs costs ~1 s per 10k-run experiment and
+        catches every case the rebuild was there to repair: histories
+        front-truncated by a live-LLM resume, runs missing from the file,
+        placeholder rows, and files predating dissimilarity_index (those come
+        back as None and are rebuilt whole). Rebuilt rows go through
+        analyze_results, whose merge policy keeps every other run's rows.
+        """
+        stale = run_files.stale_metrics_runs(output_dir)
+        if stale is None:
+            print(f"[repair] {output_dir}: no usable metrics_history; rebuilding every run")
+            Simulation.load_and_analyze_results(output_dir, force_recompute=True)
+            return run_files.list_run_ids(output_dir)
+        if not stale:
+            print(f"[repair] {output_dir}: stored metrics complete for every run; nothing to rebuild")
+            return []
+        print(f"[repair] {output_dir}: rebuilding {len(stale)} run(s) whose stored "
+              f"metrics disagree with their step log: {stale[:20]}{'...' if len(stale) > 20 else ''}")
+        results = Simulation._load_runs_from_raw(output_dir, stale)
+        Simulation.analyze_results(results, output_dir, len(results))
+        return stale
 
     @staticmethod
     def load_and_analyze_results(output_dir, force_recompute: bool = False):
