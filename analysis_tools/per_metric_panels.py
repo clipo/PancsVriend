@@ -12,6 +12,10 @@ from experiment_list_for_analysis import (
     SCENARIO_COLORS as scenario_colors,
 )
 from analysis_tools.output_paths import get_reports_dir
+try:                                   # bare import matches the orchestrator's sys.path
+    from plot_style import steps_to_fraction_of_final
+except ImportError:                    # package form, for direct invocation
+    from analysis_tools.plot_style import steps_to_fraction_of_final
 try:                                   # bare import matches how the orchestrator
     from plot_style import violin_box_points          # puts analysis_tools/ on sys.path
 except ImportError:                    # package form, for direct invocation
@@ -92,26 +96,8 @@ def load_di_data():
 
 
 def compute_convergence_steps(df: pd.DataFrame, metric: str) -> list:
-    steps_list = []
-    for run_id in df['run_id'].unique():
-        run = df[df['run_id'] == run_id].sort_values('step')
-        series = run[metric].values
-        if len(series) < 2:
-            continue
-        initial_val = series[0]
-        final_val = series[-1]
-        if final_val == initial_val:
-            continue
-        target = initial_val + 0.9 * (final_val - initial_val)
-        if final_val > initial_val:
-            idx = np.argmax(series >= target)
-            if series[idx] >= target:
-                steps_list.append(int(run['step'].values[idx]))
-        else:
-            idx = np.argmax(series <= target)
-            if series[idx] <= target:
-                steps_list.append(int(run['step'].values[idx]))
-    return steps_list
+    """Steps to 90% of each run's final value (plot_style.steps_to_fraction_of_final)."""
+    return steps_to_fraction_of_final(df, metric)
 
 
 def make_metric_panel(metric: str, data_by_scenario: dict):

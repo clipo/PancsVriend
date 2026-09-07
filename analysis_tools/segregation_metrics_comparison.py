@@ -117,7 +117,7 @@ for idx, metric in enumerate(metrics):
         cap.set_color('#777777')
         cap.set_linewidth(1.0)
 
-    # Individual runs on top of the box
+    # Individual runs (outliers only past 200 runs) on top of the box
     overlay_run_points(ax, plot_data, positions)
 
     # Axes formatting
@@ -191,7 +191,7 @@ for cap in di_bp['caps']:
     cap.set_color('#777777')
     cap.set_linewidth(1.0)
 
-# Individual runs on top of the box
+# Individual runs (outliers only past 200 runs) on top of the box
 overlay_run_points(ax_di, di_plot_data, di_positions)
 
 ax_di.set_xticks(di_positions)

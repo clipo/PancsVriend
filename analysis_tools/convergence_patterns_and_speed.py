@@ -15,9 +15,9 @@ from experiment_list_for_analysis import (
 from analysis_tools.output_paths import get_reports_dir
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 try:                                   # bare import matches the orchestrator's sys.path
-    from plot_style import step_stats_forward_filled
+    from plot_style import step_stats_forward_filled, steps_to_fraction_of_final
 except ImportError:                    # package form, for direct invocation
-    from analysis_tools.plot_style import step_stats_forward_filled
+    from analysis_tools.plot_style import step_stats_forward_filled, steps_to_fraction_of_final
 
 # Publication-ready seaborn theme
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.25)
@@ -299,22 +299,9 @@ for scenario_name, folder in scenarios.items():
         df = df_dissim if metric == 'dissimilarity_index' else df_base
         if df is None or df.empty:
             continue
-        final_values = df.groupby('run_id')[metric].last()
-        convergence_steps = []
-
-        for run_id in df['run_id'].unique():
-            run_data = df[df['run_id'] == run_id].sort_values('step')
-            final_val = run_data[metric].iloc[-1]
-            initial_val = run_data[metric].iloc[0]
-
-            if final_val == initial_val:
-                continue
-
-            target_val = initial_val + 0.9 * (final_val - initial_val)
-            conv_data = run_data[run_data[metric] >= target_val] if final_val > initial_val else run_data[run_data[metric] <= target_val]
-
-            if not conv_data.empty:
-                convergence_steps.append(conv_data['step'].iloc[0])
+        # Steps to 90% of each run's final value; see plot_style for why
+        # this is not a per-run filter loop.
+        convergence_steps = steps_to_fraction_of_final(df, metric)
 
         if convergence_steps:
             convergence_step_records.setdefault(scenario_name, {})[metric] = convergence_steps
