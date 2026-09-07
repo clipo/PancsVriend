@@ -21,12 +21,17 @@ Two deliberate differences from the retired -vf-r3 campaign:
                    on gemma. Sampling concurrently would re-measure that
                    artifact instead of testing the exact tables, which defeats
                    the point of the check.
-  samples: 25      A quarter of production's 100/composition. The comparison is
-                   read at the simulation level against 10 runs, whose own DI
-                   standard error (~0.011) already dominates, so buying table
-                   precision beyond this would not sharpen the answer.
+  samples: 100     Raised from 25 on 2026-09-07 (user decision). 100 is the
+                   SAME n the retired concurrency-4 campaign used, which makes
+                   this arm that campaign's exact sequential counterfactual:
+                   any difference is the batch-numerics artifact, with no
+                   sample-size confound. Wilson 95% half-width at p=0.5 is
+                   +/-0.094 (vs +/-0.170 at n=25). Cost, from measured
+                   sequential latency (qwen 590 ms, gemma 654, hermes 785,
+                   llama 1065, deepseek 1149 ms/request; 540 cells/model):
+                   ~64 h for the five models, ~2.7 days.
 
-Artifacts land in value_functions/results/sampled/sanity/ under the
+Artifacts land in value_functions/results/sampled_small/ under the
 label suffix -sanity, and simulations use llm_model <model>-vf-s, so nothing
 here can be confused with either the exact (-vf-lp) or retired sampled
 (-vf-r3) sets in any run folder, figure or roll-up.
@@ -39,14 +44,18 @@ from pathlib import Path
 
 CONFIGS = Path(__file__).resolve().parent
 
-# The five models whose DI rises meaningfully above the chance floor
-# (user decision 2026-09-07). granite, mistral and phi-4 sit on the 0.125
-# floor in every scenario, so a sampled-vs-exact ordering check there would
-# compare two flat lines.
-KEYS = ["qwen", "gemma", "hermes", "llama", "deepseek"]
+# The models whose DI rises meaningfully above the chance floor (user decision
+# 2026-09-07). granite, mistral and phi-4 sit on the 0.125 floor in every
+# scenario, so a sampled-vs-exact ordering check there would compare two flat
+# lines. olmo2 was added on 2026-09-07: it is outside the main model set but is
+# in fact the STRONGEST segregator measured (DI 0.458-0.738 vs hermes' 0.484
+# ceiling), so "we cross-checked the segregating models" would not hold without
+# it.
+KEYS = ["qwen", "gemma", "hermes", "llama", "deepseek", "olmo2"]
 
-SANITY_STORE = "value_functions/results/sampled/sanity"
-SAMPLES = 25
+SANITY_STORE = "value_functions/results/sampled_small"           # build out_dir
+SANITY_TABLES = f"{SANITY_STORE}/tables"                          # what runs load
+SAMPLES = 100
 CONCURRENCY = 1
 RUNS = 10
 
@@ -87,11 +96,11 @@ def make_build_config(text):
 
 def make_run_config(text):
     # Source is the canonical _lp yaml (2026-09-07; the _r3 lineage is retired):
-    # its value_function is the exact table under value_functions/results/llm_logprob/vf_<label>-lp__…
+    # its value_function is the exact table under llm_logprob/tables/vf_<label>-lp__…
     # and its llm_model is <model>-vf-lp.
     text = re.sub(
-        r'value_function: "value_functions/results/llm_logprob/vf_([^_"]+(?:-[^_"]+)*)-lp__\{scenario\}__(\w+)\.json"',
-        lambda m: f'value_function: "{SANITY_STORE}/vf_{m.group(1)}-sanity__{{scenario}}__{m.group(2)}.json"',
+        r'value_function: "value_functions/results/llm_logprob/tables/vf_([^_"]+(?:-[^_"]+)*)-lp__\{scenario\}__(\w+)\.json"',
+        lambda m: f'value_function: "{SANITY_TABLES}/vf_{m.group(1)}-sanity__{{scenario}}__{m.group(2)}.json"',
         text)
     text = re.sub(r'(llm_model: "[^"]*?)-vf-lp"', r'\1-vf-s"', text)
     text = re.sub(r'(llm_model: )([a-z0-9.\-]+)-vf-lp\b', r'\1\2-vf-s', text)

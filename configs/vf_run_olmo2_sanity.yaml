@@ -4,35 +4,20 @@
 # sequentially sampled -sanity tables), llm_model (-vf-s) and runs (10).
 # Read against the -vf-lp exact results, not as a result in its own right.
 # =============================================================================
-# VALUE-FUNCTION simulation run — gemma-4-31B R3 dual-count, all scenarios
+# VALUE-FUNCTION simulation run — OLMo-2-0325-32B-Instruct-Q8_0, R3 dual-count, all scenarios
 # =============================================================================
-# Simulations driven by the exact (logprob) value functions instead of live LLM calls:
-# no llama-server, no GPU — each decision is a Bernoulli draw from the exact
-# (n_similar, n_occupied) composition-cell P(MOVE) rate (the heatmap surface;
-# ratio lookup removed 2026-08-25). Runs finish in minutes, seeded by run_id.
+# Composition-cell P(MOVE) lookups, no LLM server, no GPU. See
+# configs/vf_run_gemma_lp.yaml for the full mechanics (artifact freezing into
+# <run_dir>/value_functions/, {scenario} template semantics, profiles).
 #
 #   python run_llm_probability_simulation_analysis.py \
-#       --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
-#
-# The orchestrator FREEZES the resolved vf artifacts (JSON + figures + a
-# composition-heatmap grid rendered from the frozen copies) into
-# <run_dir>/value_functions/ and points the contexts stage at the frozen
-# copies, so every run folder carries the exact decision tables it simulated
-# from — side-by-side with its results.
-#
-# vf_build_args documents how the artifacts were sampled (and would re-run
-# build_value_function.py against a live llama-server if skip_vf_build were
-# false); the sampling config is frozen into the run dir either way.
-#
-# contexts_args.value_function is a {scenario} TEMPLATE: it pins the artifact
-# label and prompt style exactly, and llm_runner substitutes each scenario.
-# The mismatch guard still verifies each loaded artifact's scenario metadata.
+#       --config-yaml configs/vf_run_olmo2_lp.yaml --config-profile production
 # =============================================================================
 
 run_root: "experiments_with_llama_cpp"
 run_id: null
 
-llm_model: "gemma-4-31b-vf-s"
+llm_model: "olmo-2-32b-vf-s"
 
 manifest_file: null
 skip_vf_build: true
@@ -42,7 +27,7 @@ continue_on_error: false
 dry_run: false
 
 vf_build_args:
-  config: "configs/value_function_scenarios_gemma.yaml"
+  config: "configs/value_function_scenarios_olmo2.yaml"
   plot: true
 
 contexts_args:
@@ -52,10 +37,10 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "value_functions/results/sampled_small/tables/vf_gemma-4-31b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
-  temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
+  value_function: "value_functions/results/sampled_small/tables/vf_olmo-2-32b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+  temperature: 0.3
   scenario_file: "scenarios_a2.py"
-  llm_model: "gemma-4-31b-vf-s"
+  llm_model: "olmo-2-32b-vf-s"
   processes: 15        # 2026-09-07: one model at a time on the 20-core box, 5 cores left free for other work
   no_parallel: false
   new: true
@@ -72,10 +57,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "value_functions/results/sampled_small/tables/vf_gemma-4-31b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled_small/tables/vf_olmo-2-32b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "gemma-4-31b-vf-s"
+      llm_model: "olmo-2-32b-vf-s"
       processes: 2
       no_parallel: false
       new: true
@@ -88,10 +73,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "value_functions/results/sampled_small/tables/vf_gemma-4-31b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled_small/tables/vf_olmo-2-32b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "gemma-4-31b-vf-s"
+      llm_model: "olmo-2-32b-vf-s"
       processes: 15       # see contexts_args note
       no_parallel: false
       new: true
