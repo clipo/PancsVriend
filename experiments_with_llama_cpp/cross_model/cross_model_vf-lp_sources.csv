@@ -1,0 +1,10 @@
+model,run_dir,rows,run_summary_mtime,family
+gemma-4-31b,run_20260906_003730_gemma-4-31b-vf-lp,60000,2026-09-06 00:46,lp
+qwen3.6-27b,run_20260906_124956_qwen3.6-27b-vf-lp,60000,2026-09-06 13:10,lp
+llama-3.3-70b,run_20260912_200213_llama-3.3-70b-vf-lp,60000,2026-09-12 20:06,lp
+hermes-4.3-36b,run_20260906_043033_hermes-4.3-36b-vf-lp,60000,2026-09-06 04:54,lp
+deepseek-v4-flash,run_20260906_092955_deepseek-v4-flash-vf-lp,60000,2026-09-06 11:28,lp
+mistral-small-4-119b,run_20260913_134219_mistral-small-4-119b-vf-lp,60000,2026-09-13 13:44,lp
+granite-4.2-30b,run_20260906_020531_granite-4.2-30b-vf-lp,60000,2026-09-06 02:10,lp
+phi-4-14b,run_20260906_010130_phi-4-14b-vf-lp,60000,2026-09-06 01:06,lp
+olmo-2-32b,run_20260906_131256_olmo-2-32b-vf-lp,60000,2026-09-07 13:39,lp
