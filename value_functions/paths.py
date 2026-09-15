@@ -70,6 +70,14 @@ MULTISPLIT_DIR = SAMPLED_DIR / "multisplit"
 TABLES_REL = "tables"
 SAMPLED_TABLES_DIR = SAMPLED_DIR / TABLES_REL
 SANITY_TABLES_DIR = SANITY_DIR / TABLES_REL
+# Fresh sequential draws bought to adjudicate between disagreeing exact
+# extractions, read by build_consensus_table.py (adjudication_<label>.json).
+# Kept apart from the sanity tables: those are a uniform n=100 census, these
+# are targeted, pre-committed sample sizes on the cells that need them.
+# NOTHING WRITES IT YET: the cross-session disagreement that motivated it was
+# the chat template's date (LLAMA_CPP_SERVING_NOTES.md §6); with the clock
+# pinned every re-extraction has reproduced, so no cell has needed adjudicating.
+ADJUDICATION_DIR = SANITY_DIR / "adjudication"
 VF_MAPPING_PLOTS_REL = "vf_mapping_plots"
 # Combined figures (all scenarios in one file: vfS_ curves, vfH_ surfaces) sit
 # directly in vf_mapping_plots/ — those are the ones normally looked at. The
