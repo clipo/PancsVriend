@@ -72,8 +72,11 @@ mechanical decisions when the LLM fails; a failed decision is an error.
   batch, which retired sampling (results tracked).
 - `comparison/`: `vf_rank_stability.py` (per-run certification) and
   `cross_model_vf_comparison.py` (bump/level charts across models).
-- `results/` (gitignored): `sampled/`, `llm_logprob/`, `figures/`,
-  `chance_null/`. Every location is defined once in `value_functions/paths.py`.
+- `results/` (gitignored): `sampled_small/` (the sequential census), `llm_logprob/`,
+  `date_sensitivity/`, `figures/`, `chance_null/`. Every location is defined once in
+  `value_functions/paths.py`. The retired `-vf-r3` sampled store (`sampled/`) and the
+  outdated concurrency-4 artifact maps were deleted 2026-09-15 (user decision); the
+  batch-numerics evidence lives in `batch_numerics/results/`.
 - `prompt_refinement/` keeps the prompt templates and the sampling harness
   (`sampling_common.py`, `ratio_prompt_templates.py`, `evaluate_ratio_prompts.py`).
 

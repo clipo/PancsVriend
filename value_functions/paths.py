@@ -8,7 +8,9 @@
       results/         (gitignored) the tables themselves — see below
     experiments_with_llama_cpp/cross_model/   the cross-model figures + tables
 
-Stores under results/:
+Stores under results/ (sampled/ — the retired -vf-r3 store — and
+llm_logprob/concurrent_sampling_vs_exact_logprob/ were DELETED 2026-09-15;
+the constants stay so old scripts still import):
     sampled/       the retired -vf-r3 sampling campaign. TOP LEVEL IS EMPTY of
                    loose files since 2026-09-07; everything is a subfolder:
                      tables/            vf_<label>__<scenario>__<style>.json —
