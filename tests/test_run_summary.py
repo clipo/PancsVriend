@@ -333,7 +333,7 @@ def test_analysis_step_writes_combined_summary(tmp_path, monkeypatch):
     assert (experiments_root / 'llm_baseline_x' / RUN_SUMMARY_FILENAME).exists()
     assert (experiments_root / 'llm_race_x' / RUN_SUMMARY_FILENAME).exists()
 
-    out_path = reports_dir / 'run_summary_by_run.csv'
+    out_path = reports_dir / 'run_summary_by_run_all_scenarios.csv'
     assert out_path.exists()
     assert len(combined) == 2
     # scenario_key distinguishes llm_baseline from a mechanical baseline, which

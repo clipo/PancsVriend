@@ -14,7 +14,7 @@ per (metric, scenario) and the Q-Q plots.
 
 Pipeline mode (registered in run_all_scenario_analysis.py, after
 run_summary roll-up):
-    run_from_combined_csv()        # reads <reports>/run_summary_by_run.csv
+    run_from_combined_csv()        # reads <reports>/run_summary_by_run_all_scenarios.csv
 
 Standalone mode against an (in-progress) llama.cpp production run:
     .venv/bin/python analysis_tools/normality_tests.py \
@@ -173,11 +173,11 @@ def analyze(values_by_metric, out_dir, csv_prefix=""):
 
 
 def run_from_summary_csv(csv_path=None, out_dir=None):
-    """Pipeline mode: consume run_summary_by_run.csv from the reports dir
+    """Pipeline mode: consume run_summary_by_run_all_scenarios.csv from the reports dir
     (one row per run; `scenario_key` is the analysis scenario)."""
     from analysis_tools.output_paths import get_reports_dir
     reports = get_reports_dir()
-    csv_path = csv_path or os.path.join(reports, "run_summary_by_run.csv")
+    csv_path = csv_path or os.path.join(reports, "run_summary_by_run_all_scenarios.csv")
     if not os.path.exists(csv_path):
         print(f"[normality] SKIP: {csv_path} not found (run the run_summary step first)")
         return None, None
@@ -219,7 +219,7 @@ def main():
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--run-dir", help="run_<timestamp>_<model> dir (mid-campaign OK)")
     src.add_argument("--summary-csv", "--combined-csv", dest="summary_csv",
-                     help="explicit run_summary_by_run.csv path")
+                     help="explicit run_summary_by_run_all_scenarios.csv path")
     ap.add_argument("--out", default=None, help="output dir override")
     args = ap.parse_args()
     if args.run_dir:

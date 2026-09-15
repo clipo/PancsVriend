@@ -1,15 +1,15 @@
-"""One-way ANOVA across scenarios for every metric, from run_summary_by_run.csv.
+"""One-way ANOVA across scenarios for every metric, from run_summary_by_run_all_scenarios.csv.
 
     python analysis_tools/anova_by_metric.py            # after the run_summary step
 
-Reads <reports>/run_summary_by_run.csv — the per-model roll-up of every
+Reads <reports>/run_summary_by_run_all_scenarios.csv — the per-model roll-up of every
 experiment's run_summary.csv (one row per run, final-step metrics) — groups
 by `scenario_key` and writes anova_results_by_metric.csv / .md plus a
 per-scenario describe() to stdout.
 
 This is what is left of combined_final_metrics.py (removed 2026-09-05). That
 module also wrote combined_final_metrics.csv, the same rows as
-run_summary_by_run.csv under a different column name, and forced a full
+run_summary_by_run_all_scenarios.csv under a different column name, and forced a full
 rebuild of every experiment's metrics_history on every pass; the rebuild is
 now the repair_stored_metrics step and the roll-up is run_summary's.
 """
@@ -23,7 +23,7 @@ from analysis_tools.output_paths import get_reports_dir
 
 METRICS = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate',
            'dissimilarity_index']
-SUMMARY_FILENAME = 'run_summary_by_run.csv'
+SUMMARY_FILENAME = 'run_summary_by_run_all_scenarios.csv'
 
 
 def load_final_metrics(reports_dir=None):

@@ -44,7 +44,7 @@ This will run (in order):
 
 0. `repair_stored_metrics` — verifies each experiment's `metrics_history` against its step logs (see §5)
 1. `dissimilarity_index_over_time` — DI per step and final DI per run
-2. `run_summary` — the per-run roll-up (`run_summary_by_run.csv`), then `anova_by_metric` and `normality_tests`
+2. `run_summary` — the per-run roll-up (`run_summary_by_run_all_scenarios.csv`), then `anova_by_metric` and `normality_tests`
 3. (`analyze_agent_movement` — skipped unless `--include-movement`)
 4. ~~`analyze_stability_patterns`~~ — removed from the pipeline 2026-09-15 (code kept, step commented out)
 5. `convergence_patterns_and_speed`
@@ -106,7 +106,7 @@ placement; standalone, the plots stay next to the tables).
 | Step | Tables (`analysis/`) | Figures (`plots/`) |
 |------|----------------------|--------------------|
 | dissimilarity_index_over_time | `dissimilarity_index/<experiment>_dissimilarity_{by_step,final}.csv.gz`, `dissimilarity_by_step_all.csv.gz`, `dissimilarity_final_by_run.csv.gz` | — |
-| run_summary | `run_summary_by_run.csv` (one row per run, all scenarios; the same rows as the six per-scenario `run_summary.csv`) | — |
+| run_summary | `run_summary_by_run_all_scenarios.csv` (one row per run, all scenarios; the same rows as the six per-scenario `run_summary.csv`) | — |
 | anova_by_metric | `anova_results_by_metric.csv` / `.md` | — |
 | normality_tests | `normality_tests.csv`, `segregation_scenario_rankings_<model>.csv` / `.md` | `normality/normality_<metric>.png` |
 | movement analysis (if enabled) | `movement_analysis/<experiment>/...` | summary plots |

@@ -8,7 +8,7 @@ functions, composition-level lookup, 6 scenarios each; the run count is read fro
     python value_functions/comparison/cross_model_vf_comparison.py --family r3     # sampled tables (superseded)
     python value_functions/comparison/cross_model_vf_comparison.py --run-root <dir>
 
-Input: the newest FULL analysis/run_summary_by_run.csv per model under
+Input: the newest FULL analysis/run_summary_by_run_all_scenarios.csv per model under
 <run-root>/run_*_<model>-vf-<family>/ (final-step value per run; pick_run).
 The two table FAMILIES are never mixed in one figure. `lp` (DEFAULT, the
 result): the exact token-probability tables (llm_model suffix -vf-lp,
@@ -202,7 +202,7 @@ def load_models(run_root, family=DEFAULT_FAMILY):
     out, missing = {}, []
     for key, _, _ in MODELS:
         hits = glob.glob(str(Path(run_root) / f"run_*_{key}-{suffix}" / "analysis" /
-                             "run_summary_by_run.csv"))
+                             "run_summary_by_run_all_scenarios.csv"))
         chosen, skipped = pick_run(hits)
         if chosen is None:
             missing.append(key)

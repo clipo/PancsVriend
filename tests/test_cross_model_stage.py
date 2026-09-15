@@ -26,7 +26,7 @@ import run_llm_probability_simulation_analysis as orch  # noqa: E402
 
 
 def _summary(root: Path, run_name: str, n_rows: int) -> Path:
-    p = root / run_name / "analysis" / "run_summary_by_run.csv"
+    p = root / run_name / "analysis" / "run_summary_by_run_all_scenarios.csv"
     p.parent.mkdir(parents=True)
     p.write_text("run_id,scenario,scenario_key,dissimilarity_index\n"
                  + "".join(f"{i},baseline,llm_baseline,0.1\n" for i in range(n_rows)))
@@ -58,7 +58,7 @@ class TestPickRun:
         lp = cm.load_models(tmp_path)                     # exact tables are the default
         assert len(r3["olmo-2-32b"]) == 6 and len(lp["olmo-2-32b"]) == 4
         assert r3["olmo-2-32b"]["_source"].iloc[0].endswith(
-            "run_20260905_000000_olmo-2-32b-vf-r3/analysis/run_summary_by_run.csv")
+            "run_20260905_000000_olmo-2-32b-vf-r3/analysis/run_summary_by_run_all_scenarios.csv")
 
     def test_load_models_uses_pick_run(self, tmp_path, capsys):
         _summary(tmp_path, "run_20260905_140659_olmo-2-32b-vf-lp", 60)

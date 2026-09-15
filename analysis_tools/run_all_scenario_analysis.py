@@ -27,7 +27,7 @@ Manifest report outputs (when --manifest-file is used):
 Pipeline order (when not movement-only):
     0) repair_stored_metrics (unless --no-recompute; --force-recompute rebuilds all)
     1) dissimilarity_index_over_time
-    2) run_summary (per-experiment run_summary.csv + run_summary_by_run.csv)
+    2) run_summary (per-experiment run_summary.csv + run_summary_by_run_all_scenarios.csv)
     2a) anova_by_metric
     2b) normality_tests
     3) analyze_agent_movement (optional via --include-movement)
@@ -143,7 +143,7 @@ def run_all_analyses(
     #    one row per run. Each experiment folder gets its own run_summary.csv
     #    (rebuilt here so pre-2026-09-01 experiments and resume placeholders
     #    are repaired), and the selected experiments are rolled up into a
-    #    single run_summary_by_run.csv for this model — the file every
+    #    single run_summary_by_run_all_scenarios.csv for this model — the file every
     #    cross-scenario step below reads.
     def _run_run_summary():
         build_run_summaries_for_selection(reports_dir, verbose=verbose)
@@ -157,7 +157,7 @@ def run_all_analyses(
 
     steps.append(("anova_by_metric", _run_anova, {}))
 
-    # 2b. Normality diagnostics (consumes run_summary_by_run.csv): Shapiro-Wilk
+    # 2b. Normality diagnostics (consumes run_summary_by_run_all_scenarios.csv): Shapiro-Wilk
     #     table + Q-Q/histograms per metric. Diagnostic only since 2026-09-05;
     #     the ranking table's paired t does not depend on it.
     def _run_normality_tests():
@@ -206,7 +206,7 @@ def run_all_analyses(
         mod.main()
     steps.append(("per_metric_panels", _run_per_metric_panels, {}))
 
-    # 8. Segregation metrics comparison (depends on run_summary_by_run.csv)
+    # 8. Segregation metrics comparison (depends on run_summary_by_run_all_scenarios.csv)
     def _run_segregation_metrics_comparison():
         import importlib as _il
         mod = _il.import_module('analysis_tools.segregation_metrics_comparison')
@@ -277,7 +277,7 @@ def build_run_summaries_for_selection(reports_dir: Path,
 
     reports_dir = Path(reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
-    out_path = reports_dir / 'run_summary_by_run.csv'
+    out_path = reports_dir / 'run_summary_by_run_all_scenarios.csv'
     combined.to_csv(out_path, index=False)
     print(f"[run_summary] Wrote {len(combined)} run(s) to {out_path}")
     return combined
@@ -470,9 +470,9 @@ def _write_single_model_scenario_ranking_table(
 
     combined_df = load_final_metrics(reports_dir)
     if combined_df.empty:
-        raise RuntimeError(f"run_summary_by_run.csv is empty in {reports_dir}")
+        raise RuntimeError(f"run_summary_by_run_all_scenarios.csv is empty in {reports_dir}")
     if "scenario" not in combined_df.columns:
-        raise RuntimeError("run_summary_by_run.csv is missing required 'scenario' column")
+        raise RuntimeError("run_summary_by_run_all_scenarios.csv is missing required 'scenario' column")
 
     metrics = [
         metric
@@ -488,7 +488,7 @@ def _write_single_model_scenario_ranking_table(
         if metric in combined_df.columns
     ]
     if not metrics:
-        raise RuntimeError("No ranking metrics found in run_summary_by_run.csv")
+        raise RuntimeError("No ranking metrics found in run_summary_by_run_all_scenarios.csv")
 
     model_display = (llm_model or "unknown-model").strip() or "unknown-model"
     safe_model = _sanitize_model_for_path_component(model_display)

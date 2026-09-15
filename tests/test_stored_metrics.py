@@ -189,7 +189,7 @@ def test_anova_reads_the_run_summary_roll_up(experiment, tmp_path):
     combined = combine_run_summaries([str(experiment)], verbose=False)
     combined.insert(1, 'scenario_key', 'llm_baseline')
     reports.mkdir()
-    combined.to_csv(reports / 'run_summary_by_run.csv', index=False)
+    combined.to_csv(reports / 'run_summary_by_run_all_scenarios.csv', index=False)
     set_reports_dir(reports)
 
     df = anova_by_metric.anova_by_metric(reports_dir=reports)

@@ -133,7 +133,7 @@ is the per-run bookkeeping every reader takes; `convergence_summary.csv` and
 `step_statistics.csv` are legacy and no longer written. Column semantics are
 in the `analysis_tools/build_run_summary.py` docstring; regenerate with
 `python analysis_tools/build_run_summary.py --all`. The campaign roll-up is
-`analysis/run_summary_by_run.csv`, from which `anova_by_metric.py` computes
+`analysis/run_summary_by_run_all_scenarios.csv`, from which `anova_by_metric.py` computes
 the ANOVA table.
 
 `metrics_history.csv.gz` is a cache derived from the frames in `states/`;
