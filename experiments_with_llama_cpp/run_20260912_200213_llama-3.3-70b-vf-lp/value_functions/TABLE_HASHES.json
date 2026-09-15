@@ -1,0 +1,32 @@
+{
+ "vf_llama-3.3-70b-chat-grammar-lp__baseline__R3_dual_count.json": {
+  "table_sha256": "9170a9574aa7e7a77e60b0fe2ef94fe8dd7388dc29add9681624c284dfffe3d0",
+  "n_samples": 0,
+  "calibration": null
+ },
+ "vf_llama-3.3-70b-chat-grammar-lp__ethnic_asian_hispanic__R3_dual_count.json": {
+  "table_sha256": "18e84654a878fe406982dd1b02c88446cefe0eb4c0222caf291a6d2e3e2631e4",
+  "n_samples": 0,
+  "calibration": null
+ },
+ "vf_llama-3.3-70b-chat-grammar-lp__green_yellow__R3_dual_count.json": {
+  "table_sha256": "f61e1b41a7e97d915a43f80c792d532d5a4413ea8a508a0068c4033c1d6c088a",
+  "n_samples": 0,
+  "calibration": null
+ },
+ "vf_llama-3.3-70b-chat-grammar-lp__income_high_low__R3_dual_count.json": {
+  "table_sha256": "ae310f82dda7d6b41e387962a6343460d8f3df3be67d41824ab272a008996c9f",
+  "n_samples": 0,
+  "calibration": null
+ },
+ "vf_llama-3.3-70b-chat-grammar-lp__political_liberal_conservative__R3_dual_count.json": {
+  "table_sha256": "e72230daba09a4d5dc7021b5cd86a660cea551c3ab5bd1c467ceb8fef60f70c0",
+  "n_samples": 0,
+  "calibration": null
+ },
+ "vf_llama-3.3-70b-chat-grammar-lp__race_white_black__R3_dual_count.json": {
+  "table_sha256": "8edf0e603e1beeafe680fc17e73c5ad4e9ad1c5a7299d9f55dd87da91027ef49",
+  "n_samples": 0,
+  "calibration": null
+ }
+}
