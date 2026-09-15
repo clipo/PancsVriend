@@ -1,0 +1,20 @@
+LLM model: phi-4-14b-vf-lp
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260906_010133
+- race_white_black: llm_race_white_black_20260906_010224
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_010257
+- income_high_low: llm_income_high_low_20260906_010330
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_010403
+- green_yellow: llm_green_yellow_20260906_010448
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260906_010133
+- race_white_black: llm_race_white_black_20260906_010224
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_010257
+- income_high_low: llm_income_high_low_20260906_010330
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_010403
+- green_yellow: llm_green_yellow_20260906_010448
+
+Unused experiments (NOT USED):
+- (none)

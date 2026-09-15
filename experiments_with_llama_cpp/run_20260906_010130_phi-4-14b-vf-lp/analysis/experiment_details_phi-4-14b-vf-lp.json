@@ -1,0 +1,279 @@
+{
+  "llm_model": "phi-4-14b-vf-lp",
+  "manifest": {
+    "created_at": "2026-09-06T01:05:31",
+    "path": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/manifest/run_20260906_010130_phi-4-14b-vf-lp_run_manifest.json"
+  },
+  "selected_experiments": [
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nYou will be shown a map of your immediate neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "red team resident",
+          "type_b": "blue team resident"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "baseline",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010133",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__baseline__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T17:09:49",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "baseline",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_baseline_20260906_010133",
+      "output_dir": "experiments/llm_baseline_20260906_010133",
+      "run_count": 10000,
+      "scenario": "llm_baseline",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live. Consider factors like community comfort, children's friendships, cultural connections, safety perceptions, and social dynamics that matter to you.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s like you\n- O = neighbors who are {opposite_type}s\n- E = empty houses available to move to\n- # = outside the immediate area\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "white middle class family",
+          "type_b": "Black family"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "race_white_black",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010224",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__race_white_black__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T14:28:07",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "race_white_black",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_race_white_black_20260906_010224",
+      "output_dir": "experiments/llm_race_white_black_20260906_010224",
+      "run_count": 10000,
+      "scenario": "race_white_black",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering moving to a different house in your neighborhood.\n\nAs a real person with your own cultural background, family needs, and community connections, consider where you would actually want to live. Think about factors like cultural familiarity, language communities, children's social connections, extended family proximity, and your comfort level in different neighborhood compositions.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s with similar backgrounds\n- O = neighbors who are {opposite_type}s\n- E = empty houses you could potentially move to\n- # = outside your immediate area\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "Asian American family",
+          "type_b": "Hispanic/Latino family"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "ethnic_asian_hispanic",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010257",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__ethnic_asian_hispanic__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T14:59:32",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "ethnic_asian_hispanic",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_ethnic_asian_hispanic_20260906_010257",
+      "output_dir": "experiments/llm_ethnic_asian_hispanic_20260906_010257",
+      "run_count": 10000,
+      "scenario": "ethnic_asian_hispanic",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person making housing decisions, consider your economic priorities: affordability, property values, proximity to work, schools, and the kind of community environment that matches your lifestyle and budget.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors from households similar to yours ({agent_type}s)\n- O = neighbors from {opposite_type}s\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "high-income household",
+          "type_b": "low-income household"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "income_high_low",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010330",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__income_high_low__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T17:11:32",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "income_high_low",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_income_high_low_20260906_010330",
+      "output_dir": "experiments/llm_income_high_low_20260906_010330",
+      "run_count": 10000,
+      "scenario": "income_high_low",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person with your own political beliefs, social values, and family considerations, think about where you would actually want to live. Consider factors like community discussions, local politics, school board dynamics, social comfort at neighborhood gatherings, shared values around children's upbringing, and day-to-day interactions with neighbors.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s with similar political views\n- O = neighbors who are {opposite_type}s with different political perspectives\n- E = empty houses you could move to\n- # = beyond your immediate area\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "politically liberal household",
+          "type_b": "politically conservative household"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "political_liberal_conservative",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010403",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__political_liberal_conservative__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T17:34:08",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "political_liberal_conservative",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_political_liberal_conservative_20260906_010403",
+      "output_dir": "experiments/llm_political_liberal_conservative_20260906_010403",
+      "run_count": 10000,
+      "scenario": "political_liberal_conservative",
+      "status": "success"
+    },
+    {
+      "effective_config": {
+        "context_info": {
+          "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nYou will be shown a map of your immediate neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n",
+          "type_a": "green team resident",
+          "type_b": "yellow team resident"
+        },
+        "cpu_count": 20,
+        "grid_size": 20,
+        "llm_api_key_last4": null,
+        "llm_model": "phi-4-14b-vf-lp",
+        "llm_style": null,
+        "llm_url": null,
+        "max_steps": 1000,
+        "n_processes": 4,
+        "n_runs": 10000,
+        "no_move_threshold": 5,
+        "num_type_a": 160,
+        "num_type_b": 160,
+        "parallel_execution": true,
+        "rng_scheme": "keyed",
+        "save_every_steps": null,
+        "scenario": "green_yellow",
+        "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/scenarios_a2.py",
+        "temperature": 0.3,
+        "timestamp": "20260906_010448",
+        "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_010130_phi-4-14b-vf-lp/value_functions/vf_phi-4-14b-chat-grammar-lp__green_yellow__R3_dual_count.json",
+        "value_function_meta": {
+          "arm": "chat+grammar",
+          "created": "2026-08-28T18:10:09",
+          "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+          "label": "phi-4-14b-chat-grammar-lp",
+          "model": "phi-4-Q8_0",
+          "scenario": "green_yellow",
+          "style": "R3_dual_count",
+          "temperature": 0.3,
+          "url": "http://localhost:8085/v1/chat/completions"
+        }
+      },
+      "experiment_name": "llm_green_yellow_20260906_010448",
+      "output_dir": "experiments/llm_green_yellow_20260906_010448",
+      "run_count": 10000,
+      "scenario": "green_yellow",
+      "status": "success"
+    }
+  ]
+}
