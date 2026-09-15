@@ -183,7 +183,9 @@ def run_all_analyses(
     def _run_stability():
         mod = importlib.import_module('analysis_tools.analyze_stability_patterns')
         mod.analyze_stability()
-    steps.append(("analyze_stability_patterns", _run_stability, {}))
+    # steps.append(("analyze_stability_patterns", _run_stability, {}))
+    # ^ removed from the pipeline 2026-09-15 (user decision): stability_analysis.png and
+    #   trajectory_variance.png are no longer generated; the code stays for ad-hoc use.
 
     # 5. Convergence patterns & speed
     def _run_convergence():

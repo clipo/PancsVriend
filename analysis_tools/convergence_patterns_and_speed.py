@@ -356,127 +356,133 @@ plt.savefig(OUT_DIR / 'convergence_speed_comparison.png', dpi=300, bbox_inches='
 plt.close(fig2)
 
 # Generate per-step 90% convergence progress plots (CDF-style)
+# The two 90%-convergence progress figures (convergence_progress_90pct.png and
+# convergence_progress_90pct_dissimilarity_index.png) were removed from the pipeline
+# on 2026-09-15 (user decision). The code is kept below, commented out, for ad-hoc use;
+# the flags stay defined for anything downstream that reads them.
 progress_fig_generated = False
-progress_fig_path = OUT_DIR / 'convergence_progress_90pct.png'
-
-cdf_fig, cdf_axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
-cdf_axes = cdf_axes.flatten()
-metric_has_data = []
-
-for idx, metric in enumerate(metrics):
-    ax = cdf_axes[idx]
-    plotted = False
-    for scenario_name in SCENARIO_ORDER:
-        steps_list = convergence_step_records.get(scenario_name, {}).get(metric)
-        if not steps_list:
-            continue
-
-        plotted = True
-        sorted_steps = np.sort(steps_list)
-        cumulative = np.arange(1, len(sorted_steps) + 1) / len(sorted_steps)
-        ax.plot(
-            sorted_steps,
-            cumulative,
-            label=scenario_labels[scenario_name],
-            linewidth=2.2,
-            alpha=0.95,
-            color=scenario_colors[scenario_name],
-        )
-
-    if plotted:
-        ax.set_xlabel('Simulation Step')
-        ax.set_ylabel('Runs >= 90%')
-        ax.yaxis.set_major_formatter(PercentFormatter(1))
-        ax.set_ylim(0, 1.01)
-        ax.set_title(f'Time to 90%: {metric_labels[metric]}', pad=12)
-        ax.grid(True, axis='y', alpha=0.25)
-    else:
-        ax.axis('off')
-    metric_has_data.append(plotted)
-
-for extra_ax in cdf_axes[len(metrics):]:
-    extra_ax.axis('off')
-
-if any(metric_has_data):
-    handles_cdf, labels_cdf = [], []
-    for ax in cdf_axes:
-        h_ax, l_ax = ax.get_legend_handles_labels()
-        handles_cdf += h_ax
-        labels_cdf += l_ax
-
-    seen = set()
-    unique_cdf = [(h, lbl) for h, lbl in zip(handles_cdf, labels_cdf) if not (lbl in seen or seen.add(lbl))]
-    if unique_cdf:
-        h_unique, l_unique = zip(*unique_cdf)
-        cdf_fig.legend(
-            h_unique,
-            l_unique,
-            loc='lower center',
-            ncol=min(4, len(l_unique)),
-            frameon=False,
-            bbox_to_anchor=(0.5, -0.04),
-            labelspacing=0.8,
-            borderaxespad=1.0,
-            columnspacing=1.6,
-            handlelength=2.0,
-        )
-
-    plt.suptitle('Share of Runs Reaching 90% Convergence by Step', y=0.98)
-    plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
-    plt.savefig(progress_fig_path, dpi=300, bbox_inches='tight')
-    progress_fig_generated = True
-    plt.close(cdf_fig)
-else:
-    plt.close(cdf_fig)
-
-# Dedicated convergence progress figure for dissimilarity index if present
 dissim_progress_generated = False
-dissim_progress_path = OUT_DIR / 'convergence_progress_90pct_dissimilarity_index.png'
-if include_dissimilarity:
-    fig_cdf_di, ax_cdf_di = plt.subplots(figsize=(10, 4.5))
-    plotted_di = False
-    for scenario_name in SCENARIO_ORDER:
-        steps_list = convergence_step_records.get(scenario_name, {}).get('dissimilarity_index')
-        if not steps_list:
-            continue
-        plotted_di = True
-        sorted_steps = np.sort(steps_list)
-        cumulative = np.arange(1, len(sorted_steps) + 1) / len(sorted_steps)
-        ax_cdf_di.plot(
-            sorted_steps,
-            cumulative,
-            label=scenario_labels[scenario_name],
-            linewidth=2.4,
-            alpha=0.95,
-            color=scenario_colors[scenario_name],
-        )
-
-    if plotted_di:
-        ax_cdf_di.set_xlabel('Simulation Step')
-        ax_cdf_di.set_ylabel('Runs >= 90%')
-        ax_cdf_di.yaxis.set_major_formatter(PercentFormatter(1))
-        ax_cdf_di.set_ylim(0, 1.01)
-        ax_cdf_di.set_title('Dissimilarity Index 90% Convergence Progress', pad=10)
-        ax_cdf_di.grid(True, axis='y', alpha=0.25)
-        sns.despine(ax=ax_cdf_di)
-        handles_di, labels_di = ax_cdf_di.get_legend_handles_labels()
-        if handles_di:
-            ax_cdf_di.legend(
-                handles_di,
-                labels_di,
-                loc='center left',
-                bbox_to_anchor=(1.02, 0.5),
-                frameon=False,
-                ncol=1,
-                borderaxespad=0.0,
-            )
-        plt.tight_layout()
-        plt.savefig(dissim_progress_path, dpi=300, bbox_inches='tight')
-        dissim_progress_generated = True
-        plt.close(fig_cdf_di)
-    else:
-        plt.close(fig_cdf_di)
-
+# progress_fig_generated = False
+# progress_fig_path = OUT_DIR / 'convergence_progress_90pct.png'
+#
+# cdf_fig, cdf_axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
+# cdf_axes = cdf_axes.flatten()
+# metric_has_data = []
+#
+# for idx, metric in enumerate(metrics):
+#     ax = cdf_axes[idx]
+#     plotted = False
+#     for scenario_name in SCENARIO_ORDER:
+#         steps_list = convergence_step_records.get(scenario_name, {}).get(metric)
+#         if not steps_list:
+#             continue
+#
+#         plotted = True
+#         sorted_steps = np.sort(steps_list)
+#         cumulative = np.arange(1, len(sorted_steps) + 1) / len(sorted_steps)
+#         ax.plot(
+#             sorted_steps,
+#             cumulative,
+#             label=scenario_labels[scenario_name],
+#             linewidth=2.2,
+#             alpha=0.95,
+#             color=scenario_colors[scenario_name],
+#         )
+#
+#     if plotted:
+#         ax.set_xlabel('Simulation Step')
+#         ax.set_ylabel('Runs >= 90%')
+#         ax.yaxis.set_major_formatter(PercentFormatter(1))
+#         ax.set_ylim(0, 1.01)
+#         ax.set_title(f'Time to 90%: {metric_labels[metric]}', pad=12)
+#         ax.grid(True, axis='y', alpha=0.25)
+#     else:
+#         ax.axis('off')
+#     metric_has_data.append(plotted)
+#
+# for extra_ax in cdf_axes[len(metrics):]:
+#     extra_ax.axis('off')
+#
+# if any(metric_has_data):
+#     handles_cdf, labels_cdf = [], []
+#     for ax in cdf_axes:
+#         h_ax, l_ax = ax.get_legend_handles_labels()
+#         handles_cdf += h_ax
+#         labels_cdf += l_ax
+#
+#     seen = set()
+#     unique_cdf = [(h, lbl) for h, lbl in zip(handles_cdf, labels_cdf) if not (lbl in seen or seen.add(lbl))]
+#     if unique_cdf:
+#         h_unique, l_unique = zip(*unique_cdf)
+#         cdf_fig.legend(
+#             h_unique,
+#             l_unique,
+#             loc='lower center',
+#             ncol=min(4, len(l_unique)),
+#             frameon=False,
+#             bbox_to_anchor=(0.5, -0.04),
+#             labelspacing=0.8,
+#             borderaxespad=1.0,
+#             columnspacing=1.6,
+#             handlelength=2.0,
+#         )
+#
+#     plt.suptitle('Share of Runs Reaching 90% Convergence by Step', y=0.98)
+#     plt.tight_layout(rect=(0.0, 0.08, 1.0, 0.94), h_pad=2.0)
+#     plt.savefig(progress_fig_path, dpi=300, bbox_inches='tight')
+#     progress_fig_generated = True
+#     plt.close(cdf_fig)
+# else:
+#     plt.close(cdf_fig)
+#
+# # Dedicated convergence progress figure for dissimilarity index if present
+# dissim_progress_generated = False
+# dissim_progress_path = OUT_DIR / 'convergence_progress_90pct_dissimilarity_index.png'
+# if include_dissimilarity:
+#     fig_cdf_di, ax_cdf_di = plt.subplots(figsize=(10, 4.5))
+#     plotted_di = False
+#     for scenario_name in SCENARIO_ORDER:
+#         steps_list = convergence_step_records.get(scenario_name, {}).get('dissimilarity_index')
+#         if not steps_list:
+#             continue
+#         plotted_di = True
+#         sorted_steps = np.sort(steps_list)
+#         cumulative = np.arange(1, len(sorted_steps) + 1) / len(sorted_steps)
+#         ax_cdf_di.plot(
+#             sorted_steps,
+#             cumulative,
+#             label=scenario_labels[scenario_name],
+#             linewidth=2.4,
+#             alpha=0.95,
+#             color=scenario_colors[scenario_name],
+#         )
+#
+#     if plotted_di:
+#         ax_cdf_di.set_xlabel('Simulation Step')
+#         ax_cdf_di.set_ylabel('Runs >= 90%')
+#         ax_cdf_di.yaxis.set_major_formatter(PercentFormatter(1))
+#         ax_cdf_di.set_ylim(0, 1.01)
+#         ax_cdf_di.set_title('Dissimilarity Index 90% Convergence Progress', pad=10)
+#         ax_cdf_di.grid(True, axis='y', alpha=0.25)
+#         sns.despine(ax=ax_cdf_di)
+#         handles_di, labels_di = ax_cdf_di.get_legend_handles_labels()
+#         if handles_di:
+#             ax_cdf_di.legend(
+#                 handles_di,
+#                 labels_di,
+#                 loc='center left',
+#                 bbox_to_anchor=(1.02, 0.5),
+#                 frameon=False,
+#                 ncol=1,
+#                 borderaxespad=0.0,
+#             )
+#         plt.tight_layout()
+#         plt.savefig(dissim_progress_path, dpi=300, bbox_inches='tight')
+#         dissim_progress_generated = True
+#         plt.close(fig_cdf_di)
+#     else:
+#         plt.close(fig_cdf_di)
+#
 # Dedicated convergence speed figure for dissimilarity index
 dissim_speed_generated = False
 if include_dissimilarity:

@@ -1010,6 +1010,17 @@ def main() -> int:
     print(f"scenarios: {scenarios}")
 
     out = Path(args.out_dir) if args.out_dir else Path(args.run_root) / CROSS_MODEL_DIR.name
+    # Which run each model's figures come from, next to the figures (2026-09-15):
+    # the choice is pick_run's (newest of the largest), and reading it off a
+    # log line was the only way to check it before.
+    out.mkdir(parents=True, exist_ok=True)
+    import csv as _csv, datetime as _dt
+    with open(out / f"cross_model_{FAMILIES[args.family][0]}_sources.csv", "w", newline="") as fh:
+        w = _csv.writer(fh); w.writerow(["model", "run_dir", "rows", "run_summary_mtime", "family"])
+        for key, df in data.items():
+            src = Path(df["_source"].iloc[0])
+            w.writerow([key, src.parents[1].name, len(df),
+                        _dt.datetime.fromtimestamp(src.stat().st_mtime).strftime("%Y-%m-%d %H:%M"), args.family])
     out.mkdir(parents=True, exist_ok=True)
     rows, chance_rows = fig_metrics(data, scenarios, out / f"{P}bump_all_metrics.png", args.dpi)
     fig_levels_grid(data, scenarios, out / f"{P}level_all_metrics.png", args.dpi)

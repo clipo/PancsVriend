@@ -29,7 +29,7 @@ This will run (in order):
 
 1. `repair_stored_metrics` (verifies each experiment's metrics_history), then `run_summary` (the per-run roll-up) and `anova_by_metric`
 2. (Movement analysis is skipped by default for speed)
-3. `analyze_stability_patterns`
+3. ~~`analyze_stability_patterns`~~ — removed from the pipeline 2026-09-15 (code kept, step commented out)
 4. `convergence_patterns_and_speed`
 5. `per_metric_panels`
 6. `segregation_metrics_comparison`
@@ -87,7 +87,7 @@ All generated artifacts are written under `reports/`:
 | run_summary | `reports/run_summary_by_run.csv` (one row per run, all scenarios) |
 | anova_by_metric | `reports/anova_results_by_metric.csv` / `.md` |
 | movement analysis (if enabled) | `reports/movement_analysis/<experiment>/...` (per-experiment) + summary plots |
-| stability patterns | `reports/stability_analysis.png`, `reports/trajectory_variance.png` |
+| ~~stability patterns~~ | no longer generated (2026-09-15); `convergence_progress_90pct*.png` likewise removed from `convergence_patterns_and_speed` |
 | convergence patterns | `reports/convergence_patterns.(png\|pdf)` |
 | convergence speed | `reports/convergence_speed_comparison.(png\|pdf)` |
 | rate-of-change (if re-enabled manually) | `reports/rate_of_change_analysis.*`, `reports/phase_transitions_analysis.*` |
