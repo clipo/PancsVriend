@@ -1,0 +1,71 @@
+{
+  "created_at": "2026-09-06T02:05:31",
+  "llm_model": "granite-4.2-30b-vf-lp",
+  "config_yaml": "/srv/shared/schelling/PancsVriend/configs/vf_run_granite_lp.yaml",
+  "config_profile": "production",
+  "run_layout": {
+    "run_root": "experiments_with_llama_cpp",
+    "run_id": "run_20260906_020531_granite-4.2-30b-vf-lp",
+    "run_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp",
+    "manifest_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/manifest",
+    "analysis_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/analysis",
+    "plots_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/plots",
+    "experiments_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/experiments",
+    "value_functions_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/value_functions",
+    "default_manifest_file": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/manifest/run_20260906_020531_granite-4.2-30b-vf-lp_run_manifest.json",
+    "model_slug": "granite-4.2-30b-vf-lp"
+  },
+  "stages": {
+    "skip_vf_build": true,
+    "skip_contexts": false,
+    "skip_analysis": false,
+    "skip_rank_stability": false,
+    "skip_cross_model": false
+  },
+  "passthrough": {
+    "vf_build_args": "--config configs/value_function_scenarios_granite.yaml --plot",
+    "contexts_args": "--scenarios baseline race_white_black ethnic_asian_hispanic income_high_low political_liberal_conservative green_yellow --runs 10000 --max-steps 1000 --grid-size 20 --num-type-a 160 --num-type-b 160 --value-function 'prompt_refinement/results/value_functions_logprob/vf_granite-4.2-30b-chat-grammar-lp__{scenario}__R3_dual_count.json' --temperature 0.3 --scenario-file scenarios_a2.py --llm-model granite-4.2-30b-vf-lp --processes 4 --new",
+    "analysis_args": "",
+    "rank_stability_args": "",
+    "cross_model_args": ""
+  },
+  "resolved_paths": {
+    "value_functions_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/value_functions",
+    "manifest_path": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/manifest/run_20260906_020531_granite-4.2-30b-vf-lp_run_manifest.json",
+    "analysis_output_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/analysis",
+    "plots_output_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/plots"
+  },
+  "rank_stability": {
+    "label": "granite-4.2-30b-chat-grammar-lp",
+    "board": {
+      "grid_size": "20",
+      "num_type_a": "160",
+      "num_type_b": "160",
+      "max_steps": "1000"
+    },
+    "exact_tables": true,
+    "ruler": null,
+    "out_dir": "experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/analysis/rank_stability",
+    "command": "/srv/shared/schelling/PancsVriend/.venv/bin/python /srv/shared/schelling/PancsVriend/analysis_tools/vf_rank_stability.py --label granite-4.2-30b-chat-grammar-lp --production-experiments experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/experiments --out-dir experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/analysis/rank_stability --exact",
+    "exit_code": 0,
+    "status": "classified",
+    "verdict": "SETTLED",
+    "decision": {
+      "counts": {
+        "FLOOR-TIE": 5
+      },
+      "n_pairs": 5,
+      "fixable": [],
+      "total_fixable_gpu_h": 0.0,
+      "verdict": "SETTLED"
+    },
+    "ruler_rng_scheme": "exact"
+  },
+  "cross_model": {
+    "run_root": "experiments_with_llama_cpp",
+    "out_dir": "/srv/shared/schelling/PancsVriend/prompt_refinement/results/figures",
+    "command": "/srv/shared/schelling/PancsVriend/.venv/bin/python /srv/shared/schelling/PancsVriend/analysis_tools/cross_model_vf_comparison.py --run-root /srv/shared/schelling/PancsVriend/experiments_with_llama_cpp",
+    "exit_code": 0,
+    "status": "regenerated"
+  }
+}

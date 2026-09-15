@@ -1,0 +1,38 @@
+{
+  "llm_style": null,
+  "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/scenarios_a2.py",
+  "n_runs": 10000,
+  "max_steps": 1000,
+  "grid_size": 20,
+  "num_type_a": 160,
+  "num_type_b": 160,
+  "scenario": "green_yellow",
+  "llm_model": "granite-4.2-30b-vf-lp",
+  "llm_url": null,
+  "temperature": 0.3,
+  "llm_api_key_last4": null,
+  "no_move_threshold": 5,
+  "timestamp": "20260906_020913",
+  "context_info": {
+    "type_a": "green team resident",
+    "type_b": "yellow team resident",
+    "prompt_template": "You are a {agent_type} living in a neighborhood, considering whether to move to a different house.\n\nAs a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.\n\nYou will be shown a map of your immediate neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s like you\n- O = neighbors from the {opposite_type} community\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n"
+  },
+  "parallel_execution": true,
+  "n_processes": 4,
+  "cpu_count": 20,
+  "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_020531_granite-4.2-30b-vf-lp/value_functions/vf_granite-4.2-30b-chat-grammar-lp__green_yellow__R3_dual_count.json",
+  "rng_scheme": "keyed",
+  "value_function_meta": {
+    "label": "granite-4.2-30b-chat-grammar-lp",
+    "model": "granite-4.2-30b-Q8_0",
+    "url": "http://localhost:8085/v1/chat/completions",
+    "style": "R3_dual_count",
+    "arm": "chat+grammar",
+    "scenario": "green_yellow",
+    "temperature": 0.3,
+    "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+    "created": "2026-08-28T23:51:41"
+  },
+  "save_every_steps": null
+}
