@@ -1,0 +1,38 @@
+{
+  "llm_style": null,
+  "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_092955_deepseek-v4-flash-vf-lp/scenarios_a2.py",
+  "n_runs": 10000,
+  "max_steps": 1000,
+  "grid_size": 20,
+  "num_type_a": 160,
+  "num_type_b": 160,
+  "scenario": "income_high_low",
+  "llm_model": "deepseek-v4-flash-vf-lp",
+  "llm_url": null,
+  "temperature": 0.3,
+  "llm_api_key_last4": null,
+  "no_move_threshold": 5,
+  "timestamp": "20260906_111046",
+  "context_info": {
+    "type_a": "high-income household",
+    "type_b": "low-income household",
+    "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person making housing decisions, consider your economic priorities: affordability, property values, proximity to work, schools, and the kind of community environment that matches your lifestyle and budget.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors from households similar to yours ({agent_type}s)\n- O = neighbors from {opposite_type}s\n- E = empty houses you could move to\n- # = area outside the neighborhood\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n"
+  },
+  "parallel_execution": true,
+  "n_processes": 4,
+  "cpu_count": 20,
+  "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_092955_deepseek-v4-flash-vf-lp/value_functions/vf_deepseek-v4-flash-chat-grammar-lp__income_high_low__R3_dual_count.json",
+  "rng_scheme": "keyed",
+  "value_function_meta": {
+    "label": "deepseek-v4-flash-chat-grammar-lp",
+    "model": "DeepSeek-V4-Flash-UD-IQ3_XXS",
+    "url": "http://localhost:8085/v1/chat/completions",
+    "style": "R3_dual_count",
+    "arm": "chat+grammar",
+    "scenario": "income_high_low",
+    "temperature": 0.3,
+    "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+    "created": "2026-08-27T04:47:35"
+  },
+  "save_every_steps": null
+}

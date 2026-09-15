@@ -1,0 +1,20 @@
+LLM model: deepseek-v4-flash-vf-lp
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260906_092957
+- race_white_black: llm_race_white_black_20260906_093359
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_110908
+- income_high_low: llm_income_high_low_20260906_111046
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_112332
+- green_yellow: llm_green_yellow_20260906_112520
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260906_092957
+- race_white_black: llm_race_white_black_20260906_093359
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_110908
+- income_high_low: llm_income_high_low_20260906_111046
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_112332
+- green_yellow: llm_green_yellow_20260906_112520
+
+Unused experiments (NOT USED):
+- (none)
