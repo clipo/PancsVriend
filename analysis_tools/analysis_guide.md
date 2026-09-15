@@ -4,35 +4,53 @@ This guide explains how to generate all analysis outputs (figures & CSV summarie
 
 ## 1. Overview
 
-All analysis scripts have been unified behind an orchestrator located in:
+All analysis scripts run behind one orchestrator:
 
-`analysis_tools/experiment_list_for_analysis.py`
+`analysis_tools/run_all_scenario_analysis.py`
 
-You can now run almost the full analysis pipeline with a single command instead of invoking each script manually. Outputs are centralized under the `reports/` directory (and subfolders like `reports/movement_analysis/`).
+(`analysis_tools/experiment_list_for_analysis.py` is its configuration — the
+scenario list, labels and colours — not an entry point.) Run standalone, it
+reads `experiments/` and writes under `reports/`. Run as the analysis stage
+of `run_llm_probability_simulation_analysis.py` (the normal case since the
+value-function pipeline), it reads the run's own `experiments/` and writes
+into `<run_dir>/analysis/`, after which the pipeline moves every figure into
+`<run_dir>/plots/`. The layout of a finished run folder is in
+`experiments_with_llama_cpp/README.md`.
 
 ## 2. Prerequisites
 
-1. Ensure experiments have completed and contain expected files under `experiments/<experiment_id>/`:
-	- `move_logs/` + `states/` (only required for movement analysis)
+1. Ensure experiments have completed and contain `run_summary.csv` and
+   `metrics_history.csv.gz` under `experiments/<experiment_id>/` (or
+   `<run_dir>/experiments/<experiment_id>/` for a pipeline run):
+	- `move_logs/` + `states/` (only required for movement analysis and for
+	  repairing a stale `metrics_history`)
 
 ## 3. One-Click Full Analysis
 
 From the project root:
 
 ```bash
-python analysis_tools/experiment_list_for_analysis.py
+python analysis_tools/run_all_scenario_analysis.py
 ```
 
-Need the reports somewhere else? Add `--output-folder <path>` to point the orchestrator at a different base directory (e.g., `--output-folder reports_gemma3_27b`).
+Need the reports somewhere else? Add `--output-folder <path>` (e.g.
+`--output-folder reports_gemma3_27b`). `--llm-model <name>` filters to one
+model (and, without `--output-folder`, writes to `reports_<name>`);
+`--manifest-file <run_manifest.json>` analyses exactly the experiments of one
+pipeline run and also writes the `experiment_list_*` / `experiment_details_*`
+reports. The pipeline passes both.
 
 This will run (in order):
 
-1. `repair_stored_metrics` (verifies each experiment's metrics_history), then `run_summary` (the per-run roll-up) and `anova_by_metric`
-2. (Movement analysis is skipped by default for speed)
-3. ~~`analyze_stability_patterns`~~ — removed from the pipeline 2026-09-15 (code kept, step commented out)
-4. `convergence_patterns_and_speed`
-5. `per_metric_panels`
-6. `segregation_metrics_comparison`
+0. `repair_stored_metrics` — verifies each experiment's `metrics_history` against its step logs (see §5)
+1. `dissimilarity_index_over_time` — DI per step and final DI per run
+2. `run_summary` — the per-run roll-up (`run_summary_by_run.csv`), then `anova_by_metric` and `normality_tests`
+3. (`analyze_agent_movement` — skipped unless `--include-movement`)
+4. ~~`analyze_stability_patterns`~~ — removed from the pipeline 2026-09-15 (code kept, step commented out)
+5. `convergence_patterns_and_speed`
+6. `movement_decision_counts`
+7. `per_metric_panels`
+8. `segregation_metrics_comparison`
 
 Each step prints progress and a summary table is shown at the end with timing and status.
 
@@ -41,13 +59,13 @@ Each step prints progress and a summary table is shown at the end with timing an
 Movement analysis is computationally heavier (needs parsing move logs & states). Enable it explicitly:
 
 ```bash
-python analysis_tools/experiment_list_for_analysis.py --include-movement
+python analysis_tools/run_all_scenario_analysis.py --include-movement
 ```
 
 Run ONLY movement analysis (skipping everything else):
 
 ```bash
-python analysis_tools/experiment_list_for_analysis.py --movement-only
+python analysis_tools/run_all_scenario_analysis.py --movement-only
 ```
 
 ## 5. Controlling Metric Recomputation
@@ -75,26 +93,37 @@ python analysis_tools/run_all_scenario_analysis.py --force-recompute
 Suppress per-step progress output (summary still shown):
 
 ```bash
-python analysis_tools/experiment_list_for_analysis.py --quiet
+python analysis_tools/run_all_scenario_analysis.py --quiet
 ```
 
 ## 7. Output Locations
 
-All generated artifacts are written under `reports/`:
+Everything is written under the output folder: `reports/` standalone, or
+`<run_dir>/analysis/` in a pipeline run, where the pipeline then moves every
+`.png` into `<run_dir>/plots/` (the table below shows the pipeline
+placement; standalone, the plots stay next to the tables).
 
-| Component | Outputs |
-|-----------|---------|
-| run_summary | `reports/run_summary_by_run.csv` (one row per run, all scenarios) |
-| anova_by_metric | `reports/anova_results_by_metric.csv` / `.md` |
-| movement analysis (if enabled) | `reports/movement_analysis/<experiment>/...` (per-experiment) + summary plots |
-| ~~stability patterns~~ | no longer generated (2026-09-15); `convergence_progress_90pct*.png` likewise removed from `convergence_patterns_and_speed` |
-| convergence patterns | `reports/convergence_patterns.(png\|pdf)` |
-| convergence speed | `reports/convergence_speed_comparison.(png\|pdf)` |
-| rate-of-change (if re-enabled manually) | `reports/rate_of_change_analysis.*`, `reports/phase_transitions_analysis.*` |
-| per metric panels | `reports/metric_panel_<metric>.(png\|pdf)` |
-| segregation metrics comparison | `reports/segregation_metrics_comparison.*`, `reports/segregation_heatmap.*` |
+| Step | Tables (`analysis/`) | Figures (`plots/`) |
+|------|----------------------|--------------------|
+| dissimilarity_index_over_time | `dissimilarity_index/<experiment>_dissimilarity_{by_step,final}.csv.gz`, `dissimilarity_by_step_all.csv.gz`, `dissimilarity_final_by_run.csv.gz` | — |
+| run_summary | `run_summary_by_run.csv` (one row per run, all scenarios; the same rows as the six per-scenario `run_summary.csv`) | — |
+| anova_by_metric | `anova_results_by_metric.csv` / `.md` | — |
+| normality_tests | `normality_tests.csv`, `segregation_scenario_rankings_<model>.csv` / `.md` | `normality/normality_<metric>.png` |
+| movement analysis (if enabled) | `movement_analysis/<experiment>/...` | summary plots |
+| convergence_patterns_and_speed | — | `convergence_patterns.png`, `convergence_patterns_dissimilarity_index.png`, `convergence_speed_comparison.png`, `convergence_speed_dissimilarity_index.png` |
+| movement_decision_counts | `movement_decision_counts/movement_decision_counts_summary.csv.gz` | `movement_decision_counts/movement_decision_counts.png` |
+| per_metric_panels | — | `metric_panels/metric_panel_<metric>.png` |
+| segregation_metrics_comparison | — | `segregation_metrics_comparison.png`, `segregation_metrics_comparison_dissimilarity_index.png`, `segregation_heatmap.png` |
+| manifest reports (with `--manifest-file`) | `experiment_list_<model>.txt`, `experiment_details_<model>.{txt,json}` | — |
+| ~~stability patterns~~ | no longer generated (2026-09-15); `convergence_progress_90pct*.png` likewise removed from `convergence_patterns_and_speed` | |
+| rate-of-change (if re-enabled manually) | `rate_of_change_analysis.*`, `phase_transitions_analysis.*` | |
 
 > Note: The rate-of-change scripts are currently commented out in the orchestrator for runtime reduction. Uncomment if needed.
+
+Two pipeline stages that run AFTER this script also write into the run
+folder: rank stability (`analysis/rank_stability/`, `vf_rank_stability.py
+--exact`: is the DI ordering of the scenarios SETTLED?) and the cross-model
+stage (§7b). Neither is part of `run_all_scenario_analysis.py`.
 
 ## 7b. Cross-model figures (automatic)
 
@@ -113,6 +142,7 @@ model's newest full run under that run's `run_root`
 | `cross_model_bump_<metric>.png` | bump chart per metric, with gap bars binned on Cohen's d (mean gap / pooled SD of the two scenarios' final values; 0.2 / 0.5 / 0.8) |
 | `cross_model_level_<metric>.png` | level chart per metric |
 | `cross_model_chance_tests.csv`, `cross_model_pairwise_tests.csv`, `cross_model_rankings.csv` | the paired t-tests behind every marker |
+| `cross_model_vf-lp_sources.csv` | which run folder each model's rows came from (added 2026-09-15; the choice is "newest of the largest", below) |
 
 Significance rules (decided 2026-09-05). "Chance" is tested as a scenario
 like any other: each run's `initial_<metric>` (frame 0, a uniformly random
@@ -147,14 +177,22 @@ passes `--out-dir` / `--dpi`. To refresh by hand:
 ```bash
 python value_functions/comparison/cross_model_vf_comparison.py               # exact tables   -> cross_model_*
 python value_functions/comparison/cross_model_vf_comparison.py --family r3   # sampled tables -> cross_model_sampled_* (superseded)
+python value_functions/comparison/cross_model_vf_comparison.py --family s    # sequential sanity runs (-vf-s, 100 runs) -> cross_model_sanity_*
 ```
+
+The `-vf-s` family (registered 2026-09-07) is the sequential sanity
+cross-check ON the exact tables — 100 draws per cell, 100 runs per
+scenario — and like `r3` it is skipped by the automatic stage; only `lp`
+regenerates the unprefixed canonical set. An unregistered suffix falls back
+to `r3`, i.e. to being skipped, so a new family can never overwrite the
+exact figures by accident.
 
 ## 8. Adding New Analyses
 
 To add a new analysis script to the one-click pipeline:
 1. Implement it under `analysis_tools/your_script.py` with either a `main()` or top-level side-effect logic.
 
-2. Edit `experiment_list_for_analysis.py` and append a new step inside `run_all_analyses`:
+2. Edit `run_all_scenario_analysis.py` and append a new step inside `run_all_analyses`:
 
 ```python
 def _run_new():
@@ -170,7 +208,7 @@ steps.append(("your_script", _run_new, {}))
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| Missing `metrics_history.csv` | Simulation not finished or wrong path | Check `experiments/<id>/` contents |
+| Missing `metrics_history.csv.gz` | Simulation not finished or wrong path | Check `experiments/<id>/` contents; the pipeline verifies and repairs it from `states/` (§5) |
 | Movement step fails | Missing `move_logs/` or `states/` | Re-run simulation with logging enabled |
 | Empty figures | Metrics columns have NaNs | Inspect source CSV; validate simulation outputs |
 | Very slow run | Movement + large number of experiments | Run without movement first, then add `--include-movement` |
@@ -183,10 +221,10 @@ steps.append(("your_script", _run_new, {}))
 python run_all_contexts.py --runs 10 --processes 5 --llm-model phi4:latest
 
 # 2. One-click analysis without movement (fast)
-python analysis_tools/experiment_list_for_analysis.py
+python analysis_tools/run_all_scenario_analysis.py
 
 # 3. Add movement analysis later
-python analysis_tools/experiment_list_for_analysis.py --include-movement
+python analysis_tools/run_all_scenario_analysis.py --include-movement
 
 # 4. Open figures (Linux example)
 xdg-open reports/convergence_patterns.png
