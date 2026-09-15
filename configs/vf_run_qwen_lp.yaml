@@ -57,6 +57,7 @@ analysis_args: {}
 profiles:
 
   smoke_test:
+    skip_rank_stability: true   # one scenario x 2 runs: nothing to certify (2026-09-11)
     contexts_args:
       scenarios: [baseline]
       runs: 2

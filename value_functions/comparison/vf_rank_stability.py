@@ -417,7 +417,11 @@ def classify(label, style, ms_dir, gaps, tie_mult, w_cur, price, gap_floor=0.01,
                          "se_paired": bool(paired), "floor": floor_m,
                          "s_obs": s_obs, "flip_frac": flips,
                          "class": cls, "tie_reason": reason, "w_pair": w_pair})
-    tab = pd.DataFrame(rows)
+    # explicit columns: with one scenario there are no pairs, rows is empty,
+    # and pd.DataFrame([]) has no "class" column (smoke_test, 2026-09-11)
+    tab = pd.DataFrame(rows, columns=["metric", "hi", "lo", "gap", "se_gap", "gap_over_se",
+                                      "se_paired", "floor", "s_obs", "flip_frac",
+                                      "class", "tie_reason", "w_pair"])
     if price and (tab["class"] == "FIXABLE").any():
         from vf_sampling_plan import deficit_at, RATES
         rate = next((v for k, v in RATES.items() if k in label), 8000)
