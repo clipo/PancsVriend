@@ -1,0 +1,38 @@
+{
+  "llm_style": null,
+  "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260913_134219_mistral-small-4-119b-vf-lp/scenarios_a2.py",
+  "n_runs": 10000,
+  "max_steps": 1000,
+  "grid_size": 20,
+  "num_type_a": 160,
+  "num_type_b": 160,
+  "scenario": "political_liberal_conservative",
+  "llm_model": "mistral-small-4-119b-vf-lp",
+  "llm_url": null,
+  "temperature": 0.3,
+  "llm_api_key_last4": null,
+  "no_move_threshold": 5,
+  "timestamp": "20260913_134326",
+  "context_info": {
+    "type_a": "politically liberal household",
+    "type_b": "politically conservative household",
+    "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person with your own political beliefs, social values, and family considerations, think about where you would actually want to live. Consider factors like community discussions, local politics, school board dynamics, social comfort at neighborhood gatherings, shared values around children's upbringing, and day-to-day interactions with neighbors.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are also {agent_type}s with similar political views\n- O = neighbors who are {opposite_type}s with different political perspectives\n- E = empty houses you could move to\n- # = beyond your immediate area\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n"
+  },
+  "parallel_execution": true,
+  "n_processes": 15,
+  "cpu_count": 20,
+  "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260913_134219_mistral-small-4-119b-vf-lp/value_functions/vf_mistral-small-4-119b-chat-grammar-lp__political_liberal_conservative__R3_dual_count.json",
+  "rng_scheme": "keyed",
+  "value_function_meta": {
+    "label": "mistral-small-4-119b-chat-grammar-lp",
+    "model": "Mistral-Small-4-119B-2603-UD-Q4_K_M-00001-of-00003",
+    "url": "http://127.0.0.1:8085/v1/chat/completions",
+    "style": "R3_dual_count",
+    "arm": "chat+grammar",
+    "scenario": "political_liberal_conservative",
+    "temperature": 0.3,
+    "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+    "created": "2026-09-13T11:26:25"
+  },
+  "save_every_steps": null
+}
