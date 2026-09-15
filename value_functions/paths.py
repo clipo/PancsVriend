@@ -102,6 +102,12 @@ FIGURES_DIR = RESULTS_DIR / "figures"
 RULER_SCALING_DIR = FIGURES_DIR / "ruler_scaling"
 SCALE_DEPENDENCE_DIR = FIGURES_DIR / "scale_dependence"
 CHANCE_NULL_DIR = RESULTS_DIR / "chance_null"
+# Date-sensitivity studies (2026-09-12): llama.cpp bakes the server's date into
+# Llama-3 / Mistral prompts, so the exact table is a function of the date. One
+# folder per model: tables/<date>/ (full exact tables + traces), simulations/
+# <date>/ (pipeline runs, their own run_root so the cross-model stage never sees
+# them), figures/, REPORT.md. The canonical table stays in llm_logprob/tables.
+DATE_SENSITIVITY_DIR = RESULTS_DIR / "date_sensitivity"
 CROSS_MODEL_DIR = REPO_ROOT / "experiments_with_llama_cpp" / "cross_model"
 
 PROMPT_REFINEMENT_DIR = REPO_ROOT / "prompt_refinement"   # prompt templates + sampling harness

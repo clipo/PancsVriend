@@ -168,6 +168,14 @@ must be understood before either number is trusted.
 3. Quantised GPU inference is not bit-deterministic across batch layouts;
    differences are ~1e-6 in p and irrelevant, but the validation should not
    assert exact reproducibility, only CI containment.
+   **Revised 2026-09-12:** the "~1e-6" estimate is right for the numerics.
+   What moved llama's table by up to 0.45 in p between 2026-09-06 and 09-11
+   was the chat template: llama.cpp injects today's date and the Llama-3
+   template prints it, so the prompt changed daily. The server's clock is
+   pinned (libfaketime) for Llama-3 and Mistral, the trace records the
+   rendered prompt, and a second extraction in a fresh session
+   (`comparison/reextract_diff.py`, 540/540 within 1e-6) is the determinism
+   test. See LLAMA_CPP_SERVING_NOTES.md §6.
 4. Temperature/mask order if any sampler other than temperature were active
    (they are not, per the artifacts' `sampler_params`).
 5. EOS: the grammar terminates at the word; the estimator must not require

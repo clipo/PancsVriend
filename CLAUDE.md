@@ -77,6 +77,15 @@ mechanical decisions when the LLM fails; a failed decision is an error.
 - `prompt_refinement/` keeps the prompt templates and the sampling harness
   (`sampling_common.py`, `ratio_prompt_templates.py`, `evaluate_ratio_prompts.py`).
 
+**Clock pin.** llama.cpp injects today's date into every chat template and
+the Llama-3.3 and Mistral templates print it, so their prompts — and their
+exact tables — changed every calendar day until 2026-09-12. Every server that
+serves those models runs under a pinned clock: **llama `2024-07-26`** (the
+template's own default "26 Jul 2024"), **Mistral `2026-03-16`** (its release date)
+(`run_logprob_vf_campaign.sh` PIN_DATE, libfaketime at
+`/srv/shared/schelling/tools/libfaketime`); traces record `server_env` and
+`rendered_probe_prompt`. Details: `prompt_refinement/LLAMA_CPP_SERVING_NOTES.md` §6.
+
 Only the exact `-vf-lp` tables are a result: the sampled `-vf-r3` tables carry
 the batch-numerics artifact, so the cross-model stage skips them (`--family r3`
 writes `cross_model_sampled_*` for the artifact write-up only; families are

@@ -1,0 +1,37 @@
+run_root: experiments_with_llama_cpp/date_sensitivity
+run_id: null
+llm_model: llama-3.3-70b-vf-lp-d20250303
+manifest_file: null
+skip_vf_build: true
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+vf_build_args:
+  config: configs/value_function_scenarios_llama.yaml
+  plot: true
+contexts_args: &id001
+  scenarios:
+  - baseline
+  - race_white_black
+  - ethnic_asian_hispanic
+  - income_high_low
+  - political_liberal_conservative
+  - green_yellow
+  runs: 1000
+  max_steps: 1000
+  grid_size: 20
+  num_type_a: 160
+  num_type_b: 160
+  value_function: value_functions/results/llm_logprob/date_sensitivity/2025-03-03/tables/vf_llama-3.3-70b-chat-grammar-d20250303-lp__{scenario}__R3_dual_count.json
+  temperature: 0.3
+  scenario_file: scenarios_a2.py
+  llm_model: llama-3.3-70b-vf-lp-d20250303
+  processes: 15
+  no_parallel: false
+  new: true
+analysis_args: {}
+skip_cross_model: true
+profiles:
+  production:
+    contexts_args: *id001

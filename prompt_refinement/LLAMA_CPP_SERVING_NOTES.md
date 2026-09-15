@@ -20,7 +20,7 @@ each step.
 was ~200 requests/min with caching.
 
 **Issues.**
-- **Multi-slot ⇒ nondeterminism — and NOT small (2026-09-05, KV_CACHE_SAMPLING_ARTIFACT.md §8: tens of percentage points on transition cells; one request in flight is bit-reproducible; measure sequentially).** Logits are not bit-identical across batch
+- **Multi-slot ⇒ nondeterminism — and NOT small (2026-09-05, KV_CACHE_SAMPLING_ARTIFACT.md §8: tens of percentage points on transition cells; one request in flight is bit-reproducible WITHIN a server session and weights regime; measure sequentially — and see §6 for the 2026-09-11 cross-session case).** Logits are not bit-identical across batch
   compositions (reduction order, kernel tiling differ with what else is in
   flight). The llama.cpp docs/discussions state plainly that results are not
   guaranteed reproducible with `cache_prompt`/multi-slot serving
@@ -116,6 +116,55 @@ Candidate middle grounds, none currently validated:
 | cache off, no seed, -np 4 concurrent | **distribution NO** (batch-dependent, tens of points at transition cells — §8 of the KV doc); counts no |
 | cache off, fixed seeds, -np 4 concurrent | approximately — measured 44 vs 47/100 on an identical seeded batch (multi-slot batch-composition FP noise flips ~3% of near-tie draws) |
 | cache off, fixed seeds, SERIAL submission (one in flight; works even on an -np 4 server) | **yes — bitwise, measured**: 20/20 identical outputs across two passes; same seed ×10 → identical (2026-08-22, this build) |
+| any of the above, ACROSS server sessions | **only if the served weights are the same bytes** — llama's 2026-09-06 session differed from three bit-identical 2026-09-11 sessions on every cell (~0.18 nats, §6); the extractor records the gguf sha256 in each trace since 2026-09-11 |
+
+## 6. The prompt changes every calendar day for Llama-3 and Mistral templates (2026-09-12)
+
+Llama-3.3-70B's exact table extracted 2026-09-06 differed from extractions on
+2026-09-09 (census) and 2026-09-11 on every cell (~0.18 nats in logit space,
+up to 0.45 in P(MOVE) on transition cells), each day bit-stable across launches,
+`--no-mmap`, `-np 1`, fusion off. Code, payload, build, driver, gguf bytes
+(sha256 = upstream) were all unchanged. It was the DATE: `common/chat.cpp`
+`common_chat_extra_context()` puts `date_string` (`%d %b %Y`) and `datetime`
+into every chat-template context, and the Llama-3.3 template only sets its
+fixed default `"26 Jul 2024"` when `date_string` is undefined — so the system
+block read "Today Date: 06 Sep 2026", "09 Sep 2026", "11 Sep 2026". Same token
+count (two-digit day), so `prompt_n` did not reveal it; the per-cell
+`prompt_sha256` hashes the client's user turn, not the server-rendered prompt.
+Pointed out by the user from another chat session, then confirmed in source.
+
+Which templates consume a date (grep of every gguf we serve): Llama-3.3
+(`date_string`), Mistral-Small-4 (`strftime_now(...)`, "today"). The other seven
+do not, and re-extracted 540/540 bit-identical six days later.
+
+Pinning: `--chat-template-kwargs` (or `chat_template_kwargs` in the request
+body) is applied AFTER the injection (chat.cpp:2714-2717), so
+`{"date_string": "11 Sep 2026"}` pins Llama-3. Mistral calls the function
+`strftime_now`, which reads `std::time(nullptr)` at context construction
+(common/jinja/runtime.h:73) and cannot be overridden that way. The uniform
+lever is the server's clock: libfaketime (built in user space at
+/srv/shared/schelling/tools/libfaketime, `libfaketime-time64.so.1` on aarch64),
+`FAKETIME="2026-09-11 12:00:00" FAKETIME_DONT_FAKE_MONOTONIC=1` — realtime
+pinned, monotonic left real for the server's timers (smoke-tested). Every
+extraction trace now records `server_env` (FAKETIME/LD_PRELOAD/TZ) and
+`rendered_probe_prompt` (the server-rendered prompt for a probe message) so
+the date the numbers were produced under is on record.
+
+Canonical dates (user decision 2026-09-12): **llama = "26 Jul 2024"** — the
+literal the Llama-3.3 template itself falls back to when `date_string` is not
+supplied, i.e. what anyone rendering the stock template without llama.cpp's
+injection gets; the server is pinned to 2024-07-26 so the injected string
+equals the template default. **Mistral = 2026-03-16**, the model's release
+date (Mistral Small 4, 16 March 2026); its template has no fallback — it
+always prints `strftime_now` — so a canonical date is a pure choice, and the
+release date is the one with a rationale; note its template only renders years
+2024–2032 (a hand-written year table), other years fail at server start. Every
+other model is date-free.
+The 06 Sep and 11 Sep 2026 llama tables and their 10k-run simulations are
+kept as data points of the date-sensitivity study
+(`value_functions/results/date_sensitivity/llama/`, REPORT.md there).
+Every cross-day disagreement claim in §1/§5 above is explained by this — the
+sequential path IS bit-reproducible once the prompt is actually the same.
 
 ## Sources
 

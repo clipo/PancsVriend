@@ -208,3 +208,12 @@ summary and a figure to `value_functions/batch_numerics/results/`
 scenario ORDERING is answered by the exact-table simulations (`-vf-lp` runs),
 not assumed either way — for qwen it did not (levels shifted ≤ 0.013 DI, the
 ordering with its floor-ties is unchanged).
+
+## 9. Addendum 2026-09-12 — cross-day differences were the chat template's date, not the numerics
+
+§8's "one request in flight, ×8: 0.2303 every time" holds across sessions too,
+PROVIDED the rendered prompt is the same. llama.cpp injects today's date into
+the template context and the Llama-3 / Mistral templates print it, so those
+models' prompts changed daily and their exact tables and sequential samples
+shifted with them (~0.18 nats per cell on llama). Full account and the clock
+pin in `LLAMA_CPP_SERVING_NOTES.md` §6.
