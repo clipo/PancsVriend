@@ -4,25 +4,20 @@
 # sequentially sampled -sanity tables), llm_model (-vf-s) and runs (100).
 # Read against the -vf-lp exact results, not as a result in its own right.
 # =============================================================================
-# VALUE-FUNCTION simulation run — Qwen3.6-27B R3 dual-count, all scenarios
+# VALUE-FUNCTION simulation run — granite-4.2-30b-Q8_0, R3 dual-count, all scenarios
 # =============================================================================
-# Simulations driven by the exact (logprob) value functions instead of live LLM calls;
-# see configs/vf_run_gemma_lp.yaml for the full mechanics (composition-cell
-# lookup, artifact freezing into <run_dir>/value_functions/, {scenario}
-# template semantics).
+# Composition-cell P(MOVE) lookups, no LLM server, no GPU. See
+# configs/vf_run_gemma_lp.yaml for the full mechanics (artifact freezing into
+# <run_dir>/value_functions/, {scenario} template semantics, profiles).
 #
 #   python run_llm_probability_simulation_analysis.py \
-#       --config-yaml configs/vf_run_qwen_lp.yaml --config-profile production
-#
-# Sufficiency is checked by value_functions/sampling/vf_multisplit_check.py, which builds
-# and simulates its own half-split arms in scratch. The production_half profile
-# and the E3 check it fed were retired 2026-09-01.
+#       --config-yaml configs/vf_run_granite_lp.yaml --config-profile production
 # =============================================================================
 
 run_root: "experiments_with_llama_cpp"
 run_id: null
 
-llm_model: "qwen3.6-27b-vf-s"
+llm_model: "granite-4.2-30b-vf-s"
 
 manifest_file: null
 skip_vf_build: true
@@ -33,7 +28,7 @@ continue_on_error: false
 dry_run: false
 
 vf_build_args:
-  config: "configs/value_function_scenarios_qwen.yaml"
+  config: "configs/value_function_scenarios_granite.yaml"
   plot: true
 
 contexts_args:
@@ -43,10 +38,10 @@ contexts_args:
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
-  value_function: "value_functions/results/sampled_small/tables/vf_qwen3.6-27b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
-  temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
+  value_function: "value_functions/results/sampled_small/tables/vf_granite-4.2-30b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+  temperature: 0.3
   scenario_file: "scenarios_a2.py"
-  llm_model: "qwen3.6-27b-vf-s"
+  llm_model: "granite-4.2-30b-vf-s"
   processes: 15        # 2026-09-07: one model at a time on the 20-core box, 5 cores left free for other work
   no_parallel: false
   new: true
@@ -64,10 +59,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "value_functions/results/sampled_small/tables/vf_qwen3.6-27b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled_small/tables/vf_granite-4.2-30b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "qwen3.6-27b-vf-s"
+      llm_model: "granite-4.2-30b-vf-s"
       processes: 2
       no_parallel: false
       new: true
@@ -80,10 +75,10 @@ profiles:
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
-      value_function: "value_functions/results/sampled_small/tables/vf_qwen3.6-27b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
+      value_function: "value_functions/results/sampled_small/tables/vf_granite-4.2-30b-chat-grammar-sanity__{scenario}__R3_dual_count.json"
       temperature: 0.3
       scenario_file: "scenarios_a2.py"
-      llm_model: "qwen3.6-27b-vf-s"
+      llm_model: "granite-4.2-30b-vf-s"
       processes: 15       # see contexts_args note
       no_parallel: false
       new: true

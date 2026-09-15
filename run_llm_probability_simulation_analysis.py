@@ -25,7 +25,10 @@ refreshed whenever one of its models' pipelines completes and never has to
 be run by hand. Only the exact logprob tables (-vf-lp) are a result: the
 sampled -vf-r3 tables carry the llama-server batch-numerics artifact, so a
 -vf-r3 run records the stage as skipped (cross_model_args --family r3 forces
-the superseded cross_model_sampled_* set). Exact tables carry no sampling
+the superseded cross_model_sampled_* set), and so does a -vf-s sequential
+cross-check run (--family s writes cross_model_sanity_*). Only 'lp' regenerates
+the unprefixed canonical figures; an UNREGISTERED suffix falls back to 'r3',
+i.e. to being skipped, so a new family can never overwrite them by accident. Exact tables carry no sampling
 error, so the multi-split sufficiency ruler does not apply to them: the
 rank-stability stage runs --exact (s = 0) and no multisplit_* directory is
 consulted. Models finishing
@@ -1041,10 +1044,18 @@ def _record_stage(run_layout, key: str, record: dict[str, Any]) -> None:
 
 
 def _table_family(model_slug: str) -> str:
-    """'lp' for <model>-vf-lp (exact logprob tables), else 'r3' (sampled)."""
+    """Table family from the model slug: 'lp' exact, 'r3' sampled, 's' the
+    sequential sanity cross-check. Keep in step with FAMILIES in
+    value_functions/comparison/cross_model_vf_comparison.py — that is the
+    registry; this is the slug parser.
+
+    An unknown suffix falls back to 'r3', deliberately the CONSERVATIVE
+    direction: anything other than 'lp' is skipped by the stage, so a new,
+    unregistered family can never silently overwrite the exact figures.
+    """
     m = re.search(r"-vf-([a-z0-9]+)$", model_slug)
     fam = m.group(1) if m else "r3"
-    if fam not in ("r3", "lp"):
+    if fam not in ("r3", "lp", "s"):
         print(f"[cross-model] unknown table family suffix '-vf-{fam}' in {model_slug!r}; using r3")
         fam = "r3"
     return fam
@@ -1070,8 +1081,12 @@ def _run_cross_model_stage(args, run_layout, cm_args) -> None:
     explicit = _get_flag_value(cm_args, "--family")
     family = explicit or _table_family(run_layout["model_slug"])
     if family != "lp" and not explicit:
-        note = (f"sampled tables ({run_layout['model_slug']}) are superseded by the exact "
-                f"logprob tables and are not a result; not regenerating cross_model_*")
+        why = {"r3": "are superseded by the exact logprob tables and are not a result",
+               "s": "are the sequential cross-check ON the exact tables, not a result"}.get(
+                   family, "are not the exact table family")
+        note = (f"{run_layout['model_slug']} tables (family {family!r}) {why}; "
+                f"not regenerating cross_model_* (ask for --family {family} to write "
+                f"that family's own set)")
         print(f"[skip] Cross-model stage: {note}")
         if not args.dry_run:
             _record_stage(run_layout, "cross_model",

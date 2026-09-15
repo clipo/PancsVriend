@@ -21,6 +21,17 @@ Two deliberate differences from the retired -vf-r3 campaign:
                    on gemma. Sampling concurrently would re-measure that
                    artifact instead of testing the exact tables, which defeats
                    the point of the check.
+  runs: 100        Raised from 10 on 2026-09-08 (user decision). At 10 runs the
+                   per-run DI sd of 0.06-0.12 gives a standard error of
+                   0.02-0.04, comparable to the ~0.01-0.03 gaps between the
+                   middle scenarios, so their ORDER did not reproduce against
+                   the n=10,000 exact runs even though every mean agreed. 100
+                   runs cut the standard error ~3.2x (1/sqrt(n)); the scenarios
+                   are also paired by keyed RNG (common random numbers per
+                   run_id), so the variance of a DIFFERENCE falls further.
+                   Simulations are CPU-only: ~26 s at n=10, minutes at n=100,
+                   and no GPU, so this costs the campaign nothing.
+
   samples: 100     Raised from 25 on 2026-09-07 (user decision). 100 is the
                    SAME n the retired concurrency-4 campaign used, which makes
                    this arm that campaign's exact sequential counterfactual:
@@ -51,13 +62,15 @@ CONFIGS = Path(__file__).resolve().parent
 # in fact the STRONGEST segregator measured (DI 0.458-0.738 vs hermes' 0.484
 # ceiling), so "we cross-checked the segregating models" would not hold without
 # it.
-KEYS = ["qwen", "gemma", "hermes", "llama", "deepseek", "olmo2"]
+# granite, phi4 and mistral added 2026-09-15 (user decision): every model gets
+# the full-census "holds up against sampling" check, floor or not.
+KEYS = ["qwen", "gemma", "hermes", "llama", "deepseek", "olmo2", "granite", "phi4", "mistral"]
 
 SANITY_STORE = "value_functions/results/sampled_small"           # build out_dir
 SANITY_TABLES = f"{SANITY_STORE}/tables"                          # what runs load
 SAMPLES = 100
 CONCURRENCY = 1
-RUNS = 10
+RUNS = 100
 
 BUILD_HEADER = (
     "# =============================================================================\n"
@@ -109,6 +122,15 @@ def make_run_config(text):
     # would turn a 20-second launch check into a real batch.
     text = re.sub(r'^(\s+)runs: 10000\s*$', rf'\g<1>runs: {RUNS}', text, flags=re.M)
     text = re.sub(r'^skip_vf_build: .*$', 'skip_vf_build: true', text, count=1, flags=re.M)
+    # No rank stability for this arm. Certification needs a multi-split RULER,
+    # and a ruler is a property of the TABLE — the -sanity tables are a new
+    # small campaign that has none, so the stage aborts with "no multi-split
+    # ruler ... (saw 0)" and fails the model even though the simulations and
+    # all 11 analysis steps succeeded (2026-09-08, hit on qwen). Building one
+    # would mean half-table arms: far more GPU than the cross-check is worth.
+    # The exact -lp runs dodge this by running --exact; a sampled family cannot.
+    text = re.sub(r'^skip_analysis: .*$',
+                  'skip_analysis: false\nskip_rank_stability: true', text, count=1, flags=re.M)
     # Drop the _lp yaml's own "hand-edited source" note: this file is generated.
     text = re.sub(r'^# EXACT-table run \(logprob value functions.*?\(no ruler\)\.\n', '',
                   text, count=1, flags=re.M | re.S)

@@ -156,6 +156,14 @@ FAMILIES = {
     "lp": ("vf-lp", "", "exact logprob tables"),
     "r3": ("vf-r3", "sampled_",
            "SAMPLED tables — superseded (batch-numerics artifact), not a result"),
+    # Registered 2026-09-07 so the sequential cross-check is a KNOWN family
+    # rather than an unrecognised suffix falling through to r3 with a warning.
+    # Like r3 it is not the default, so the orchestrator's stage skips it; ask
+    # for it with --family s and it writes cross_model_sanity_* instead of
+    # overwriting the exact set.
+    "s": ("vf-s", "sanity_",
+          "SEQUENTIAL sanity cross-check (n=100/composition, 10 runs) — a check "
+          "ON the exact tables, not a result"),
 }
 DEFAULT_FAMILY = "lp"
 FAMILY_NOTE = FAMILIES[DEFAULT_FAMILY][2]      # set by main(); read by the suptitles
