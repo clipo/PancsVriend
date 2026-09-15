@@ -1,0 +1,20 @@
+LLM model: olmo-2-32b-vf-lp
+
+All experiments for model:
+- llm_baseline: llm_baseline_20260906_131259
+- race_white_black: llm_race_white_black_20260906_135525
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_142619
+- income_high_low: llm_income_high_low_20260906_145531
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_155812
+- green_yellow: llm_green_yellow_20260906_162335
+
+Used experiments (first per scenario):
+- llm_baseline: llm_baseline_20260906_131259
+- race_white_black: llm_race_white_black_20260906_135525
+- ethnic_asian_hispanic: llm_ethnic_asian_hispanic_20260906_142619
+- income_high_low: llm_income_high_low_20260906_145531
+- political_liberal_conservative: llm_political_liberal_conservative_20260906_155812
+- green_yellow: llm_green_yellow_20260906_162335
+
+Unused experiments (NOT USED):
+- (none)

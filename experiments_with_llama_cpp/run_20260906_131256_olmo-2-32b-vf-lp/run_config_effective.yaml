@@ -1,0 +1,59 @@
+config_yaml: /srv/shared/schelling/PancsVriend/configs/vf_run_olmo2_lp.yaml
+config_profile: production
+run_root: experiments_with_llama_cpp
+run_id: run_20260906_131256_olmo-2-32b-vf-lp
+llm_model: olmo-2-32b-vf-lp
+vf_build_args: --config configs/value_function_scenarios_olmo2.yaml --plot
+contexts_args: --scenarios baseline race_white_black ethnic_asian_hispanic income_high_low
+  political_liberal_conservative green_yellow --runs 10000 --max-steps 1000 --grid-size
+  20 --num-type-a 160 --num-type-b 160 --value-function 'value_functions/results/llm_logprob/vf_olmo-2-32b-chat-grammar-lp__{scenario}__R3_dual_count.json'
+  --temperature 0.3 --scenario-file scenarios_a2.py --llm-model olmo-2-32b-vf-lp --processes
+  15 --new
+analysis_args: ''
+rank_stability_args: ''
+cross_model_args: ''
+manifest_file: null
+skip_vf_build: true
+skip_contexts: true
+skip_analysis: false
+skip_rank_stability: false
+skip_cross_model: false
+continue_on_error: false
+dry_run: false
+resolved:
+  manifest_path: /srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_131256_olmo-2-32b-vf-lp/manifest/run_20260906_131256_olmo-2-32b-vf-lp_run_manifest.json
+  value_functions_dir: experiments_with_llama_cpp/run_20260906_131256_olmo-2-32b-vf-lp/value_functions
+  vf_build_base_args_list:
+  - --config
+  - configs/value_function_scenarios_olmo2.yaml
+  - --plot
+  contexts_base_args_list:
+  - --scenarios
+  - baseline
+  - race_white_black
+  - ethnic_asian_hispanic
+  - income_high_low
+  - political_liberal_conservative
+  - green_yellow
+  - --runs
+  - '10000'
+  - --max-steps
+  - '1000'
+  - --grid-size
+  - '20'
+  - --num-type-a
+  - '160'
+  - --num-type-b
+  - '160'
+  - --value-function
+  - value_functions/results/llm_logprob/vf_olmo-2-32b-chat-grammar-lp__{scenario}__R3_dual_count.json
+  - --temperature
+  - '0.3'
+  - --scenario-file
+  - scenarios_a2.py
+  - --llm-model
+  - olmo-2-32b-vf-lp
+  - --processes
+  - '15'
+  - --new
+  analysis_base_args_list: []
