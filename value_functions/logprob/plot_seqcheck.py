@@ -10,9 +10,7 @@ Figures: value_functions/results/llm_logprob/seqcheck_plots/seqcheck_<label>.png
 The extractor (logprob_value_function.validate) draws this figure itself as
 soon as the sequential check has been written, so a fresh extraction never
 lacks it; this script REDRAWS from the data on disk (after a styling change,
-or for tables validated before the plot existed). --outdated-map additionally
-redraws the superseded concurrency-4 comparison, which is no longer drawn
-automatically.
+or for tables validated before the plot existed).
 
 WHY THIS EXISTS (2026-09-07)
 The artifact map (OUTDATED_artifact_samples_vs_exact_*.png) plots the exact
@@ -24,8 +22,8 @@ first-stage miss — had no plot at all, only seqcheck_<label>.csv.
 
 SEQUENTIAL ONLY (user decision 2026-09-07). The outdated concurrency-4
 campaign is not drawn: those numbers are wrong and are not used going forward.
-The one-off figures that did show them are
-OUTDATED_artifact_samples_vs_exact_*.png.
+The one-off artifact maps that did show them (OUTDATED_artifact_samples_vs_exact_*)
+and the code that drew them were deleted 2026-09-15.
 
   left   exact (x) vs sequential re-sample (y, Wilson 95% CI) against the
          identity line.
@@ -72,9 +70,8 @@ def plot_one(label):
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.4))
 
     # SEQUENTIAL ONLY. The outdated concurrency-4 campaign is deliberately NOT
-    # drawn here (user decision 2026-09-07): those numbers are wrong, they are
-    # not used going forward, and the one-off figures that showed them are
-    # OUTDATED_artifact_samples_vs_exact_*.png. This plot is the fresh work.
+    # drawn here (user decision 2026-09-07): those numbers are wrong and are
+    # not used going forward. This plot is the fresh work.
     ax = axes[0]
     yerr = np.clip(np.vstack([d.p_sequential - d.seq_ci_low,
                               d.seq_ci_high - d.p_sequential]), 0, None)
@@ -145,32 +142,15 @@ def plot_one(label):
     return True
 
 
-def plot_outdated_map(label):
-    """Redraw OUTDATED_artifact_samples_vs_exact_<label>.png from its csv (the
-    superseded concurrency-4 comparison; kept only as the record of the artifact)."""
-    from logprob_value_function import fig_validation
-    from value_functions.paths import LOGPROB_OUTDATED_MAP_DIR
-    csv = LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.csv"
-    if not csv.exists():
-        print(f"{label}: no outdated-map csv"); return False
-    fig_validation(pd.read_csv(csv), label, csv.with_suffix(".png"))
-    print(f"{label}: {csv.with_suffix('.png').relative_to(REPO)}")
-    return True
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--label", help="one model label (default: all with a seqcheck csv)")
-    ap.add_argument("--outdated-map", action="store_true",
-                    help="also redraw the superseded concurrency-4 comparison map")
     args = ap.parse_args()
     labels = ([args.label] if args.label
               else sorted(p.stem[len("seqcheck_"):] for p in DATA.glob("seqcheck_*.csv")))
     if not labels:
         print(f"no seqcheck_*.csv under {DATA}"); return 1
     ok = all([plot_one(l) for l in labels])
-    if args.outdated_map:
-        ok = all([plot_outdated_map(l) for l in labels]) and ok
     return 0 if ok else 1
 
 

@@ -63,7 +63,11 @@ mechanical decisions when the LLM fails; a failed decision is an error.
   tables (the retired `-vf-r3` route; `vf_multisplit_check.py` rulers,
   `vf_ruler_scaling.py`, the vfS/vfH plots).
 - `logprob/`: `logprob_value_function.py` extracts the exact tables from token
-  log-probabilities (`-vf-lp`, the result).
+  log-probabilities (`-vf-lp`, the result). It reads NOTHING from the sampled
+  tables (user decision 2026-09-07: they are not canonical): scenarios come
+  from `scenarios_a2.py`, the temperature from `--temperature` (0.3), the
+  skeleton from a blank count store, and the sequential check picks its cells
+  from the exact surface. A new model needs no campaign of any kind.
 - `batch_numerics/`: the probe showing served probabilities depend on the
   batch, which retired sampling (results tracked).
 - `comparison/`: `vf_rank_stability.py` (per-run certification) and

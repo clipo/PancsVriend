@@ -3,6 +3,21 @@
 
     python value_functions/logprob/logprob_value_function.py --label qwen3.6-27b-chat-grammar
     python value_functions/logprob/logprob_value_function.py --label ... --scenarios baseline --no-write-vf1
+    python value_functions/logprob/logprob_value_function.py --label gemma-4-31b-q8-chat-grammar   # new model
+
+NOTHING IS READ FROM THE SAMPLED TABLES (user decision 2026-09-07: they are
+not canonical — they carry the batch-numerics artifact — and must not be used
+to derive anything). Every label, old or new, is extracted the same way: the
+scenarios come from the scenario file (scenarios_a2.py: the six the campaigns
+ran; --scenarios narrows), the temperature from --temperature (default
+DEFAULT_TEMPERATURE = 0.3, every campaign's value), the payload model name
+from the served gguf. The vf-1 table is assembled from a blank count store
+(build_value_function._assemble_artifact) so it carries no sampled counts,
+and the sequential check picks its cells from the exact surface itself.
+Before this date the extractor took its skeleton, scenarios and check cells
+from the label's sampled table; the nine tables extracted on 2026-09-05/06
+therefore still carry p_move_sampled / ci95_sampled slots (informational
+only) and an OUTDATED_* artifact map each. Those maps are no longer written.
 
 Plan: value_functions/logprob/LOGPROB_PLAN.md. Nothing here touches the sampled
 store (value_functions/results/sampled/); everything lands in
@@ -52,12 +67,12 @@ below --mass-floor, with the dropped mass added to the bound.
 
 OUTPUTS (value_functions/results/llm_logprob/)
   tables/vf_<label>-lp__<scenario>__<style>.json   the CONSUMER table
-      (schema vf-1, the format the sampled route also writes) - what the _lp run
-      configs load. Exact rates in p_move_effective; the sampled campaign's
-      numbers demoted to p_move_sampled / ci95_sampled for provenance.
+      (schema vf-1, the format the sampled route also wrote) - what the _lp run
+      configs load. Exact rates in p_move_effective, +/- mass_bound as ci95;
+      every count slot is 0 (meta.source = "logprob" tells the plots so).
   raw/vflp_<label>__<scenario>__<style>_states.jsonl.gz   the extraction record,
       schema vf-lp-1. Line 0 is a {"_meta": true, ...} header (label, model,
-      grammar_sha256, server, sampled_artifact_sha256, T, mass_floor, ...); each
+      grammar_sha256, server, T, mass_floor, ...); each
       later line is ONE (role, cell) - 90 of them for 45 compositions x 2 roles,
       NOT one per HTTP request (a cell costs 2-3 requests, ~251 per scenario;
       the docstring claimed per-request until 2026-09-07). Per cell: p_move,
@@ -65,22 +80,15 @@ OUTPUTS (value_functions/results/llm_logprob/)
       and every state's top-n table. Until 2026-09-07 a vflp_<label>__....json
       duplicated these cells plus the header at 7x the bytes; the header line
       replaced it.
-  concurrent_sampling_vs_exact_logprob/OUTDATED_artifact_samples_vs_exact_<label>.csv   per cell:
-      (the .png is no longer drawn automatically; plot_seqcheck.py --outdated-map redraws it)
-      p_logprob vs the OUTDATED concurrency-4 campaign's sampled p with its
-      Wilson 95% CI — an ARTIFACT MAP, not the pass/fail test (see below).
-      Renamed from validation_* on 2026-09-07: the old name read as a pass/fail
-      record and the large disagreements it shows were being taken for
-      extraction errors. They are the batch-numerics artifact in the y-axis
-      series, which was sampled at concurrency 4 before that artifact was known.
-      The y-axis numbers are superseded and are kept only as evidence OF the
-      artifact; nothing downstream should read them as value functions.
   validation_data/seqcheck_<label>.csv + validation_data/validation_<label>.json
   seqcheck_plots/seqcheck_<label>.png   drawn automatically when the check is written
-      the pass/fail test (moved into validation_data/ on 2026-09-07 so the
-      store's top level holds value-function tables only):
-      the cells where exact and campaign disagree most are RE-SAMPLED
-      SEQUENTIALLY (campaign payload, chat endpoint, one request in flight);
+      the pass/fail test (in validation_data/ since 2026-09-07 so the
+      store's top level holds value-function tables only): cells chosen from
+      the exact surface — --seq-cells unsaturated cells at evenly spaced ranks
+      of exact P(MOVE), the saturated cells nearest the detectable boundary
+      (largest exact P(MOVE) among the ~0 cells, smallest among the ~1 cells)
+      and a couple at random — are RE-SAMPLED SEQUENTIALLY (campaign payload,
+      chat endpoint, one request in flight);
       a cell whose 95% CI misses the exact value is ESCALATED (--seq-escalate
       more draws, default 3x) and re-tested, and the run passes only if EVERY
       checked cell is inside its final CI. Rationale: a 95% interval misses a
@@ -108,6 +116,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
 import re
 import sys
 import threading
@@ -121,18 +130,19 @@ import requests
 _THIS = Path(__file__).resolve().parent
 REPO_ROOT = _THIS.parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-from value_functions.paths import LOGPROB_DIR, SAMPLED_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import LOGPROB_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import REPO_ROOT as REPO_ROOT_FOR_WEIGHTS  # noqa: E402
 add_import_paths()
 
 from sampling_common import load_value_function, role_keywords, wilson_ci  # noqa: E402
-from value_functions.paths import (LOGPROB_VALIDATION_DIR, LOGPROB_OUTDATED_MAP_DIR,  # noqa: E402
+from value_functions.paths import (LOGPROB_VALIDATION_DIR,  # noqa: E402
                                    LOGPROB_TABLES_DIR, LOGPROB_RAW_DIR,
                                    LOGPROB_DIR, VF_MAPPING_PLOTS_REL)
 from ratio_prompt_templates import ALL_COMPOSITIONS, RATIO_CANDIDATES  # noqa: E402
 from evaluate_ratio_prompts import render_prompt  # noqa: E402
 from llm_runner import MOVE_STAY_GRAMMAR, SAMPLER_PARAMS  # noqa: E402
 
-VF_DIR = SAMPLED_DIR       # the sampled tables this extraction is checked against
+DEFAULT_TEMPERATURE = 0.3  # every campaign and every exact table so far
 USER_PROMPTS = {}          # (scenario, role, (n_sim, n_occ)) -> user prompt text
 LP_DIR = LOGPROB_DIR       # the exact store (value_functions/paths.py)
 WORDS = ("move", "stay")
@@ -317,17 +327,15 @@ def path_sum(server, user_prompt, max_depth, mass_floor):
 # Driver
 # ---------------------------------------------------------------------------
 
-def sha256_file(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def sampled_artifact(label, scenario, style):
-    p = VF_DIR / f"vf_{label}__{scenario}__{style}.json"
-    return load_value_function(p) if p.exists() else None, p
+def scenario_names(scenario_file=None):
+    """Every scenario in the scenario registry (default scenarios_a2.py), in
+    file order — the campaigns' six."""
+    import importlib.util
+    path = Path(scenario_file) if scenario_file else REPO_ROOT / "scenarios_a2.py"
+    spec = importlib.util.spec_from_file_location("_vf_scenarios", str(path))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return list(mod.CONTEXT_SCENARIOS)
 
 
 def run_scenario(server, label, scenario, style, roles, scenario_file, args, raw_writer):
@@ -386,108 +394,164 @@ def load_lp_trace(path):
     return {"schema": "vf-lp-1", "meta": meta, "compositions": comps}
 
 
-def to_vf1(lp, sampled, label, style):
-    """vf-1 artifact with exact rates, sampled counts kept for provenance."""
-    vf = json.loads(json.dumps(sampled))       # deep copy
-    vf["meta"]["source"] = "logprob"
-    vf["meta"]["sampled_label"] = label
-    vf["meta"]["label"] = f"{label}-lp"
-    vf["meta"]["logprob"] = {k: lp["meta"][k] for k in
-                             ("temperature", "n_probs", "max_depth", "mass_floor", "server",
-                              "grammar_sha256", "created", "sampled_artifact_sha256")}
+def to_vf1(lp, label, style, scenario, scenario_file, roles, props):
+    """The consumer table: a vf-1 skeleton (blank count store, the same
+    builder the sampled route used) carrying the EXACT rates. Nothing sampled
+    is read or attached — the sampled tables are not canonical (user decision
+    2026-09-07); the count slots stay at zero and the plots draw no N panels
+    (plot_value_functions.is_exact keys on meta.source)."""
+    from build_value_function import _assemble_artifact, _blank_counts
+    m = lp["meta"]
+    kw_by_role = role_keywords(scenario, scenario_file)
+    meta = {
+        "label": f"{label}-lp", "model": m["model"],
+        "url": m["url"].rstrip("/") + "/v1/chat/completions",
+        "arm": "chat+grammar", "style": style, "scenario": scenario,
+        "scenario_file": scenario_file or "scenarios_a2.py",
+        "role_to_type": {"red": "type_a", "blue": "type_b"},
+        "role_labels": {r: kw_by_role[r]["agent_type"] for r in roles},
+        "temperature": m["temperature"], "sampler_params": SAMPLER_PARAMS,
+        "grammar": True, "grammar_sha256": m["grammar_sha256"],
+        "samples_mode": None, "samples_per": 0, "seed": None,
+        "sampling_protocol": {"cache_prompt": False, "seeded": None,
+                              "server": {k: props.get(k) for k in ("model_path", "build_info", "total_slots")}},
+        "created": m["created"], "sources": [], "raw_replies": None,
+        "source": "logprob",
+        "logprob": {k: m[k] for k in ("temperature", "n_probs", "max_depth", "mass_floor", "server",
+                                      "grammar_sha256", "created")},
+    }
+    vf = _assemble_artifact(meta, _blank_counts(roles), roles)
     for role, rows in vf["compositions"].items():
         lookup = {(c["n_similar"], c["n_occupied"]): c for c in lp["compositions"][role]}
         for c in rows:
             e = lookup[(c["n_similar"], c["n_occupied"])]
-            c["p_move_sampled"] = c["p_move_effective"]
-            c["ci95_sampled"] = c["ci95"]
             c["p_move_effective"] = round(e["p_move"], 8)
             c["mass_bound"] = e["mass_bound"]
             c["ci95"] = [round(max(0.0, e["p_move"] - e["mass_bound"]), 8),
                          round(min(1.0, e["p_move"] + e["mass_bound"]), 8)]
         # ratio rows are a visualisation (equal-weight mean over member cells)
         for r in vf["ratios"].get(role, []):
-            ps = [lookup[tuple(m)]["p_move"] for m in r["members"] if tuple(m) in lookup]
+            ps = [lookup[tuple(m_)]["p_move"] for m_ in r["members"] if tuple(m_) in lookup]
             if ps:
-                r["p_move_sampled"] = r["p_move_effective"]
                 r["p_move_effective"] = round(sum(ps) / len(ps), 8)
-                b = max(lookup[tuple(m)]["mass_bound"] for m in r["members"] if tuple(m) in lookup)
+                b = max(lookup[tuple(m_)]["mass_bound"] for m_ in r["members"] if tuple(m_) in lookup)
                 r["ci95"] = [round(max(0.0, r["p_move_effective"] - b), 8),
                              round(min(1.0, r["p_move_effective"] + b), 8)]
     return vf
 
 
+# exact P(MOVE) at or beyond this is treated as saturated for the sequential
+# check (a 300-draw check cannot resolve anything finer anyway)
+SAT_EPS = 0.005
+
+
+# Wilson limits are analytically 0 and 1 at k=0 and k=n but land ~1e-16 inside
+# in floating point, so an exact value of exactly 0.0 or 1.0 read as OUTSIDE
+# a 1200/1200 interval (llama, 2026-09-11: a phantom MISS failed a run whose
+# 17 other cells were inside with median |diff| 0.004). Same fix as
+# comparison/sanity_vs_exact.py CI_EPS.
+CI_EPS = 1e-9
+
+
+def _inside(p, lo, hi):
+    return (lo - CI_EPS) <= p <= (hi + CI_EPS)
+
+
+def _seq_summary(summary, sq):
+    """The seq-check fields of validation_<label>.json from the seqcheck rows."""
+    summary["seq_check_cells"] = int(len(sq))
+    summary["seq_check_inside_ci"] = float(sq.inside_seq_ci.mean()) if len(sq) else None
+    summary["seq_check_median_abs_diff"] = (float((sq.p_logprob - sq.p_sequential).abs().median())
+                                            if len(sq) else None)
+    summary["seq_check_escalated"] = int(sq.escalated.sum()) if len(sq) else 0
+    summary["seq_check_saturated_cells"] = int(sq.exact_saturated.sum()) if len(sq) else 0
+    summary["seq_check_saturated_inside_ci"] = (float(sq[sq.exact_saturated].inside_seq_ci.mean())
+                                                if len(sq) and sq.exact_saturated.any() else None)
+    summary["seq_check_stage1_inside_ci"] = float(sq.inside_stage1.mean()) if len(sq) else None
+    # PASS = the exact numbers reproduce SEQUENTIAL sampling on EVERY checked
+    # cell (after escalation of any first-stage miss).
+    summary["pass"] = bool(summary["seq_check_inside_ci"] is None or summary["seq_check_inside_ci"] >= 1.0)
+    return summary
+
+
+def reverdict(label, plot=True):
+    """Recompute validation_<label>.json from the seqcheck_<label>.csv already on
+    disk — no server, no new draws. For when the containment rule changes (the
+    CI_EPS fix) and the sampled counts are still valid evidence."""
+    import pandas as pd
+    csv_p = LOGPROB_VALIDATION_DIR / f"seqcheck_{label}.csv"
+    js_p = LOGPROB_VALIDATION_DIR / f"validation_{label}.json"
+    sq = pd.read_csv(csv_p)
+    sq["inside_stage1"] = [_inside(p, lo, hi) for p, lo, hi in
+                           zip(sq.p_logprob, sq.seq_ci_low_stage1, sq.seq_ci_high_stage1)]
+    sq["inside_seq_ci"] = [_inside(p, lo, hi) for p, lo, hi in
+                           zip(sq.p_logprob, sq.seq_ci_low, sq.seq_ci_high)]
+    sq.to_csv(csv_p, index=False)
+    summary = json.loads(js_p.read_text())
+    summary = _seq_summary(summary, sq)
+    summary["reverdict"] = f"recomputed {datetime.now().isoformat(timespec='seconds')} from seqcheck counts with CI_EPS={CI_EPS}"
+    js_p.write_text(json.dumps(summary, indent=1))
+    if plot and len(sq):
+        try:
+            from plot_seqcheck import plot_one
+            plot_one(label)
+        except Exception as e:                                  # the verdict stands without the figure
+            print(f"[warn] seqcheck plot not redrawn: {e}")
+    return summary
+
+
 def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
              server=None, seq_cells=12, seq_samples=300, seq_escalate=3,
              seq_saturated=4, seq_random=2, plot=True):
+    """The pass/fail test: sequential re-sampling of cells chosen from the
+    EXACT surface itself (no sampled campaign is consulted — 2026-09-07):
+      * seq_cells unsaturated cells at evenly spaced ranks of exact P(MOVE),
+        so the check spans the whole transition region;
+      * the saturated cells where an extraction error would be detectable:
+        the largest exact P(MOVE) among the ~0 cells and the smallest among
+        the ~1 cells (a cell claiming 0.015 must show ~4-5 moves in 300 draws);
+      * seq_random more saturated cells at random.
+    A first-stage CI miss is escalated (seq_escalate x more draws) and the
+    run passes only if EVERY checked cell ends inside its final CI."""
+    import pandas as pd
     rows = []
     for scenario in scenarios:
-        sampled, _ = sampled_artifact(label, scenario, style)
-        if sampled is None:
-            continue
         for role in roles:
-            lookup = {(c["n_similar"], c["n_occupied"]): c for c in lp_by_scenario[scenario]["compositions"][role]}
-            for c in sampled["compositions"][role]:
-                e = lookup[(c["n_similar"], c["n_occupied"])]
-                n = c["n_move"] + c["n_stay"]
-                lo, hi = wilson_ci(c["n_move"], n) if n else (0.0, 1.0)
+            for e in lp_by_scenario[scenario]["compositions"][role]:
                 p = e["p_move"]
-                sat = c["n_move"] == 0 or c["n_stay"] == 0
-                half = (hi - lo) / 2
-                rows.append({"scenario": scenario, "role": role, "n_similar": c["n_similar"],
-                             "n_occupied": c["n_occupied"], "n": n, "n_move": c["n_move"],
-                             "p_sampled": c["p_move_effective"], "ci_low": lo, "ci_high": hi,
-                             "p_logprob": p, "mass_bound": e["mass_bound"],
-                             # tolerance: Wilson bounds and the renormalised path sum both carry
-                             # ~1e-9 float error at p = 0 or 1, which must not count as a miss
-                             "saturated": sat,
-                             "inside_ci": lo - e["mass_bound"] - 1e-6 <= p <= hi + e["mass_bound"] + 1e-6,
-                             "excess_halfwidths": (max(0.0, lo - p, p - hi) / half) if half > 0 else 0.0,
+                rows.append({"scenario": scenario, "role": role, "n_similar": e["n_similar"],
+                             "n_occupied": e["n_occupied"], "p_logprob": p,
+                             "mass_bound": e["mass_bound"],
+                             "saturated": bool(p <= SAT_EPS or p >= 1 - SAT_EPS),
                              "n_requests": e["n_requests"]})
-    import pandas as pd
     df = pd.DataFrame(rows)
-    # Named for what it IS: OUTDATED sampled numbers that carry the
-    # batch-numerics ARTIFACT, plotted against the exact tables. Called
-    # validation_*.csv until 2026-09-07, which read as a pass/fail record; it is
-    # not one. The verdict lives in validation_<label>.json and rests on
-    # seqcheck_<label>.csv. The leading OUTDATED_ is deliberate: it sorts these
-    # away from the live artifacts and warns anyone who only sees the filename.
-    # Filed in its own folder (concurrent_sampling_vs_exact_logprob/), away from
-    # the live tables; its figure is redrawn on demand by plot_seqcheck.py --outdated-map.
-    LOGPROB_OUTDATED_MAP_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(LOGPROB_OUTDATED_MAP_DIR / f"OUTDATED_artifact_samples_vs_exact_{label}.csv", index=False)
     uns = df[~df.saturated]
     sat = df[df.saturated]
+    zero = sat[sat.p_logprob <= SAT_EPS]
     summary = {
         "label": label, "cells": int(len(df)),
         "unsaturated": int(len(uns)),
-        "unsaturated_inside_ci": float(uns.inside_ci.mean()) if len(uns) else None,
-        "unsaturated_max_excess_halfwidths": float(uns.excess_halfwidths.max()) if len(uns) else None,
         "saturated": int(len(sat)),
-        "saturated_inside_bound": float(sat.inside_ci.mean()) if len(sat) else None,
-        "saturated_zero_cells_p_logprob_median": float(sat[sat.n_move == 0].p_logprob.median()) if (sat.n_move == 0).any() else None,
-        "saturated_zero_cells_p_logprob_max": float(sat[sat.n_move == 0].p_logprob.max()) if (sat.n_move == 0).any() else None,
+        "saturated_zero_cells_p_logprob_median": float(zero.p_logprob.median()) if len(zero) else None,
+        "saturated_zero_cells_p_logprob_max": float(zero.p_logprob.max()) if len(zero) else None,
         "max_mass_bound": float(df.mass_bound.max()),
         "requests_per_cell_mean": float(df.n_requests.mean()),
     }
-    # ---- the decisive test: sequential re-sampling of the worst-disagreeing cells
     seq_rows = []
     if server is not None and (seq_cells > 0 or seq_saturated > 0) and len(df):
-        df["abs_diff"] = (df.p_logprob - df.p_sampled).abs()
-        # (a) unsaturated cells where exact and campaign disagree most;
-        # (b) SATURATED cells where an extractor error would be detectable:
-        #     sampled-zero cells with the LARGEST exact P(MOVE) and sampled-one
-        #     cells with the SMALLEST, plus a few at random for coverage. A cell
-        #     claiming 0.015 must show ~4-5 moves in 300 draws; 0/300 misses
-        #     its interval and the escalation (upper bound 0.003) rules it out.
-        parts = [df.sort_values("abs_diff", ascending=False).head(seq_cells)]
-        zero = df[df.n_move == 0].sort_values("p_logprob", ascending=False)
-        full = df[(df.n_move == df.n) & (df.n > 0)].sort_values("p_logprob", ascending=True)
+        import numpy as np
+        u = uns.sort_values("p_logprob")
+        if len(u) and seq_cells > 0:
+            idx = sorted(set(np.linspace(0, len(u) - 1, min(seq_cells, len(u))).round().astype(int)))
+            parts = [u.iloc[idx]]
+        else:
+            parts = [u.head(0)]
         k = max(seq_saturated // 2, 1) if seq_saturated > 0 else 0
         if k:
-            parts += [zero.head(k), full.head(k)]
+            parts += [zero.sort_values("p_logprob", ascending=False).head(k),
+                      sat[sat.p_logprob >= 1 - SAT_EPS].sort_values("p_logprob").head(k)]
         if seq_random > 0:
-            rest = df[df.saturated].drop(pd.concat(parts).index, errors="ignore")
+            rest = sat.drop(pd.concat(parts).index, errors="ignore")
             if len(rest):
                 parts.append(rest.sample(min(seq_random, len(rest)), random_state=0))
         pick = pd.concat(parts).drop_duplicates(subset=["scenario", "role", "n_similar", "n_occupied"])
@@ -499,9 +563,9 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
             mv, st = server.sample_sequential(prompt, seq_samples, 900000 + 1000 * i)
             n = mv + st
             lo, hi = wilson_ci(mv, n) if n else (0.0, 1.0)
-            inside1 = lo <= r.p_logprob <= hi
-            print(f"  seq-check {r.scenario}/{r.role} {int(r.n_similar)}/{int(r.n_occupied)}: campaign "
-                  f"{r.p_sampled:.3f}  exact {r.p_logprob:.3f}  sequential {mv}/{n}={mv/max(n,1):.3f} "
+            inside1 = _inside(r.p_logprob, lo, hi)
+            print(f"  seq-check {r.scenario}/{r.role} {int(r.n_similar)}/{int(r.n_occupied)}: "
+                  f"exact {r.p_logprob:.3f}  sequential {mv}/{n}={mv/max(n,1):.3f} "
                   f"[{lo:.3f},{hi:.3f}] {'ok' if inside1 else 'MISS -> escalating'}")
             n1, mv1, lo1, hi1 = n, mv, lo, hi
             escalated = False
@@ -513,120 +577,139 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
                 lo, hi = wilson_ci(mv, n) if n else (0.0, 1.0)
                 escalated = True
                 print(f"      escalated to {mv}/{n}={mv/max(n,1):.3f} [{lo:.3f},{hi:.3f}] "
-                      f"{'ok' if lo <= r.p_logprob <= hi else 'STILL MISSES'}")
+                      f"{'ok' if _inside(r.p_logprob, lo, hi) else 'STILL MISSES'}")
             seq_rows.append({"scenario": r.scenario, "role": r.role, "n_similar": r.n_similar,
-                             "n_occupied": r.n_occupied, "p_campaign": r.p_sampled,
-                             "campaign_saturated": bool(r.saturated),
+                             "n_occupied": r.n_occupied,
+                             "exact_saturated": bool(r.saturated),
                              "p_logprob": r.p_logprob,
                              "seq_n_stage1": n1, "seq_move_stage1": mv1,
                              "seq_ci_low_stage1": lo1, "seq_ci_high_stage1": hi1, "inside_stage1": inside1,
                              "escalated": escalated, "seq_n": n, "seq_move": mv,
                              "p_sequential": mv / n if n else None, "seq_ci_low": lo, "seq_ci_high": hi,
-                             "inside_seq_ci": lo <= r.p_logprob <= hi})
+                             "inside_seq_ci": _inside(r.p_logprob, lo, hi)})
         LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(seq_rows).to_csv(LOGPROB_VALIDATION_DIR / f"seqcheck_{label}.csv", index=False)
     sq = pd.DataFrame(seq_rows)
-    summary["seq_check_cells"] = int(len(sq))
-    summary["seq_check_inside_ci"] = float(sq.inside_seq_ci.mean()) if len(sq) else None
-    summary["seq_check_median_abs_diff"] = (float((sq.p_logprob - sq.p_sequential).abs().median())
-                                            if len(sq) else None)
-    # PASS = the exact numbers reproduce SEQUENTIAL sampling on EVERY checked
-    # cell (after escalation of any first-stage miss) and the saturated cells
-    # are consistent with their bounds. The campaign comparison is reported,
-    # not judged: it measures the concurrency artifact, not the extractor.
-    summary["seq_check_escalated"] = int(sq.escalated.sum()) if len(sq) else 0
-    summary["seq_check_saturated_cells"] = int(sq.campaign_saturated.sum()) if len(sq) else 0
-    summary["seq_check_saturated_inside_ci"] = (float(sq[sq.campaign_saturated].inside_seq_ci.mean())
-                                                if len(sq) and sq.campaign_saturated.any() else None)
-    summary["seq_check_stage1_inside_ci"] = float(sq.inside_stage1.mean()) if len(sq) else None
-    summary["pass"] = bool(
-        (summary["seq_check_inside_ci"] is None or summary["seq_check_inside_ci"] >= 1.0)
-        and (summary["saturated_inside_bound"] is None or summary["saturated_inside_bound"] >= 0.99))
+    summary = _seq_summary(summary, sq)
     LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
     (LOGPROB_VALIDATION_DIR / f"validation_{label}.json").write_text(json.dumps(summary, indent=1))
     # The figure that belongs to this verdict is the SEQUENTIAL check
-    # (seqcheck_plots/seqcheck_<label>.png), drawn here as soon as its data is
-    # on disk (2026-09-07). The OUTDATED concurrency-4 map (fig_validation) is
-    # no longer drawn automatically — it shows the batch-numerics artifact,
-    # not extraction error; `plot_seqcheck.py --outdated-map` redraws it.
+    # (seqcheck_plots/seqcheck_<label>.png), drawn as soon as its data is on disk.
     if plot and len(sq):
         from plot_seqcheck import plot_one
         plot_one(label)
     return summary
 
 
-def fig_validation(df, label, path):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import numpy as np
-    # Palette: two categorical hues (unsaturated / saturated) plus a neutral
-    # for the identity line; error bars in the point's own hue at low alpha.
-    uns, sat = df[~df.saturated], df[df.saturated]
-    # Extra height reserved for the provenance banner and the footnote: without
-    # them a reader takes the scatter for an extraction failure (2026-09-07).
-    fig, axes = plt.subplots(1, 2, figsize=(11, 6.1))
-    ax = axes[0]
-    for sub, color, name, mk in ((uns, "#4C6EF5", "unsaturated (0 < n_move < n)", "o"),
-                                 (sat, "#E8590C", "saturated (0/n or n/n)", "s")):
-        if len(sub) == 0:
-            continue
-        # p_move_effective is stored to 6 decimals, the CI is not: clip the
-        # rounding-level negatives matplotlib refuses.
-        yerr = np.clip(np.vstack([sub.p_sampled - sub.ci_low, sub.ci_high - sub.p_sampled]), 0, None)
-        ax.errorbar(sub.p_logprob, sub.p_sampled, yerr=yerr, fmt=mk, ms=4, color=color,
-                    ecolor=color, elinewidth=0.6, alpha=0.75, label=name, zorder=3)
-    ax.plot([0, 1], [0, 1], color="#868E96", lw=1, ls="--", zorder=2)
-    ax.set_xlabel("P(MOVE) from grammar-masked logprobs (exact)")
-    ax.set_ylabel("OLD CONCURRENT campaign: sampled rate\n(n=100/cell, concurrency 4), Wilson 95% CI")
-    ax.set_title(f"{len(df)} cells — {int(uns.inside_ci.sum())}/{len(uns)} unsaturated "
-                 f"inside the CAMPAIGN's CI", fontsize=10)
-    ax.legend(fontsize=8, frameon=False, loc="upper left")
-    ax.grid(alpha=0.2)
-    ax = axes[1]
-    zero = sat[sat.n_move == 0]
-    if len(zero):
-        vals = np.clip(zero.p_logprob.values, 1e-12, 1)
-        ax.hist(np.log10(vals), bins=30, color="#E8590C", alpha=0.85)
-        ax.axvline(np.log10(3 / 100), color="#868E96", ls="--", lw=1)
-        ax.text(np.log10(3 / 100), ax.get_ylim()[1] * 0.95, " 0/100 upper bound (0.03)",
-                fontsize=8, color="#495057", va="top")
-        ax.set_xlabel("log10 P(MOVE) on cells sampled as 0/n")
-        ax.set_ylabel("cells")
-        ax.set_title("what the sampled zeros actually are", fontsize=10)
-        ax.grid(alpha=0.2)
-    else:
-        ax.axis("off")
-    # The y-axis series predates the batch-numerics finding, so points off the
-    # identity line are the artifact being MEASURED, not an extraction error.
-    # Say so on the figure: the file travels without its docstring.
-    fig.suptitle(f"{label} — ARTIFACT MAP, NOT the validation test",
-                 fontsize=12, fontweight="bold", color="#C92A2A")
-    fig.text(
-        0.5, 0.015,
-        "y-axis = the pre-2026-09-06 SAMPLED CAMPAIGN (n=100/cell at concurrency 4). llama.cpp returns "
-        "batch-dependent probabilities at concurrency > 1,\n"
-        "so disagreement with the exact x-axis is EXPECTED HERE and is that artifact — not an error in "
-        "the log-probability extraction.\n"
-        "The pass/fail test is seqcheck_<label>.csv: the worst-disagreeing cells re-sampled SEQUENTIALLY "
-        "(n=300, escalated 3x on a miss); all 9 models pass at 100%.",
-        ha="center", va="bottom", fontsize=7.5, color="#495057", linespacing=1.5)
-    fig.tight_layout(rect=(0, 0.115, 1, 0.945))
-    fig.savefig(path, dpi=200)
-    plt.close(fig)
+
+
+
+def server_env(url, keys=("FAKETIME", "LD_PRELOAD", "TZ")):
+    """The clock-pinning environment of the server answering `url` (from
+    /proc/<pid>/environ). llama.cpp injects today's date into every chat
+    template (common_chat_extra_context: date_string, datetime) and minja's
+    strftime_now reads the real clock, so a Llama-3 or Mistral prompt changes
+    every calendar day unless the server's clock is pinned (libfaketime).
+    The pin belongs in the trace next to the numbers it produced."""
+    port = re.search(r":(\d+)(?:/|$)", url)
+    port = port.group(1) if port else None
+    try:
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                argv = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
+                if not (argv and argv[0].decode(errors="replace").endswith("llama-server")
+                        and (port is None or port.encode() in argv)):
+                    continue
+                env = open(f"/proc/{pid}/environ", "rb").read().split(b"\0")
+            except OSError:
+                continue
+            d = dict(e.decode(errors="replace").split("=", 1) for e in env if b"=" in e)
+            return {k: d.get(k) for k in keys}
+    except OSError:
+        pass
+    return None
+
+
+def server_cmdline(url):
+    """Best effort: the argv of the llama-server answering `url`, from /proc.
+    /props does not report attention or offload flags, and `-fa off` alone
+    moved llama's transition cells by up to 0.42 (2026-09-11), so the launch
+    line is the record that pins the serving configuration. None if no
+    matching process is visible (remote server, other user)."""
+    port = re.search(r":(\d+)(?:/|$)", url)
+    port = port.group(1) if port else None
+    try:
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                argv = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
+            except OSError:
+                continue
+            argv = [a.decode(errors="replace") for a in argv if a]
+            if argv and argv[0].endswith("llama-server") and (port is None or port in argv):
+                return argv
+    except OSError:
+        pass
+    return None
+
+
+
+def _rendered_probe(server):
+    try:
+        return server.render("probe")
+    except Exception as e:                                       # never block extraction on it
+        return f"<apply-template failed: {e}>"
+
+
+def weights_digest(model_path, chunk=1 << 24):
+    """sha256 of the served weights as the server reads them (through the page
+    cache — the same bytes mmap hands to the model), every shard of a split
+    gguf included. Recorded in each trace's meta since 2026-09-11: llama's
+    2026-09-06 extraction differed from three bit-identical 2026-09-11 launches
+    on every cell (~0.18 nats in logit space) with nothing in the code, flags,
+    build, driver or the file's mtime having changed; the file hashes to the
+    upstream LFS oid today, so the earlier regime is unverifiable after the fact.
+    A checksum in the trace makes that comparison possible next time. ~3 min for
+    42 GB from cache; --no-weights-hash skips it."""
+    path = Path(model_path)
+    files = [path]
+    m = re.match(r"(.*)-(\d{5})-of-(\d{5})(\.gguf)$", path.name)
+    if m:
+        stem, _, n, ext = m.groups()
+        files = [path.with_name(f"{stem}-{i:05d}-of-{n}{ext}") for i in range(1, int(n) + 1)]
+    out, combined = [], hashlib.sha256()
+    for f in files:
+        if not f.exists():
+            out.append({"path": str(f), "missing": True}); continue
+        h = hashlib.sha256()
+        with open(f, "rb") as fh:
+            for block in iter(lambda: fh.read(chunk), b""):
+                h.update(block)
+        d = h.hexdigest(); combined.update(d.encode())
+        out.append({"path": str(f), "size": f.stat().st_size, "sha256": d})
+    return {"files": out, "sha256_combined": combined.hexdigest() if len(out) > 1 else out[0].get("sha256"),
+            "hashed_via": "page cache read (what mmap serves)"}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--label", required=True, help="sampled label, e.g. qwen3.6-27b-chat-grammar")
+    ap.add_argument("--label", required=True, help="table label, e.g. qwen3.6-27b-chat-grammar "
+                                                   "(the tables are written as <label>-lp)")
     ap.add_argument("--style", default="R3_dual_count")
     ap.add_argument("--scenarios", nargs="*", default=None,
-                    help="default: every scenario with a sampled artifact for the label")
+                    help="default: every scenario in the scenario file (the campaigns' six)")
     ap.add_argument("--roles", nargs="*", default=["red", "blue"])
     ap.add_argument("--scenario-file", default=None, help="default scenarios_a2.py")
     ap.add_argument("--url", default="http://localhost:8085")
-    ap.add_argument("--model", default=None, help="payload model name (default: artifact meta)")
-    ap.add_argument("--temperature", type=float, default=None, help="default: artifact meta")
+    ap.add_argument("--model", default=None, help="payload model name (default: the served gguf's stem)")
+    ap.add_argument("--no-weights-hash", action="store_true",
+                    help="skip the sha256 of the served gguf that goes into each trace's meta")
+    ap.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
+                    help=f"sampling temperature the table is extracted at (default {DEFAULT_TEMPERATURE}, "
+                         "every campaign's value)")
     ap.add_argument("--n-probs", type=int, default=64)
     ap.add_argument("--max-depth", type=int, default=8)
     ap.add_argument("--mass-floor", type=float, default=1e-7)
@@ -642,13 +725,12 @@ def main() -> int:
     ap.add_argument("--no-plot", action="store_true",
                     help="skip the figures (per-scenario + combined value-function plots, and the sequential-check plot)")
     ap.add_argument("--seq-cells", type=int, default=12,
-                    help="cells (largest exact-vs-campaign disagreement) re-sampled "
+                    help="unsaturated cells (evenly spaced over the exact P(MOVE) range) re-sampled "
                          "sequentially for the pass/fail test")
     ap.add_argument("--seq-samples", type=int, default=300)
     ap.add_argument("--seq-saturated", type=int, default=4,
-                    help="saturated cells to re-sample too: half the sampled-zero cells "
-                         "with the largest exact P(MOVE), half the sampled-one cells with "
-                         "the smallest")
+                    help="saturated cells to re-sample too: half the ~0 cells with the largest "
+                         "exact P(MOVE), half the ~1 cells with the smallest")
     ap.add_argument("--seq-random", type=int, default=2,
                     help="additional random saturated cells for coverage")
     ap.add_argument("--seq-escalate", type=int, default=3,
@@ -658,24 +740,25 @@ def main() -> int:
                     help="skip extraction: load the existing raw/vflp_*_states.jsonl.gz for the label "
                          "and run the validation (needs the model's server up)")
     ap.add_argument("--no-write-vf1", action="store_true")
+    ap.add_argument("--reverdict-only", action="store_true",
+                    help="no server, no draws: recompute validation_<label>.json from the "
+                         "seqcheck_<label>.csv on disk under the current containment rule")
     args = ap.parse_args()
+    if args.reverdict_only:
+        print(json.dumps(reverdict(args.label, plot=not args.no_plot), indent=1))
+        return 0 if reverdict(args.label, plot=False)["pass"] else 4
 
     out_dir = Path(args.out_dir); (out_dir / "raw").mkdir(parents=True, exist_ok=True)
-    scenarios = args.scenarios or sorted(
-        p.name.split("__")[1] for p in VF_DIR.glob(f"vf_{args.label}__*__{args.style}.json"))
-    if not scenarios:
-        print(f"no sampled artifacts for {args.label!r} in {VF_DIR}"); return 2
-    ref, ref_path = sampled_artifact(args.label, scenarios[0], args.style)
-    model = args.model or ref["meta"].get("model") or args.label
-    temperature = args.temperature if args.temperature is not None else float(ref["meta"]["temperature"])
+    # Nothing is read from a sampled table (user decision 2026-09-07: the
+    # sampled tables are not canonical): scenarios come from the scenario
+    # file, the temperature from the CLI, the model name from the server.
+    scenarios = list(args.scenarios) if args.scenarios else scenario_names(args.scenario_file)
+    props = requests.get(f"{args.url.rstrip('/')}/props", timeout=120).json()
+    model = args.model or Path(props.get("model_path") or args.label).stem
+    temperature = float(args.temperature)
     server = Server(args.url, model, temperature, args.n_probs)
-    props = server.props()
     print(f"label={args.label} style={args.style} scenarios={scenarios} T={temperature} "
           f"server={props.get('model_path')} build={props.get('build_info')}")
-    if ref["meta"].get("sampling_protocol", {}).get("server", {}).get("model_path") and \
-       Path(props.get("model_path", "")).name != Path(ref["meta"]["sampling_protocol"]["server"]["model_path"]).name:
-        print(f"WARNING: server model {props.get('model_path')} != sampled "
-              f"{ref['meta']['sampling_protocol']['server']['model_path']}")
 
     grammar_sha = hashlib.sha256(MOVE_STAY_GRAMMAR.encode()).hexdigest()
     lp_by_scenario = {}
@@ -697,8 +780,14 @@ def main() -> int:
                            seq_random=args.seq_random, plot=not args.no_plot)
         print(json.dumps(summary, indent=1))
         return 0 if summary["pass"] else 4
+    weights = None
+    if not args.no_weights_hash:
+        mp = props.get("model_path") or ""
+        t0 = time.time()
+        weights = weights_digest(mp if Path(mp).exists() else REPO_ROOT_FOR_WEIGHTS / mp)
+        print(f"weights sha256 {weights['sha256_combined']} ({len(weights['files'])} file(s), "
+              f"{time.time() - t0:.0f} s)", flush=True)
     for scenario in scenarios:
-        sampled, spath = sampled_artifact(args.label, scenario, args.style)
         LOGPROB_RAW_DIR.mkdir(parents=True, exist_ok=True)
         raw_path = LOGPROB_RAW_DIR / f"vflp_{args.label}__{scenario}__{args.style}_states.jsonl.gz"
         meta = {
@@ -711,7 +800,18 @@ def main() -> int:
             "mask": "applied client-side on temperature-scaled probs (server grammar is rejection-based)",
             "concurrency": args.concurrency,
             "server": {k: props.get(k) for k in ("model_path", "build_info", "total_slots")},
-            "sampled_artifact": str(spath), "sampled_artifact_sha256": sha256_file(spath) if spath.exists() else None,
+            # the whole /props reply: the table is exact only for the serving
+            # configuration — `-fa off` moved llama's transition cells by up to
+            # 0.42 (launch probe, 2026-09-11) — so every setting the server
+            # reports is kept with the numbers it produced
+            "server_props": props,
+            "server_cmdline": server_cmdline(args.url),
+            "server_env": server_env(args.url),
+            # the SERVER-rendered prompt for a probe message: exposes the date
+            # the template baked in (prompt_sha256 per cell hashes only the
+            # client's user turn, which is why a daily date went unnoticed)
+            "rendered_probe_prompt": _rendered_probe(server),
+            "weights": weights,
             "created": datetime.now().isoformat(timespec="seconds"),
         }
         with gzip.open(raw_path, "wt") as raw:
@@ -723,8 +823,8 @@ def main() -> int:
                               args.scenario_file, args, raw_writer)
         lp["meta"] = meta
         lp_by_scenario[scenario] = lp
-        if not args.no_write_vf1 and sampled is not None:
-            vf1 = to_vf1(lp, sampled, args.label, args.style)
+        if not args.no_write_vf1:
+            vf1 = to_vf1(lp, args.label, args.style, scenario, args.scenario_file, args.roles, props)
             LOGPROB_TABLES_DIR.mkdir(parents=True, exist_ok=True)
             p1 = LOGPROB_TABLES_DIR / f"vf_{args.label}-lp__{scenario}__{args.style}.json"
             p1.write_text(json.dumps(vf1, indent=1))

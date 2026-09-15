@@ -39,11 +39,6 @@ Stores under results/:
                      validation_data/   seqcheck_*.csv (the sequential test) and
                                         validation_*.json (its PASS/FAIL verdict)
                      seqcheck_plots/    their figures — the fresh sequential work
-                     concurrent_sampling_vs_exact_logprob/
-                                        OUTDATED_artifact_samples_vs_exact_*: a
-                                        one-off map of the superseded
-                                        concurrency-4 samples. NOT a pass/fail
-                                        record, not a value function, not used.
     figures/       value-function figures, one subfolder per kind:
                      ruler_scaling/     ruler_scaling.{csv,png} (vf_ruler_scaling.py)
                      scale_dependence/  vf_<label>_scale_dependence.png (vf_scale_dependence_probe.py)
@@ -95,9 +90,6 @@ LOGPROB_RAW_DIR = LOGPROB_DIR / "raw"
 # tables at its top level are only ever value functions (2026-09-07).
 LOGPROB_VALIDATION_DIR = LOGPROB_DIR / "validation_data"   # seqcheck_*.csv + validation_*.json
 SEQCHECK_PLOTS_DIR = LOGPROB_DIR / "seqcheck_plots"        # their figures
-# The one-off map of the superseded concurrency-4 samples against the exact
-# tables. Its own folder since 2026-09-07; the files keep the OUTDATED_ prefix.
-LOGPROB_OUTDATED_MAP_DIR = LOGPROB_DIR / "concurrent_sampling_vs_exact_logprob"
 FIGURES_DIR = RESULTS_DIR / "figures"
 RULER_SCALING_DIR = FIGURES_DIR / "ruler_scaling"
 SCALE_DEPENDENCE_DIR = FIGURES_DIR / "scale_dependence"
