@@ -1,0 +1,38 @@
+{
+  "llm_style": null,
+  "scenario_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_043033_hermes-4.3-36b-vf-lp/scenarios_a2.py",
+  "n_runs": 10000,
+  "max_steps": 1000,
+  "grid_size": 20,
+  "num_type_a": 160,
+  "num_type_b": 160,
+  "scenario": "race_white_black",
+  "llm_model": "hermes-4.3-36b-vf-lp",
+  "llm_url": null,
+  "temperature": 0.3,
+  "llm_api_key_last4": null,
+  "no_move_threshold": 5,
+  "timestamp": "20260906_043412",
+  "context_info": {
+    "type_a": "white middle class family",
+    "type_b": "Black family",
+    "prompt_template": "You are a {agent_type} considering whether to move to a different house in your neighborhood.\n\nAs a real person with your own background, experiences, and family considerations, think about where you would genuinely prefer to live. Consider factors like community comfort, children's friendships, cultural connections, safety perceptions, and social dynamics that matter to you.\n\nYou will be shown a map of your immediate 3x3 neighborhood, where:\n- X = Your current position (center)\n- S = neighbors who are {agent_type}s like you\n- O = neighbors who are {opposite_type}s\n- E = empty houses available to move to\n- # = outside the immediate area\n\nAfter looking at the map, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.\n\nYour neighborhood:\n\n{context}\n\nYour response:\n"
+  },
+  "parallel_execution": true,
+  "n_processes": 4,
+  "cpu_count": 20,
+  "value_function_file": "/srv/shared/schelling/PancsVriend/experiments_with_llama_cpp/run_20260906_043033_hermes-4.3-36b-vf-lp/value_functions/vf_hermes-4.3-36b-chat-grammar-lp__race_white_black__R3_dual_count.json",
+  "rng_scheme": "keyed",
+  "value_function_meta": {
+    "label": "hermes-4.3-36b-chat-grammar-lp",
+    "model": "Hermes-4.3-36B-Q8_0",
+    "url": "http://localhost:8085/v1/chat/completions",
+    "style": "R3_dual_count",
+    "arm": "chat+grammar",
+    "scenario": "race_white_black",
+    "temperature": 0.3,
+    "grammar_sha256": "cd9f6867af8d41081898d703c322a7b877787348fde5564638013955205b2fa3",
+    "created": "2026-09-01T21:11:05"
+  },
+  "save_every_steps": null
+}

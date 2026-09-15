@@ -1,0 +1,8 @@
+metric,n_groups,f_statistic,p_value,significant_p_lt_0_05,status,error
+clusters,6,217624.23615621845,0.0,True,ok,
+switch_rate,6,248094.14665059999,0.0,True,ok,
+distance,6,49462.32377213798,0.0,True,ok,
+mix_deviation,6,264662.73836334934,0.0,True,ok,
+share,6,411598.2656355534,0.0,True,ok,
+ghetto_rate,6,217999.12728913178,0.0,True,ok,
+dissimilarity_index,6,22331.11060566225,0.0,True,ok,

@@ -1,0 +1,32 @@
+{
+ "vf_hermes-4.3-36b-chat-grammar-lp__baseline__R3_dual_count.json": {
+  "table_sha256": "c4a67baf1d2938fec0dead4a351b993a855c61b65c00985eeb34e12026852140",
+  "n_samples": 31649,
+  "calibration": null
+ },
+ "vf_hermes-4.3-36b-chat-grammar-lp__ethnic_asian_hispanic__R3_dual_count.json": {
+  "table_sha256": "0725c229857a1cef0af37c53d697d59245656de9f6b07d13659a488d3af06833",
+  "n_samples": 28754,
+  "calibration": null
+ },
+ "vf_hermes-4.3-36b-chat-grammar-lp__green_yellow__R3_dual_count.json": {
+  "table_sha256": "a897148bd495872cf735550bbf18b9fdd00dbe5cd0413c9dd977d0c98fd4ee8d",
+  "n_samples": 37492,
+  "calibration": null
+ },
+ "vf_hermes-4.3-36b-chat-grammar-lp__income_high_low__R3_dual_count.json": {
+  "table_sha256": "b78eb73b08368ffde75bd40a3cfe0310853ae07011d5ee0c877d35455ddaffaf",
+  "n_samples": 39906,
+  "calibration": null
+ },
+ "vf_hermes-4.3-36b-chat-grammar-lp__political_liberal_conservative__R3_dual_count.json": {
+  "table_sha256": "e0b83ed4805079f406d3239dfea731dcda1efc630595fa56d5ef96b764487564",
+  "n_samples": 22210,
+  "calibration": null
+ },
+ "vf_hermes-4.3-36b-chat-grammar-lp__race_white_black__R3_dual_count.json": {
+  "table_sha256": "9744845fd9e5d609a7035d127626263cc8212f84ff7c41679e4ae1b057c15bdd",
+  "n_samples": 36332,
+  "calibration": null
+ }
+}

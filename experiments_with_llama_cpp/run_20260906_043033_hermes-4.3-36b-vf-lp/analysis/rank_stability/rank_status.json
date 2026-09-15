@@ -1,0 +1,309 @@
+{
+ "label": "hermes-4.3-36b-chat-grammar-lp",
+ "gap_source": "production run_summary finals (experiments_with_llama_cpp/run_20260906_043033_hermes-4.3-36b-vf-lp/experiments, n=[10000])",
+ "ruler": null,
+ "exact_tables": true,
+ "ruler_rng_scheme": "exact",
+ "ruler_board": {
+  "grid_size": null,
+  "num_type_a": null,
+  "num_type_b": null,
+  "max_steps": null,
+  "splits": null,
+  "runs": null
+ },
+ "tie_mult": 0.15,
+ "w_current": 0.02,
+ "gap_floor": 0.01,
+ "floor_ratio": 0.3,
+ "floors": {
+  "clusters": 2.58,
+  "switch_rate": 0.00606,
+  "distance": 0.00804,
+  "mix_deviation": 0.003,
+  "share": 0.00486,
+  "ghetto_rate": 1.18,
+  "dissimilarity_index": 0.01
+ },
+ "chance": {
+  "board": {
+   "grid_size": 20,
+   "num_type_a": 160,
+   "num_type_b": 160
+  },
+  "draws": 2000,
+  "floor_ratio": 0.3,
+  "chance_di": 0.1254171875,
+  "chance_sd": 0.03341776513048351,
+  "level_floor": 0.01,
+  "levels": {
+   "baseline": 0.451484375,
+   "race_white_black": 0.259753125,
+   "ethnic_asian_hispanic": 0.161778125,
+   "income_high_low": 0.4842012499999999,
+   "political_liberal_conservative": 0.4787831249999999,
+   "green_yellow": 0.388636875
+  },
+  "se": {
+   "baseline": 0.0009971031197544616,
+   "race_white_black": 0.0007039315514390221,
+   "ethnic_asian_hispanic": 0.00043725910490911466,
+   "income_high_low": 0.0010451752850509804,
+   "political_liberal_conservative": 0.0010291687846204632,
+   "green_yellow": 0.000928686259839866
+  },
+  "excess": {
+   "baseline": 0.32606718749999997,
+   "race_white_black": 0.13433593749999997,
+   "ethnic_asian_hispanic": 0.036360937499999996,
+   "income_high_low": 0.35878406249999995,
+   "political_liberal_conservative": 0.3533659374999999,
+   "green_yellow": 0.2632196875
+  },
+  "at_floor": [],
+  "metrics": {
+   "clusters": {
+    "chance": 96.2095,
+    "chance_sd": 8.60619794517508,
+    "floor": 2.58,
+    "direction": -1,
+    "levels": {
+     "baseline": 9.2019,
+     "race_white_black": 35.843,
+     "ethnic_asian_hispanic": 72.8409,
+     "income_high_low": 10.0023,
+     "political_liberal_conservative": 7.867,
+     "green_yellow": 11.983
+    },
+    "se": {
+     "baseline": 0.023006228888211244,
+     "race_white_black": 0.08188263293615843,
+     "ethnic_asian_hispanic": 0.09642763373564024,
+     "income_high_low": 0.025684926368285628,
+     "political_liberal_conservative": 0.01871700116507079,
+     "green_yellow": 0.029849961507851262
+    },
+    "excess": {
+     "baseline": 87.00760000000001,
+     "race_white_black": 60.3665,
+     "ethnic_asian_hispanic": 23.3686,
+     "income_high_low": 86.2072,
+     "political_liberal_conservative": 88.3425,
+     "green_yellow": 84.2265
+    },
+    "at_floor": []
+   },
+   "switch_rate": {
+    "chance": 0.501556241714362,
+    "chance_sd": 0.02018475712840763,
+    "floor": 0.00606,
+    "direction": -1,
+    "levels": {
+     "baseline": 0.1573537927566297,
+     "race_white_black": 0.4101353876422656,
+     "ethnic_asian_hispanic": 0.492156820033302,
+     "income_high_low": 0.14930616126729518,
+     "political_liberal_conservative": 0.11275675107811826,
+     "green_yellow": 0.2365087494101278
+    },
+    "se": {
+     "baseline": 0.00030541305038739677,
+     "race_white_black": 0.00037400556260088266,
+     "ethnic_asian_hispanic": 0.00022625902999122286,
+     "income_high_low": 0.0003138366166342135,
+     "political_liberal_conservative": 0.00026093002598456155,
+     "green_yellow": 0.0003695293147149212
+    },
+    "excess": {
+     "baseline": 0.3442024489577323,
+     "race_white_black": 0.09142085407209638,
+     "ethnic_asian_hispanic": 0.00939942168105995,
+     "income_high_low": 0.3522500804470668,
+     "political_liberal_conservative": 0.3887994906362437,
+     "green_yellow": 0.2650474923042342
+    },
+    "at_floor": []
+   },
+   "distance": {
+    "chance": 1.151671875,
+    "chance_sd": 0.026811440154268996,
+    "floor": 0.00804,
+    "direction": 1,
+    "levels": {
+     "baseline": 2.67071625,
+     "race_white_black": 1.6419,
+     "ethnic_asian_hispanic": 1.2746762500000002,
+     "income_high_low": 2.832484375,
+     "political_liberal_conservative": 2.8599175000000003,
+     "green_yellow": 2.306375
+    },
+    "se": {
+     "baseline": 0.0034776215827550206,
+     "race_white_black": 0.0014595904850979327,
+     "ethnic_asian_hispanic": 0.000551801246367566,
+     "income_high_low": 0.00425707776236451,
+     "political_liberal_conservative": 0.0036851140933016665,
+     "green_yellow": 0.002723230395298677
+    },
+    "excess": {
+     "baseline": 1.519044375,
+     "race_white_black": 0.490228125,
+     "ethnic_asian_hispanic": 0.12300437500000028,
+     "income_high_low": 1.6808125,
+     "political_liberal_conservative": 1.7082456250000004,
+     "green_yellow": 1.1547031250000002
+    },
+    "at_floor": []
+   },
+   "mix_deviation": {
+    "chance": 0.16804165537609134,
+    "chance_sd": 0.009987115898067873,
+    "floor": 0.003,
+    "direction": 1,
+    "levels": {
+     "baseline": 0.3950561507792674,
+     "race_white_black": 0.25075123604269295,
+     "ethnic_asian_hispanic": 0.1806088714360352,
+     "income_high_low": 0.4030021290216433,
+     "political_liberal_conservative": 0.4157815254993675,
+     "green_yellow": 0.35303163468952553
+    },
+    "se": {
+     "baseline": 0.00017267890171076072,
+     "race_white_black": 0.0002442372789302544,
+     "ethnic_asian_hispanic": 0.00014183695149834515,
+     "income_high_low": 0.00017870914964989543,
+     "political_liberal_conservative": 0.00015239016477643167,
+     "green_yellow": 0.0002092588840454861
+    },
+    "excess": {
+     "baseline": 0.2270144954031761,
+     "race_white_black": 0.08270958066660161,
+     "ethnic_asian_hispanic": 0.012567216059943875,
+     "income_high_low": 0.23496047364555195,
+     "political_liberal_conservative": 0.24773987012327614,
+     "green_yellow": 0.1849899793134342
+    },
+    "at_floor": []
+   },
+   "share": {
+    "chance": 0.4988667467284049,
+    "chance_sd": 0.016183931695733234,
+    "floor": 0.00486,
+    "direction": 1,
+    "levels": {
+     "baseline": 0.8919831458332512,
+     "race_white_black": 0.6921259757568184,
+     "ethnic_asian_hispanic": 0.5529869870013749,
+     "income_high_low": 0.8979565375764207,
+     "political_liberal_conservative": 0.9176590649553422,
+     "green_yellow": 0.8430861040493306
+    },
+    "se": {
+     "baseline": 0.00018904373303156748,
+     "race_white_black": 0.00033010675455963335,
+     "ethnic_asian_hispanic": 0.000213507786923688,
+     "income_high_low": 0.0001977330348891519,
+     "political_liberal_conservative": 0.00016276430023590344,
+     "green_yellow": 0.0002331050798390417
+    },
+    "excess": {
+     "baseline": 0.3931163991048463,
+     "race_white_black": 0.19325922902841353,
+     "ethnic_asian_hispanic": 0.05412024027297002,
+     "income_high_low": 0.39908979084801577,
+     "political_liberal_conservative": 0.4187923182269373,
+     "green_yellow": 0.3442193573209257
+    },
+    "at_floor": []
+   },
+   "ghetto_rate": {
+    "chance": 9.2215,
+    "chance_sd": 3.9291419964687213,
+    "floor": 1.18,
+    "direction": 1,
+    "levels": {
+     "baseline": 205.9593,
+     "race_white_black": 84.0861,
+     "ethnic_asian_hispanic": 28.7867,
+     "income_high_low": 213.3735,
+     "political_liberal_conservative": 225.2665,
+     "green_yellow": 170.0398
+    },
+    "se": {
+     "baseline": 0.17926181364357296,
+     "race_white_black": 0.18751315899818802,
+     "ethnic_asian_hispanic": 0.08649686978063534,
+     "income_high_low": 0.18936537618997293,
+     "political_liberal_conservative": 0.16208397482937556,
+     "green_yellow": 0.19982450945631758
+    },
+    "excess": {
+     "baseline": 196.73780000000002,
+     "race_white_black": 74.8646,
+     "ethnic_asian_hispanic": 19.565199999999997,
+     "income_high_low": 204.15200000000002,
+     "political_liberal_conservative": 216.04500000000002,
+     "green_yellow": 160.81830000000002
+    },
+    "at_floor": []
+   },
+   "dissimilarity_index": {
+    "chance": 0.1254171875,
+    "chance_sd": 0.03341776513048351,
+    "floor": 0.01,
+    "direction": 1,
+    "levels": {
+     "baseline": 0.451484375,
+     "race_white_black": 0.259753125,
+     "ethnic_asian_hispanic": 0.161778125,
+     "income_high_low": 0.4842012499999999,
+     "political_liberal_conservative": 0.4787831249999999,
+     "green_yellow": 0.388636875
+    },
+    "se": {
+     "baseline": 0.0009971031197544616,
+     "race_white_black": 0.0007039315514390221,
+     "ethnic_asian_hispanic": 0.00043725910490911466,
+     "income_high_low": 0.0010451752850509804,
+     "political_liberal_conservative": 0.0010291687846204632,
+     "green_yellow": 0.000928686259839866
+    },
+    "excess": {
+     "baseline": 0.32606718749999997,
+     "race_white_black": 0.13433593749999997,
+     "ethnic_asian_hispanic": 0.036360937499999996,
+     "income_high_low": 0.35878406249999995,
+     "political_liberal_conservative": 0.3533659374999999,
+     "green_yellow": 0.2632196875
+    },
+    "at_floor": []
+   }
+  }
+ },
+ "decision_metrics": [
+  "dissimilarity_index"
+ ],
+ "decision": {
+  "counts": {
+   "CERTIFIED": 4,
+   "FLOOR-TIE": 1
+  },
+  "n_pairs": 5,
+  "fixable": [],
+  "total_fixable_gpu_h": 0.0,
+  "verdict": "SETTLED"
+ },
+ "all_metrics": {
+  "counts": {
+   "CERTIFIED": 31,
+   "FLOOR-TIE": 4
+  },
+  "n_pairs": 35,
+  "fixable": [],
+  "total_fixable_gpu_h": 0.0,
+  "verdict": "SETTLED"
+ },
+ "verdict": "SETTLED",
+ "total_fixable_gpu_h": 0.0
+}
