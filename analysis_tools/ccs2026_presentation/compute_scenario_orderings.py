@@ -34,6 +34,11 @@ CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sourc
 P_SIGNIFICANT = 0.01  # < for p < 0.01
 P_MARGINAL = 0.05     # ≤ for 0.01 ≤ p < 0.05, ≈ for p ≥ 0.05
 
+# Effect size threshold: minimum Cohen's d to be considered practically significant
+# Cohen's d thresholds: 0.2 = small, 0.5 = medium, 0.8 = large
+# We require at least a small effect (|d| >= 0.2) to be considered meaningful
+MIN_COHENS_D = 0.2
+
 # Scenario mappings for 3-way comparison
 SCENARIO_3WAY = {
     'income_high_low': 'Economic',
@@ -82,36 +87,39 @@ def load_model_data():
     return model_data
 
 
-def paired_ttest(df, scenario_a, scenario_b, metric='dissimilarity_index'):
+def independent_ttest(df, scenario_a, scenario_b, metric='dissimilarity_index'):
     """
-    Compute paired t-test between two scenarios.
+    Compute independent samples t-test between two scenarios.
 
-    Pairs runs by run_id, computes differences, tests if mean diff != 0.
-    Returns t-statistic, p-value, mean values, and mean difference.
+    These are independent distributions (run_id is just a seed, not a pairing).
+    Uses Welch's t-test which doesn't assume equal variances.
     """
-    df_a = df[df['scenario'] == scenario_a][['run_id', metric]].set_index('run_id')
-    df_b = df[df['scenario'] == scenario_b][['run_id', metric]].set_index('run_id')
+    values_a = df[df['scenario'] == scenario_a][metric].values
+    values_b = df[df['scenario'] == scenario_b][metric].values
 
-    # Inner join to get paired observations
-    paired = df_a.join(df_b, lsuffix='_a', rsuffix='_b', how='inner')
-
-    if len(paired) == 0:
+    if len(values_a) == 0 or len(values_b) == 0:
         return None
 
-    values_a = paired[f'{metric}_a'].values
-    values_b = paired[f'{metric}_b'].values
-
-    # Paired t-test
+    # Independent samples t-test (Welch's, doesn't assume equal variance)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        t_stat, p_value = stats.ttest_rel(values_a, values_b)
+        t_stat, p_value = stats.ttest_ind(values_a, values_b, equal_var=False)
+
+    # Compute Cohen's d using pooled standard deviation
+    std_a, std_b = values_a.std(), values_b.std()
+    n_a, n_b = len(values_a), len(values_b)
+    pooled_std = np.sqrt(((n_a - 1) * std_a**2 + (n_b - 1) * std_b**2) / (n_a + n_b - 2))
+    cohens_d = (values_a.mean() - values_b.mean()) / pooled_std if pooled_std > 0 else 0
 
     return {
-        'n_pairs': len(paired),
+        'n_a': n_a,
+        'n_b': n_b,
         'mean_a': values_a.mean(),
         'mean_b': values_b.mean(),
-        'mean_diff': (values_a - values_b).mean(),
-        'std_diff': (values_a - values_b).std(),
+        'std_a': std_a,
+        'std_b': std_b,
+        'mean_diff': values_a.mean() - values_b.mean(),
+        'cohens_d': cohens_d,
         't_stat': t_stat,
         'p_raw': p_value
     }
@@ -140,14 +148,24 @@ def holm_correction(p_values):
     return adjusted.tolist()
 
 
-def classify_comparison(p_holm, mean_a, mean_b):
+def classify_comparison(p_holm, mean_a, mean_b, cohens_d):
     """
-    Classify a comparison based on Holm-corrected p-value.
+    Classify a comparison based on Holm-corrected p-value AND effect size.
 
     Returns (symbol, direction) where:
     - symbol: '<', '≤', or '≈'
     - direction: 1 if a < b, -1 if a > b, 0 if equal
+
+    A comparison must meet BOTH criteria to be considered significant:
+    1. Statistical significance: p < threshold
+    2. Practical significance: |Cohen's d| >= MIN_COHENS_D (0.2 = small effect)
+
+    This prevents declaring trivial differences as "significant" just because n is large.
     """
+    # If effect size is below threshold, treat as equivalent
+    if abs(cohens_d) < MIN_COHENS_D:
+        return '≈', 0
+
     if mean_a < mean_b:
         direction = 1  # a < b
         if p_holm < P_SIGNIFICANT:
@@ -168,9 +186,10 @@ def classify_comparison(p_holm, mean_a, mean_b):
 
 def compute_all_pairwise_tests(model_data, scenarios=None):
     """
-    Compute pairwise t-tests for all scenario pairs for each model.
+    Compute independent samples t-tests for all scenario pairs for each model.
 
-    Returns DataFrame with all test results.
+    Uses Welch's t-test (doesn't assume equal variances).
+    Returns DataFrame with all test results including Cohen's d effect size.
     """
     results = []
 
@@ -184,7 +203,7 @@ def compute_all_pairwise_tests(model_data, scenarios=None):
         # Compute all pairwise tests
         pair_results = []
         for s_a, s_b in combinations(test_scenarios, 2):
-            result = paired_ttest(df, s_a, s_b)
+            result = independent_ttest(df, s_a, s_b)
             if result:
                 pair_results.append({
                     'model': model,
@@ -200,7 +219,7 @@ def compute_all_pairwise_tests(model_data, scenarios=None):
 
             for i, r in enumerate(pair_results):
                 r['p_holm'] = p_holm[i]
-                symbol, direction = classify_comparison(p_holm[i], r['mean_a'], r['mean_b'])
+                symbol, direction = classify_comparison(p_holm[i], r['mean_a'], r['mean_b'], r['cohens_d'])
                 r['symbol'] = symbol
                 r['direction'] = direction
                 results.append(r)
@@ -256,10 +275,13 @@ def build_ordering_string(pairwise_df, model, scenarios, display_names):
         else:
             row = row.iloc[0]
             p_holm = row['p_holm']
+            cohens_d = abs(row['cohens_d'])
 
-            # We know s_low has lower mean than s_high (from sorting)
-            # So we just need to check significance level
-            if p_holm < P_SIGNIFICANT:
+            # Check both statistical AND practical significance
+            # Require |Cohen's d| >= 0.2 (small effect) to be meaningful
+            if cohens_d < MIN_COHENS_D:
+                symbol = '≈'
+            elif p_holm < P_SIGNIFICANT:
                 symbol = '<'
             elif p_holm < P_MARGINAL:
                 symbol = '≤'
@@ -314,6 +336,7 @@ def count_all_pairwise_matches(ordering_str):
     For 3-way ordering [A, B, C], checks all 3 pairs: A<B, B<C, A<C.
     Empirical: Economic < Political < Racial
 
+    Only counts a match if the comparison is SIGNIFICANT (< or ≤), not ≈.
     Returns count of matching pairs (0-3 for 3-way comparison).
     """
     EMPIRICAL_RANK = {
@@ -325,25 +348,49 @@ def count_all_pairwise_matches(ordering_str):
     import re
     parts = re.split(r'\s*([<≤≈>≥])\s*', ordering_str)
     scenarios = [p.strip() for p in parts[::2] if p.strip()]
+    symbols = [p.strip() for p in parts[1::2] if p.strip()]
 
     # Check if all scenarios are in empirical ranking
     if not all(s in EMPIRICAL_RANK for s in scenarios):
         return 0
 
-    # Count all pairwise matches
-    # The ordering [A, B, C] implies A < B < C (by mean values)
-    # Check each pair against empirical
+    # Count pairwise matches - only for SIGNIFICANT comparisons
+    # For adjacent pairs, use the symbol directly
+    # For transitive pairs (A vs C), both A<B and B<C must be significant
     count = 0
     n = len(scenarios)
-    for i in range(n):
-        for j in range(i + 1, n):
-            s_low, s_high = scenarios[i], scenarios[j]
-            # s_low < s_high in LLM ordering
-            # Check if empirical agrees
-            if EMPIRICAL_RANK[s_low] < EMPIRICAL_RANK[s_high]:
+
+    # Check adjacent pairs
+    for i in range(n - 1):
+        s_low, s_high = scenarios[i], scenarios[i + 1]
+        sym = symbols[i] if i < len(symbols) else '≈'
+
+        # Only count if significant (< or ≤) AND matches empirical
+        if sym in ['<', '≤'] and EMPIRICAL_RANK[s_low] < EMPIRICAL_RANK[s_high]:
+            count += 1
+
+    # Check transitive pair (first vs last) - only if BOTH adjacent pairs are significant
+    if n >= 3 and len(symbols) >= 2:
+        all_adjacent_significant = all(s in ['<', '≤'] for s in symbols[:n-1])
+        if all_adjacent_significant:
+            s_first, s_last = scenarios[0], scenarios[-1]
+            if EMPIRICAL_RANK[s_first] < EMPIRICAL_RANK[s_last]:
                 count += 1
 
     return count
+
+
+def count_significant_differences(ordering_str):
+    """
+    Count the number of significant differences (< or ≤) in an ordering string.
+
+    For "Racial < Economic < Political" returns 2.
+    For "Racial ≈ Economic ≈ Political" returns 0.
+    For "Racial < Political ≈ Economic" returns 1.
+    """
+    import re
+    symbols = re.findall(r'[<≤≈>≥]', ordering_str)
+    return sum(1 for s in symbols if s in ['<', '≤', '>', '≥'])
 
 
 def check_grouping_pattern(ordering_str):
@@ -417,7 +464,7 @@ def generate_latex_table(ordering_3way_df):
 % Generated: {timestamp}
 % Models: {n_models} ({models_list})
 % Data: experiments_with_llama_cpp/cross_model/cross_model_vf-lp_sources.csv
-% Methodology: Paired t-tests, Holm-corrected, p<0.01 for '<', p<0.05 for '≤'
+% Methodology: Independent t-tests (Welch's), Holm-corrected, requires p<0.01 AND |Cohen's d|>=0.2
 % Regenerate: python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes
 % =============================================================================
 
@@ -538,7 +585,7 @@ def generate_latex_table(ordering_3way_df):
 
 \smallskip
 
-\textbf{Pattern:} Most LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
+\textbf{Pattern:} Most context-sensitive LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Only Olmo matches empirical by showing Economic as lowest. Three models (Granite, Mistral, Phi) are context-insensitive.
 
 \end{frame}
 """
@@ -580,27 +627,30 @@ def main():
         ordering = build_ordering_string(pairwise_3way, model, scenarios_3way, SCENARIO_3WAY)
         adjacent_matches = check_empirical_match(ordering)
         all_matches = count_all_pairwise_matches(ordering)
+        n_sig_diffs = count_significant_differences(ordering)
         ordering_3way_rows.append({
             'model': model,
             'ordering': ordering,
             'empirical_matches': adjacent_matches,  # List of positions that match (for star placement)
             'n_adjacent_matches': len(adjacent_matches),
-            'n_all_matches': all_matches  # Total pairwise matches including transitive
+            'n_all_matches': all_matches,  # Total pairwise matches including transitive
+            'n_significant_diffs': n_sig_diffs  # Number of < or ≤ symbols
         })
-        match_str = f" ({all_matches}/3 pairwise matches)" if all_matches else " (0/3 pairwise matches)"
+        match_str = f" ({all_matches}/3 pairwise matches, {n_sig_diffs} sig diffs)"
         print(f"   {model}: {ordering}{match_str}")
 
     ordering_3way_df = pd.DataFrame(ordering_3way_rows)
 
-    # Sort by goodness (n_all_matches descending) then alphabetically by model
+    # Sort by: 1) n_all_matches desc, 2) n_significant_diffs desc, 3) model alpha
+    # This groups models with no significant differences (granite, mistral, phi) at the bottom
     ordering_3way_df = ordering_3way_df.sort_values(
-        by=['n_all_matches', 'model'],
-        ascending=[False, True]
+        by=['n_all_matches', 'n_significant_diffs', 'model'],
+        ascending=[False, False, True]
     ).reset_index(drop=True)
 
-    print(f"\n   Sorted order (best first, then alphabetical):")
+    print(f"\n   Sorted order (by matches, then sig diffs, then alphabetical):")
     for _, row in ordering_3way_df.iterrows():
-        print(f"     {row['model']}: {row['n_all_matches']}/3 matches")
+        print(f"     {row['model']}: {row['n_all_matches']}/3 matches, {row['n_significant_diffs']} sig diffs")
 
     # Save to CSV (convert list to string for CSV compatibility)
     ordering_3way_csv = ordering_3way_df.copy()

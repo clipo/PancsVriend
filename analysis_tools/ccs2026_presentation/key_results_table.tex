@@ -2,10 +2,10 @@
 % Key Results Table - Auto-generated
 % =============================================================================
 % Source: analysis_tools/ccs2026_presentation/compute_scenario_orderings.py
-% Generated: 2026-09-29 01:38:36
-% Models: 9 (olmo-2-32b, deepseek-v4-flash, granite-4.2-30b, llama-3.3-70b, mistral-small-4-119b, phi-4-14b, qwen3.6-27b, gemma-4-31b, hermes-4.3-36b)
+% Generated: 2026-09-29 02:14:41
+% Models: 9 (olmo-2-32b, deepseek-v4-flash, llama-3.3-70b, qwen3.6-27b, gemma-4-31b, hermes-4.3-36b, granite-4.2-30b, mistral-small-4-119b, phi-4-14b)
 % Data: experiments_with_llama_cpp/cross_model/cross_model_vf-lp_sources.csv
-% Methodology: Paired t-tests, Holm-corrected, p<0.01 for '<', p<0.05 for '≤'
+% Methodology: Independent t-tests (Welch's), Holm-corrected, requires p<0.01 AND |Cohen's d|>=0.2
 % Regenerate: python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes
 % =============================================================================
 
@@ -22,13 +22,13 @@
 \midrule
 Olmo 2 32B & Economic $<^{\star}$ (Racial $<$ Political) \\
 Deepseek V4 Flash & Racial $<$ Economic $<^{\star}$ Political \\
-Granite 4.2 30B & Racial $<$ Economic $<^{\star}$ Political \\
 Llama 3.3 70B & Racial $<$ Economic $<^{\star}$ Political \\
-Mistral Small 4 119B & Racial $<$ Economic $<^{\star}$ Political \\
-Phi 4 14B & Racial $<$ Economic $<^{\star}$ Political \\
 Qwen3.6 27B & Racial $<$ Economic $<^{\star}$ Political \\
-Gemma 4 31B & Racial $<$ Political $<$ Economic \\
-Hermes 4.3 36B & Racial $<$ Political $<$ Economic \\
+Gemma 4 31B & Racial $<$ Political $\approx$ Economic \\
+Hermes 4.3 36B & Racial $<$ Political $\approx$ Economic \\
+Granite 4.2 30B & Racial $\approx$ Economic $\approx$ Political \\
+Mistral Small 4 119B & Racial $\approx$ Economic $\approx$ Political \\
+Phi 4 14B & Racial $\approx$ Economic $\approx$ Political \\
 \bottomrule
 \end{tabular} \\
 {$<^{\star}$ indicates match to the empirical order.}
@@ -36,6 +36,6 @@ Hermes 4.3 36B & Racial $<$ Political $<$ Economic \\
 
 \smallskip
 
-\textbf{Pattern:} Most LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
+\textbf{Pattern:} Most context-sensitive LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Only Olmo matches empirical by showing Economic as lowest. Three models (Granite, Mistral, Phi) are context-insensitive.
 
 \end{frame}

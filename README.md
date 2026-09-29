@@ -61,7 +61,7 @@ The "Key Results" table comparing LLM scenario orderings to empirical data must 
 
 **Data source:** Raw data in `<run>/analysis/run_summary_by_run_all_scenarios.csv` (10,000 rows per scenario per model). The existing `cross_model_pairwise_tests.csv` only contains adjacent-rank comparisons; direct pairwise tests between all scenario pairs must be generated.
 
-**Methodology** (from `analysis_tools/analysis_guide.md` §7b): Paired t-test on per-run differences (final DI values), Holm-corrected for multiple comparisons within each model.
+**Methodology**: Independent samples t-test (Welch's) comparing scenario distributions, Holm-corrected for multiple comparisons. Requires both p < 0.01 AND |Cohen's d| ≥ 0.2 (small effect) to be considered significant.
 
 **Scripts and outputs:** `analysis_tools/ccs2026_presentation/`
 - `compute_scenario_orderings.py` — core script to compute pairwise tests and generate orderings
@@ -849,9 +849,9 @@ Our research reveals the fundamental difference:
 - **Interpretation**: Matches empirical segregation indices from urban studies
 
 #### Statistical Significance
-- All contexts differ significantly from baseline (ANOVA p < 0.001)
-- Large effect sizes (η² > 0.5) for all metrics
-- Political > Racial/Ethnic > Baseline > Economic segregation levels
+- **3-way comparison** (Economic, Political, Racial): All pairwise differences significant at p < 0.01 for all 9 models
+- **6-way comparison** (all scenarios): Most but not all pairs significant; context-insensitive models (phi-4, granite, mistral) show some non-significant pairs (e.g., phi-4 race vs ethnic p = 1.0; qwen baseline vs income p = 0.20)
+- Full pairwise test results: `analysis_tools/ccs2026_presentation/pairwise_tests_all.csv`
 
 ## 📚 Documentation
 

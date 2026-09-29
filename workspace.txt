@@ -1,4 +1,15 @@
 date
+Tue Sep 29 02:10:38 EDT 2026
+
+Given this update to the results due to using the correct statsical analysis, I want you to read through the slides, especially the conclusion, and verify whether claims have changed
+
+
+Tue Sep 29 01:48:46 EDT 2026
+
+
+ok, consider Granite 4.2 30B. those violin plots of Racial, Economic, and political overlap significantly. Those cannot be statistically significantly different. 
+
+
 Tue Sep 29 00:34:00 EDT 2026
 
 Here is another task: a slide which lists all the LLMs we sue and brief information about each one, a short phrase. This should be a table which fits on one slide

@@ -110,7 +110,7 @@ The overall ordering synthesizes evidence across all six metrics:
 - **Political contexts** show extreme segregation (ghetto rate: 61.6, share: 0.928)
 - **Economic contexts** show minimal clustering (ghetto rate: 5.0, share: 0.543)  
 - **12.3× difference** in ghetto formation based purely on social framing
-- All scenarios differ significantly from baseline (p < 0.001)
+- Most but not all scenario pairs differ significantly (see `pairwise_tests_all.csv` for details)
 
 ## Customization
 

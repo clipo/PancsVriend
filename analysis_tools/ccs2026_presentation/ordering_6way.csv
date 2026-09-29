@@ -1,10 +1,10 @@
 model,ordering
-gemma-4-31b,Ethn < Race < Base < Polit < Econ < G/Y
-qwen3.6-27b,Ethn < Race < G/Y < Base ≈ Econ < Polit
-llama-3.3-70b,Ethn < Race < G/Y < Econ < Polit < Base
-hermes-4.3-36b,Ethn < Race < G/Y < Base < Polit < Econ
+gemma-4-31b,Ethn ≈ Race < Base ≈ Polit ≈ Econ < G/Y
+qwen3.6-27b,Ethn < Race < G/Y ≈ Base ≈ Econ < Polit
+llama-3.3-70b,Ethn ≈ Race < G/Y < Econ < Polit ≈ Base
+hermes-4.3-36b,Ethn < Race < G/Y < Base < Polit ≈ Econ
 deepseek-v4-flash,G/Y < Ethn < Race < Econ < Base < Polit
-mistral-small-4-119b,Race ≤ G/Y < Base ≤ Ethn < Econ < Polit
-granite-4.2-30b,Ethn < G/Y < Race < Econ < Polit < Base
-phi-4-14b,Race ≈ Ethn < Econ < G/Y < Polit < Base
-olmo-2-32b,Econ < Race < Ethn < Base < Polit ≤ G/Y
+mistral-small-4-119b,Race ≈ G/Y ≈ Base ≈ Ethn ≈ Econ ≈ Polit
+granite-4.2-30b,Ethn ≈ G/Y ≈ Race ≈ Econ ≈ Polit ≈ Base
+phi-4-14b,Race ≈ Ethn ≈ Econ ≈ G/Y ≈ Polit ≈ Base
+olmo-2-32b,Econ < Race < Ethn < Base < Polit ≈ G/Y
