@@ -6,141 +6,50 @@ A groundbreaking research framework that uncovers how Large Language Models (LLM
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://img.shields.io/badge/DOI-pending-orange.svg)](https://github.com/clipo/PancsVriend)
 
-## Current Task
+## Current Status (last updated 2026-09-28)
 
-Run production simulations with locally-available GGUF models, sequentially.
+**Production runs complete for 9 models** using exact value functions from token log-probabilities (`-vf-lp`). Each model has 10,000 runs × 6 scenarios × 1000 max steps. All runs have rank-stability status `SETTLED`.
 
-| # | Model label | GGUF path | Quant |
-|---|-------------|-----------|-------|
-| 1 | `llama-3.3-70b-instruct-q4` | `llms/Llama-3.3-70B-Instruct-Q4_K_M.gguf` | Q4_K_M |
-| 2 | `gemma-4-31b-it-q5` | `llms/gemma-4-31B-it-Q5_K_M.gguf` | Q5_K_M |
-| 3 | `mixtral-8x7b-q5` | `llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` | Q5_K_M |
+| Model | Parameters | Run folder | Mean DI range |
+|-------|------------|------------|---------------|
+| gemma-4-31b | 31B | `run_20260906_003730_gemma-4-31b-vf-lp` | 0.13 – 0.26 |
+| phi-4-14b | 14B | `run_20260906_010130_phi-4-14b-vf-lp` | 0.12 – 0.13 |
+| granite-4.2-30b | 30B | `run_20260906_020531_granite-4.2-30b-vf-lp` | 0.12 – 0.13 |
+| hermes-4.3-36b | 36B | `run_20260906_043033_hermes-4.3-36b-vf-lp` | 0.16 – 0.48 |
+| deepseek-v4-flash | — | `run_20260906_092955_deepseek-v4-flash-vf-lp` | 0.14 – 0.42 |
+| qwen3.6-27b | 27B | `run_20260906_124956_qwen3.6-27b-vf-lp` | 0.16 – 0.38 |
+| olmo-2-32b | 32B | `run_20260906_131256_olmo-2-32b-vf-lp` | 0.46 – 0.74 |
+| llama-3.3-70b | 70B | `run_20260912_200213_llama-3.3-70b-vf-lp` | 0.13 – 0.34 |
+| mistral-small-4-119b | 119B | `run_20260913_134219_mistral-small-4-119b-vf-lp` | 0.12 – 0.13 |
 
-Model 1: 100 runs × 1000 steps × all scenarios. Models 2+: 20 runs × 100 steps × all scenarios. Results land in `experiments_with_llama_cpp/`.
+### Key findings across models
 
-### Production config (as of 2026-06-25)
+- **Context differentiation varies dramatically**: Some models (olmo, hermes, deepseek, qwen) show strong scenario effects; others (phi, granite, mistral) show minimal differentiation
+- **Racial/ethnic scenarios consistently lowest**: Across most models, `race_white_black` and `ethnic_asian_hispanic` produce the lowest segregation
+- **No single "correct" ordering**: Different models produce different scenario rankings, suggesting biases are training artifacts, not universal LLM properties
 
-`configs/llama_cpp_simulation_run.yaml` production profile: `runs: 20`, `max_steps: 100`, `processes: null`.
+Cross-model comparison plots and statistical tests are in `experiments_with_llama_cpp/cross_model/`
 
-Note on `processes`: the llama.cpp server is single-stream — it handles one inference request at a time. Raising `processes` only queues requests at the server with no throughput gain. True parallelism requires N independent server instances (one per GPU) behind a round-robin load balancer, with `processes: N`. `processes: null` lets the code choose (defaults to number of runs).
+### Pending: Update presentation Key Results tables
 
-### Current Status (last updated 2026-07-02)
+The CCS 2026 presentation (`pres-overleaf.link/pres/Schelling-llm-social-context.tex`) contains a "Key Results" table comparing LLM scenario orderings to empirical data. This must be updated with the new 9-model results using statistically rigorous analysis.
 
-**Model 1 (`llama-3.3-70b-instruct-q4`): ✅ COMPLETE** — 100 runs × 1000 steps
+**Two tables needed:**
 
-| Scenario | Status | Notes |
-|----------|--------|-------|
-| baseline | ✅ Complete | 100/100 runs |
-| race_white_black | ✅ Complete | 100/100 runs |
-| ethnic_asian_hispanic | ✅ Complete | 100/100 runs |
-| income_high_low | ✅ Complete | 100/100 runs |
-| political_liberal_conservative | ✅ Complete | 100/100 runs |
-| green_yellow | ✅ Complete | 100/100 runs |
+1. **3-way comparison (for presentation):** Income vs Political vs Racial — matches empirical data categories
+2. **6-way comparison (comprehensive):** All scenarios — full picture of model behavior
 
-Results in: `experiments_with_llama_cpp/run_20260605_141404_llama-3.3-70b-instruct-q4/`
+**Task:** Build ordering strings (e.g., "Economic < Political < Racial") for each model where comparison symbols reflect statistical significance:
 
-**Model 2 (`gemma-4-31b-it-q5`): ✅ COMPLETE** — 20 runs × 100 steps
+| Symbol | Meaning | Threshold (Holm-corrected p) |
+|--------|---------|------------------------------|
+| `<` or `>` | Significantly different | p < 0.01 |
+| `≤` or `≥` | Marginally different | 0.01 ≤ p < 0.05 |
+| `≈` | Not statistically distinguishable | p ≥ 0.05 |
 
-Two production runs completed:
-- `run_20260611_151002_gemma-4-31b-it-q5`: original run (100 runs × 1000 steps), stopped mid-stream at income_high_low run 69. Note: income_high_low did not converge — LLM economic framing makes low-income agents perpetually mobile (~20% move rate) while high-income agents freeze (~0%), causing endless churn on the dense grid.
-- `run_20260625_165818_gemma-4-31b-it-q5`: full production run (20 runs × 100 steps, all 6 scenarios, Jun 25–29)
+**Data source:** Raw data in `<run>/analysis/run_summary_by_run_all_scenarios.csv` (10,000 rows per scenario per model). The existing `cross_model_pairwise_tests.csv` only contains adjacent-rank comparisons; direct pairwise tests between all scenario pairs must be generated.
 
-| Scenario | Status |
-|----------|--------|
-| baseline | ✅ Complete |
-| race_white_black | ✅ Complete |
-| ethnic_asian_hispanic | ✅ Complete |
-| income_high_low | ✅ Complete |
-| political_liberal_conservative | ✅ Complete |
-| green_yellow | ✅ Complete |
-
-**Model 3 (`mixtral-8x7b-q5`): ⏸ STOPPED**
-
-Run was triggered automatically on Jul 2 but halted before smoke test completed. GGUF at `~/llms/mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf` (30 GB). Config: `configs/llama_cpp_run_mixtral8x7b.yaml` (20 runs × 100 steps × all scenarios). Server runs on port 8083 via `run_mixtral8x7b.sh`.
-
-### Automated transition (`transition_to_gemma.sh`)
-
-A script (`transition_to_gemma.sh`) is running in the `transition` screen and will handle the llama→gemma handoff automatically. It polls `logs/run_llama-3.3-70b-instruct-q4.log` every 5 minutes and when `Pipeline completed.` is detected, it will:
-
-1. Send llama completion email
-2. Kill llama server
-3. Swap `configs/llama_cpp_server.yaml` model path to the gemma GGUF
-4. Swap `configs/llama_cpp_simulation_run.yaml` `llm_model:` label to `gemma-4-31b-it-q5`
-5. Start gemma server in a new `llama_server` screen
-6. Wait for server ready (up to 30 min)
-7. Send gemma start email
-8. Run smoke test
-9. If smoke test passes: launch gemma production in `llama_run` screen → send launch email
-10. If smoke test fails: send error email and exit (manual intervention required)
-
-Monitor the transition: `tail -f logs/transition.log`
-
-### When a new Claude session picks up
-
-1. **Check screens are alive:**
-   ```bash
-   screen -list
-   tail -5 logs/transition.log
-   ```
-
-2. **If `transition` screen is still running:** the automated handoff hasn't fired yet — check `tail -20 logs/run_llama-3.3-70b-instruct-q4.log` for progress and wait.
-
-3. **If `transition` screen is gone and gemma run is live:** check `tail -20 logs/run_gemma-4-31b-it-q5.log` for progress. When gemma completes (`Pipeline completed.` in that log), send completion email:
-   ```bash
-   .venv/bin/python notify.py "Schelling run complete: gemma-4-31b-it-q5" "Production run finished. Results in experiments_with_llama_cpp/."
-   ```
-
-4. **If `transition` screen is gone but gemma run never started** (check `screen -list` for `llama_run` and `logs/transition.log` for errors): manual intervention — re-run from the step that failed.
-
-### Step-by-step (for Claude Code to execute on "go")
-
-**For each model in turn:**
-
-1. **Edit `configs/llama_cpp_server.yaml`** — set the `model:` field to the GGUF's absolute path.
-
-2. **Edit `configs/llama_cpp_simulation_run.yaml`** — set top-level `llm_model:` to the model label (e.g. `llama-3.3-70b-instruct-q4`).
-
-3. **Start the server in a screen session:**
-   ```bash
-   screen -dmS llama_server bash -c "cd /srv/shared/schelling/PancsVriend && .venv/bin/python -m llama_cpp.server --config_file configs/llama_cpp_server.yaml 2>&1 | tee logs/server.log"
-   ```
-
-4. **Wait for the server to be ready** (poll until `http://localhost:8080/v1/models` responds).
-
-5. **Send start email:**
-   ```bash
-   python notify.py "Schelling run started: <model label>" "Production run started: 100 runs x 1000 steps x all scenarios."
-   ```
-
-6. **Run smoke test first:**
-   ```bash
-   .venv/bin/python run_llm_probability_simulation_analysis.py \
-     --config-yaml configs/llama_cpp_simulation_run.yaml \
-     --config-profile smoke_test
-   ```
-   If smoke test fails, stop and report. Do not proceed to production.
-
-7. **Run production in a screen session:**
-   ```bash
-   screen -dmS llama_run bash -c "cd /srv/shared/schelling/PancsVriend && .venv/bin/python run_llm_probability_simulation_analysis.py --config-yaml configs/llama_cpp_simulation_run.yaml --config-profile production 2>&1 | tee logs/run_<model_label>.log"
-   ```
-
-8. **Wait for completion**, then **send completion email:**
-   ```bash
-   python notify.py "Schelling run complete: <model label>" "Production run finished. Results in experiments_with_llama_cpp/."
-   ```
-
-9. **Kill the server**, then repeat from step 1 for the next model.
-
-### Email Updates
-
-Progress updates sent via `notify.py` (Gmail SMTP from `dr.duus@gmail.com`):
-
-```bash
-python notify.py "Subject" "Body"
-```
-
-Recipients: `dr.duus@gmail.com`, `siyer5@binghamton.edu`
+**Methodology** (from `analysis_tools/analysis_guide.md` §7b): Paired t-test on per-run differences (final DI values), Holm-corrected for multiple comparisons within each model.
 
 ## 🔬 The Bias Paradox Revealed
 
@@ -381,18 +290,60 @@ python run_llm_probability_simulation_analysis.py \
 
 ### Output
 
-Results land in a timestamped directory under `experiments_with_llama_cpp/`:
+Results land in a timestamped directory under `experiments_with_llama_cpp/`. Each folder is one pipeline run for one model, named `run_<YYYYMMDD_HHMMSS>_<model>-vf-<family>`:
+
+| Suffix | What it is | Status |
+| --- | --- | --- |
+| `-vf-lp` | 10,000 runs per scenario from the model's **exact** value function (token log-probabilities). | **The result.** Nine models, all rank-stability `SETTLED`. |
+| `-vf-s` | 100 runs per scenario from the sequential **sanity** resample (n=100 draws per cell). | A check on the `-vf-lp` tables, not a result. |
+| `cross_model/` | Bump and level charts and paired tests across every model's newest `-vf-lp` run. | Regenerated automatically by the pipeline's last stage. |
+
+#### The key data file
+
+**`<run>/analysis/run_summary_by_run_all_scenarios.csv`** — all six scenarios in one table (60,000 rows for `-vf-lp`), with a `scenario_key` column. This is what ANOVA, normality, metrics-comparison, and cross-model steps read.
+
+| Column | Meaning |
+| --- | --- |
+| `run_id` | Seed of the run; per-move detail is regenerable from it under the `rng_scheme` in `config.json`. |
+| `scenario` | `baseline`, `race_white_black`, `ethnic_asian_hispanic`, `income_high_low`, `political_liberal_conservative`, `green_yellow`. |
+| `converged`, `convergence_step` | Whether the run hit 5 consecutive zero-move steps, and the first step of that streak. |
+| `dissimilarity_index`, `clusters`, `switch_rate`, `distance`, `mix_deviation`, `share`, `ghetto_rate` | The seven metrics on the final grid. DI is the headline metric. |
+| `initial_<metric>` | The same seven on frame 0 (random allocation): the run's own paired draw from the chance distribution. |
+| `stop_reason` | `converged` / `max_steps` / `incomplete`. |
+
+#### One run folder structure
 
 ```
-experiments_with_llama_cpp/run_<ts>_<model>/
-├── run_config_effective.yaml
-├── experiments/llm_<scenario>_<ts>/
-│   ├── metrics_history.csv.gz     # one row per (run, step)
-│   ├── run_summary.csv            # one row per run: convergence + final metrics
-│   └── move_logs/  states/        # packed after the run (run_files)
-├── analysis/                      # ANOVA, rankings, combined metrics
-└── plots/                         # segregation plots (PNG)
+run_<ts>_<model>-vf-lp/
+├── run_config_effective.yaml     # yaml with the chosen profile resolved
+├── value_functions/              # decision tables the run simulated FROM (frozen)
+│   └── vf_<label>-lp__<scenario>__R3_dual_count.json
+├── experiments/                  # one folder per scenario
+│   └── llm_<scenario>_<ts>/
+│       ├── config.json
+│       ├── run_summary.csv       # <- per-scenario data file
+│       ├── metrics_history.csv.gz
+│       ├── states/               # states_packed.npz (not in git)
+│       └── move_logs/            # step_moves_packed.csv.gz (not in git)
+├── analysis/
+│   ├── run_summary_by_run_all_scenarios.csv  # <- ALL scenarios combined
+│   ├── anova_results_by_metric.{csv,md}
+│   ├── segregation_scenario_rankings_<model>.{csv,md}
+│   └── rank_stability/           # is the DI ordering settled?
+└── plots/
+    ├── segregation_metrics_comparison_dissimilarity_index.png
+    ├── convergence_patterns_dissimilarity_index.png
+    └── metric_panels/
 ```
+
+#### cross_model/ folder
+
+| File | Content |
+| --- | --- |
+| `cross_model_bump_<metric>.png` | Scenario ranking per model, gap bars binned on Cohen's d. |
+| `cross_model_level_<metric>.png` | Scenario means per model with the chance level. |
+| `cross_model_pairwise_tests.csv` | Paired t-tests between adjacent scenarios, per model and metric. |
+| `cross_model_rankings.csv` | The ranking table behind the bump charts. |
 
 Monitor a running job:
 
