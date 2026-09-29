@@ -87,21 +87,33 @@ python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --no
 
 #### Task 2: Update Dissimilarity Index grid slide
 
-The presentation slide "Dissimilarity Index: Sakoda-Schelling Model" describes the grid layout used for computing DI. The current slide shows a 10×10 grid, but the new experiments use a different size.
+The presentation slide "Dissimilarity Index: Sakoda-Schelling Model" describes the grid layout used for computing DI. The current slide shows a 10×10 grid, but the new experiments use a 20×20 grid.
 
-**Current slide shows:**
-- 10×10 grid (100 cells)
-- 40 agents of each type, 20 empty cells
-- 9 census tracts with sizes: corners 3×3=9, edges 3×4=12, center 4×4=16
+**Comparison of current slide vs actual experiments:**
+
+| Property | Current Slide (10×10) | Actual Experiments (20×20) |
+|----------|----------------------|---------------------------|
+| Grid size | 10×10 = 100 cells | 20×20 = 400 cells |
+| Type A agents | 40 | 160 |
+| Type B agents | 40 | 160 |
+| Empty cells | 20 | 80 |
+| Tract division | 3-4-3 | 6-8-6 |
+
+**Census tract sizes for 20×20 grid (9 tracts total):**
+- 4 corner tracts: 6×6 = 36 cells each
+- 4 edge tracts: 6×8 = 48 cells each
+- 1 center tract: 8×8 = 64 cells
+
+The tract logic (`DissimilarityIndex.py`) uses a 3×3 block partition where edge bands are `size // 3` wide (6 for 20×20) and the center takes the remainder (8).
 
 **Task:**
-1. Find the actual grid size used in the `-vf-lp` experiments (check `run_config_effective.yaml` for `grid_size`, `num_type_a`, `num_type_b`)
-2. Determine the new tract layout — how is the grid divided into census tracts? (check `DissimilarityIndex.py` for tract division logic)
-3. Update the slide with correct grid dimensions, agent counts, and tract layout diagram
+1. Update the slide diagram to show 20×20 grid with 6-8-6 tract divisions
+2. Update agent counts: 160 + 160 agents, 80 empty cells
+3. Ensure the DI formula explanation still matches
 
-**Files to check:**
-- `experiments_with_llama_cpp/run_*/run_config_effective.yaml` — grid size, agent counts
-- `DissimilarityIndex.py` — tract definition for DI calculation
+**Files:**
+- `pres-overleaf.link/pres/sakoda-schelling-llm-social-context.tex` — the slide to update
+- `DissimilarityIndex.py` — tract definition reference
 
 #### Task 3: Add value function explanation slide(s)
 
@@ -117,6 +129,100 @@ Create new slide(s) for the presentation explaining the value function concept �
 - `value_functions/logprob/logprob_value_function.py` — extraction method
 - `<run>/value_functions/value_function_heatmaps.png` — visual examples
 - `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json` — the actual tables
+
+#### Task 4: Create individual model result slides
+
+The presentation has 6 old model result slides that must be **removed and replaced** with new slides for the 9 current models.
+
+**Old slides to remove (lines 431-615 approximately):**
+- Mistral (Mixtral-8x22b-instruct) — 100 runs, 7 scenarios
+- Gemma (Gemma 3-27B) — 57 runs, 7 scenarios
+- Qwen (Qwen 2.5-coder) — 100 runs, 7 scenarios
+- Phi (Phi 4) — 22 runs, 7 scenarios
+- Hermes (Hermes 3) — 22 runs, 7 scenarios
+- Llama (Llama 3.3) — 81 runs, 7 scenarios
+- Granite (commented out)
+
+These old slides reference different model versions, fewer runs, and outdated images. They need to be completely replaced with new slides for the 9 models with 10,000 runs each.
+
+**Current slide structure (to replicate for each model):**
+```latex
+%--- Model Results ---%
+\begin{frame}[t]{Model Name \hfill \small 10,000 runs, 6 scenarios}
+\begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+        \centering
+        \textbf{Segregation by Context}
+        \includegraphics[width=\textwidth]{pics/model_segregation_metrics_comparison_dissimilarity_index.png}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+        \centering
+        \textbf{Convergence Patterns}
+        \includegraphics[width=\textwidth]{pics/model_convergence_patterns_dissimilarity_index.png}
+    \end{column}
+\end{columns}
+\medskip
+\textbf{Interpretation:} [Key findings for this model]
+\end{frame}
+```
+
+**Models to create slides for (9 total, in goodness order):**
+1. Olmo 2 32B (2/3 matches)
+2. Deepseek V4 Flash (1/3 matches)
+3. Granite 4.2 30B (1/3 matches)
+4. Llama 3.3 70B (1/3 matches)
+5. Mistral Small 4 119B (1/3 matches)
+6. Phi 4 14B (1/3 matches)
+7. Qwen3.6 27B (1/3 matches)
+8. Gemma 4 31B (0/3 matches)
+9. Hermes 4.3 36B (0/3 matches)
+
+**Image deployment script:** `analysis_tools/ccs2026_presentation/deploy_model_images.py`
+
+Copies images from each model's `<run>/plots/` folder to `pres-overleaf.link/pres/pics/`:
+
+| Source (in `<run>/plots/`) | Destination (in `pics/`) |
+|---------------------------|-------------------------|
+| `segregation_metrics_comparison_dissimilarity_index.png` | `<model>_segregation_by_context.png` |
+| `convergence_patterns_dissimilarity_index.png` | `<model>_convergence_patterns.png` |
+
+Where `<model>` is: `olmo`, `deepseek`, `granite`, `llama`, `mistral`, `phi`, `qwen`, `gemma`, `hermes`
+
+**Usage:**
+```bash
+# Deploy images interactively (on ECON-0FM96LD-L)
+python analysis_tools/ccs2026_presentation/deploy_model_images.py
+
+# Auto-deploy without asking
+python analysis_tools/ccs2026_presentation/deploy_model_images.py --yes
+
+# List what would be copied, no action
+python analysis_tools/ccs2026_presentation/deploy_model_images.py --no
+```
+
+**Task steps:**
+1. Run `deploy_model_images.py --yes` to copy images to pics/
+2. Remove the 6 old model slides from the presentation
+3. Create 9 new slides using the template below
+4. Fill in model-specific interpretations
+
+**Sorted segregation plots:** `analysis_tools/ccs2026_presentation/generate_sorted_segregation_plots.py`
+
+Generates alternative segregation plots where scenarios are **sorted by mean DI** (lowest to highest) for each model, helping readers understand the ordering visually. Uses shorter labels:
+- Color(GvY), Color(RvB), Economic, Ethnic, Racial, Political
+
+```bash
+python analysis_tools/ccs2026_presentation/generate_sorted_segregation_plots.py --yes
+```
+
+Output: `pics/<model>_segregation_sorted.png`
+
+**Cross-model comparison images (already generated):**
+```
+experiments_with_llama_cpp/cross_model/cross_model_bump_*.png
+experiments_with_llama_cpp/cross_model/cross_model_level_*.png
+```
+These show all models together and may be useful for a summary slide.
 
 ## 🔬 The Bias Paradox Revealed
 

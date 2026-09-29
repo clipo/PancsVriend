@@ -2,18 +2,15 @@
 % Key Results Table - Auto-generated
 % =============================================================================
 % Source: analysis_tools/ccs2026_presentation/compute_scenario_orderings.py
-% Generated: 2026-09-28 23:25:18
+% Generated: 2026-09-28 23:42:24
 % Models: 9 (olmo-2-32b, deepseek-v4-flash, granite-4.2-30b, llama-3.3-70b, mistral-small-4-119b, phi-4-14b, qwen3.6-27b, gemma-4-31b, hermes-4.3-36b)
 % Data: experiments_with_llama_cpp/cross_model/cross_model_vf-lp_sources.csv
 % Methodology: Paired t-tests, Holm-corrected, p<0.01 for '<', p<0.05 for '≤'
 % Regenerate: python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes
 % =============================================================================
 
-\begin{frame}[t]{Key Results}
+\begin{frame}[t]{Key Result. Segregation Ordering: Empirical vs. LLMs}
 
-Segregation orderings across LLMs compared to empirical data:
-
-\medskip
 
 \begin{center}
 \small
@@ -37,7 +34,7 @@ Hermes 4.3 36B & Racial $<$ Political $<$ Economic \\
 {$<^{\star}$ indicates match to the empirical order.}
 \end{center}
 
-\medskip
+\smallskip
 
 \textbf{Pattern:} All LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
 

@@ -423,11 +423,8 @@ def generate_latex_table(ordering_3way_df):
 
 """
 
-    latex = header + r"""\begin{frame}[t]{Key Results}
+    latex = header + r"""\begin{frame}[t]{Key Result. Segregation Ordering: Empirical vs. LLMs}
 
-Segregation orderings across LLMs compared to empirical data:
-
-\medskip
 
 \begin{center}
 \small
@@ -539,7 +536,7 @@ Segregation orderings across LLMs compared to empirical data:
 {$<^{\star}$ indicates match to the empirical order.}
 \end{center}
 
-\medskip
+\smallskip
 
 \textbf{Pattern:} All LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
 
