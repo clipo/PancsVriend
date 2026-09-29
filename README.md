@@ -16,7 +16,7 @@ A groundbreaking research framework that uncovers how Large Language Models (LLM
 | phi-4-14b | 14B | `run_20260906_010130_phi-4-14b-vf-lp` | 0.12 – 0.13 |
 | granite-4.2-30b | 30B | `run_20260906_020531_granite-4.2-30b-vf-lp` | 0.12 – 0.13 |
 | hermes-4.3-36b | 36B | `run_20260906_043033_hermes-4.3-36b-vf-lp` | 0.16 – 0.48 |
-| deepseek-v4-flash | — | `run_20260906_092955_deepseek-v4-flash-vf-lp` | 0.14 – 0.42 |
+| deepseek-v4-flash | 552B | `run_20260906_092955_deepseek-v4-flash-vf-lp` | 0.14 – 0.42 |
 | qwen3.6-27b | 27B | `run_20260906_124956_qwen3.6-27b-vf-lp` | 0.16 – 0.38 |
 | olmo-2-32b | 32B | `run_20260906_131256_olmo-2-32b-vf-lp` | 0.46 – 0.74 |
 | llama-3.3-70b | 70B | `run_20260912_200213_llama-3.3-70b-vf-lp` | 0.13 – 0.34 |
@@ -252,32 +252,24 @@ Created slide "Large Language Models Tested" with a table listing all 9 models:
 - Model name, parameter count, brief description
 - Placed in Results section, before Key Results table
 
-#### Task 6: Add short title for slide footnote
+#### Task 6: Add short title and authors to slide footnote ✓ DONE
 
-The presentation slides need a short title to appear in the footnote. This should be concise but capture the key finding.
+The presentation slides need a short title and author list in the footnote.
 
-**Candidate:** "Some LLMs Match Empirical Segregation" (may be too long)
-
-**Task:**
-1. Review presentation footnote requirements (character/word limit)
-2. Propose 2-3 short title options
-3. Add chosen title to the presentation template
+**Completed:**
+- Short title: "Some LLMs Match Empirical Segregation"
+- Short author: "Iyer, Ren, Dhameja, Zosh, Alam, Lipo, & Pape"
 
 **Files:**
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — footnote/title configuration
+- `pres-overleaf.link/pres/sakoda-schelling-llm-social-context.tex` — updated lines 73-74
 
-#### Task 7: Fix DeepSeek parameter count
+#### Task 7: Fix DeepSeek parameter count ✓ DONE
 
-The model table (line 19) shows "—" for DeepSeek V4 Flash parameters. This needs to be filled in with the actual parameter count.
+Updated DeepSeek V4 Flash parameter count to **552B** (from workspace.txt notes).
 
-**Task:**
-1. Look up DeepSeek V4 Flash documentation to find the parameter count (possibly 552B or similar)
-2. Update the table in this README
-3. Update the LLM overview slide in the presentation (Task 5 output)
-
-**Files to update:**
-- `README.md` — model table at line 19
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — LLM overview slide
+**Files updated:**
+- `README.md` — model table
+- `pres-overleaf.link/pres/sakoda-schelling-llm-social-context.tex` — LLM overview slide (line 210)
 
 #### Task 8: Update prompts to current version
 
