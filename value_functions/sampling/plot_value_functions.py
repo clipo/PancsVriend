@@ -156,6 +156,52 @@ def draw_heatmap_axes(ax, vf, role, vmax, exact, annotate=True):
     return im
 
 
+def fig_single_scenario_heatmap(vf, scenario, out_path, dpi=300):
+    """P(MOVE | n_similar, n_occupied) heatmap for a SINGLE scenario, both roles side by side.
+
+    Used for presentation slides where only one scenario's heatmap is needed.
+    Colorbar is horizontal at the bottom for compact presentation layout.
+    Returns the output path.
+    """
+    import numpy as np
+
+    roles = sorted(vf["compositions"].keys(), key=lambda r: (r != "red", r))
+    vmax = max((c["p_move_effective"] or 0.0)
+               for rows in vf["compositions"].values() for c in rows)
+    vmax = max(vmax, 1e-9)
+    exact = is_exact(vf)
+
+    fig, axes = plt.subplots(1, len(roles), figsize=(3.4 * len(roles), 4.2),
+                             constrained_layout=True)
+    if len(roles) == 1:
+        axes = [axes]
+
+    im = None
+    labels = vf["meta"].get("role_labels", {})
+    for j, role in enumerate(roles):
+        ax = axes[j]
+        im = draw_heatmap_axes(ax, vf, role, vmax, exact)
+        ax.set_title(f"{role}\n({labels.get(role, '?')})", fontsize=10)
+        ax.set_xlabel("n_similar", fontsize=9)
+        if j == 0:
+            ax.set_ylabel("n_occupied", fontsize=9)
+
+    m = vf["meta"]
+    # Horizontal colorbar at the bottom
+    cbar = fig.colorbar(im, ax=axes, orientation='horizontal', shrink=0.6,
+                        pad=0.12, aspect=30)
+    cbar.set_label(f"P(MOVE)  [0 .. {vmax:.2f} max]", fontsize=9)
+    kind = "EXACT" if exact else "Sampled"
+    fig.suptitle(f"{kind} value-function: {scenario}\n"
+                 f"(dots = mechanical agent would MOVE; T={m['temperature']})",
+                 fontsize=11)
+
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=dpi)
+    plt.close(fig)
+    return out_path
+
+
 def fig_heatmaps(found, scenarios, out_path, dpi=300):
     """P(MOVE | n_similar, n_occupied) heatmaps: rows = scenarios, cols = roles.
 

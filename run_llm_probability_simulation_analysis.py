@@ -275,13 +275,15 @@ def _replace_flag_value(argv: list[str], flag: str, new_value: str) -> list[str]
 def _render_vf_heatmaps(frozen_jsons: list[Path], out_path: Path) -> None:
     """Composition-surface heatmap grid — the exact lookup table the simulation
     uses — rendered FROM THE FROZEN artifacts. plot_value_functions.fig_heatmaps
-    is reused so this rendering cannot drift from the sweep figures."""
+    is reused so this rendering cannot drift from the sweep figures.
+
+    Also generates individual per-scenario heatmaps for use in presentations."""
     for extra in (REPO_ROOT / "value_functions" / "sampling", REPO_ROOT / "prompt_refinement"):
         if str(extra) not in sys.path:
             sys.path.insert(0, str(extra))
     try:
         from sampling_common import load_value_function
-        from plot_value_functions import SCENARIO_ORDER, fig_heatmaps
+        from plot_value_functions import SCENARIO_ORDER, fig_heatmaps, fig_single_scenario_heatmap
     except ImportError as exc:
         print(f"WARNING: composition-heatmap rendering unavailable ({exc}); "
               f"frozen JSONs written without the grid figure.")
@@ -292,8 +294,17 @@ def _render_vf_heatmaps(frozen_jsons: list[Path], out_path: Path) -> None:
         found[vf["meta"].get("scenario", path.stem)] = vf
     order = [s for s in SCENARIO_ORDER if s in found]
     order += sorted(k for k in found if k not in order)
+
+    # Generate combined 12-panel heatmap
     fig_heatmaps(found, order, str(out_path))
     print(f"[freeze] composition heatmaps -> {out_path}")
+
+    # Generate individual per-scenario heatmaps
+    out_dir = out_path.parent
+    for scenario, vf in found.items():
+        scenario_out = out_dir / f"heatmap_{scenario}.png"
+        fig_single_scenario_heatmap(vf, scenario, str(scenario_out))
+        print(f"[freeze] scenario heatmap -> {scenario_out}")
 
 
 def _write_table_hashes(vf_dir: Path) -> None:

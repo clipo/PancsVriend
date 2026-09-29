@@ -271,9 +271,16 @@ Updated DeepSeek V4 Flash parameter count to **552B** (from workspace.txt notes)
 - `README.md` — model table
 - `pres-overleaf.link/pres/sakoda-schelling-llm-social-context.tex` — LLM overview slide (line 210)
 
-#### Task 8: Update prompts to current version
+#### Task 8: Update prompts to current version ✓ DONE
 
-The prompts used in the project are from an earlier version and need to be updated to reflect the current state of the research.
+Updated presentation slides to show the correct **ratio-based prompts** from `prompt_refinement/ratio_prompt_templates.py`. Value functions use the `R3_dual_count` style where agents are told neighbor COUNTS (not shown a grid/map):
+
+- "You have 5 neighbors: 2 are red team residents like you and 3 are blue team residents."
+- "You have 5 neighbors: 2 are white middle class families like you and 3 are Black families."
+
+**Files:**
+- `prompt_refinement/ratio_prompt_templates.py` — `RATIO_FRAME` template and `r3_dual_count()` context function
+- `value_functions/logprob/logprob_value_function.py` — uses `RATIO_CANDIDATES["R3_dual_count"]`
 
 **Task:**
 1. Review current prompt templates in `value_functions/prompt_refinement/`
@@ -361,27 +368,9 @@ Olmo is the best-performing model at matching empirical segregation orderings. A
 **Files:**
 - `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — add slide at marked location
 
-#### Task 13: Highlight random baseline on first model slide
+#### Task 13: Highlight random baseline on first model slide ✓ DONE
 
-The individual model segregation plots include a "random baseline" dotted line showing expected DI from random agent placement. This line is present but easy to overlook/forget when viewing multiple slides.
-
-**Problem:** Audience may not notice or remember what the dotted line represents.
-
-**Possible approaches:**
-1. Add annotation/callout on the first model slide pointing to the baseline
-2. Add text in the interpretation section: "Dotted line = random baseline"
-3. Add a legend or note that appears only on the first slide
-4. Mention it verbally and add to speaker notes
-
-**Task:**
-1. Decide how to highlight the random baseline on the first model result slide
-2. Implement chosen approach
-3. Ensure subsequent slides don't repeat the explanation (avoid clutter)
-
-**Related to:** Task 4 (individual model result slides)
-
-**Files:**
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — first model result slide
+Added italicized note on the Olmo slide (first model): "Dashed line = random baseline (expected DI from random agent placement)". Appears only on the first slide to avoid clutter on subsequent model slides.
 
 ## 🔬 The Bias Paradox Revealed
 
