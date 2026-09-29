@@ -1,0 +1,10 @@
+model,ordering,empirical_matches,n_adjacent_matches,n_all_matches
+olmo-2-32b,Economic < Racial < Political,[0],1,2
+deepseek-v4-flash,Racial < Economic < Political,[1],1,1
+granite-4.2-30b,Racial < Economic < Political,[1],1,1
+llama-3.3-70b,Racial < Economic < Political,[1],1,1
+mistral-small-4-119b,Racial < Economic < Political,[1],1,1
+phi-4-14b,Racial < Economic < Political,[1],1,1
+qwen3.6-27b,Racial < Economic < Political,[1],1,1
+gemma-4-31b,Racial < Political < Economic,[],0,0
+hermes-4.3-36b,Racial < Political < Economic,[],0,0

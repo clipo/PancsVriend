@@ -30,9 +30,13 @@ A groundbreaking research framework that uncovers how Large Language Models (LLM
 
 Cross-model comparison plots and statistical tests are in `experiments_with_llama_cpp/cross_model/`
 
-### Pending: Update presentation Key Results tables
+### Pending tasks for CCS 2026 presentation
 
-The CCS 2026 presentation (`pres-overleaf.link/pres/Schelling-llm-social-context.tex`) contains a "Key Results" table comparing LLM scenario orderings to empirical data. This must be updated with the new 9-model results using statistically rigorous analysis.
+The presentation at `pres-overleaf.link/pres/Schelling-llm-social-context.tex` needs to be updated with new results for the CCS 2026 conference (October 12–16, Binghamton, NY). The following tasks are required:
+
+#### Task 1: Update Key Results tables
+
+The "Key Results" table comparing LLM scenario orderings to empirical data must be updated with the new 9-model results using statistically rigorous analysis.
 
 **Two tables needed:**
 
@@ -47,9 +51,72 @@ The CCS 2026 presentation (`pres-overleaf.link/pres/Schelling-llm-social-context
 | `≤` or `≥` | Marginally different | 0.01 ≤ p < 0.05 |
 | `≈` | Not statistically distinguishable | p ≥ 0.05 |
 
+**Star notation:** A comparison is marked with a star (`<*` in LaTeX: `$<^{\star}$`) when it matches the empirical ordering. The empirical ordering is Economic < Political < Racial, so any pairwise comparison where the lower-ranked scenario (in empirical) appears on the left is starred — including transitive comparisons (e.g., Economic < Racial).
+
+**Grouping notation:** When one "end" of the ordering matches empirical against all others but the internal ordering of the remaining pair doesn't match, parentheses indicate the non-matching subgroup:
+- `A <* (B < C)` — A being lowest matches empirical, but B < C doesn't (e.g., Olmo: `Economic <* (Racial < Political)`)
+- `(A < B) <* C` — C being highest matches empirical, but A < B doesn't
+
+**Model sorting:** Models are sorted by "goodness" (number of pairwise matches out of 3), then alphabetically within each tier. For example: Olmo (2/3) → Deepseek, Granite, Llama, Mistral, Phi, Qwen (1/3 each) → Gemma, Hermes (0/3).
+
 **Data source:** Raw data in `<run>/analysis/run_summary_by_run_all_scenarios.csv` (10,000 rows per scenario per model). The existing `cross_model_pairwise_tests.csv` only contains adjacent-rank comparisons; direct pairwise tests between all scenario pairs must be generated.
 
 **Methodology** (from `analysis_tools/analysis_guide.md` §7b): Paired t-test on per-run differences (final DI values), Holm-corrected for multiple comparisons within each model.
+
+**Scripts and outputs:** `analysis_tools/ccs2026_presentation/`
+- `compute_scenario_orderings.py` — core script to compute pairwise tests and generate orderings
+- `generate_and_deploy_tables.py` — wrapper that runs analysis and deploys to pres folder
+- `pairwise_tests_all.csv` — full pairwise test results for all models
+- `ordering_3way.csv` — 3-way orderings (Income, Political, Racial) per model
+- `ordering_6way.csv` — 6-way orderings (all scenarios) per model
+- `key_results_table.tex` — LaTeX code ready for presentation
+
+**Usage:**
+```bash
+# Generate tables and interactively ask to deploy (on ECON-0FM96LD-L)
+python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py
+
+# Generate and auto-deploy without asking
+python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes
+
+# Generate only, no deployment
+python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --no
+```
+
+**In the presentation:** Use `\input{key_results_table.tex}` to include the table.
+
+#### Task 2: Update Dissimilarity Index grid slide
+
+The presentation slide "Dissimilarity Index: Sakoda-Schelling Model" describes the grid layout used for computing DI. The current slide shows a 10×10 grid, but the new experiments use a different size.
+
+**Current slide shows:**
+- 10×10 grid (100 cells)
+- 40 agents of each type, 20 empty cells
+- 9 census tracts with sizes: corners 3×3=9, edges 3×4=12, center 4×4=16
+
+**Task:**
+1. Find the actual grid size used in the `-vf-lp` experiments (check `run_config_effective.yaml` for `grid_size`, `num_type_a`, `num_type_b`)
+2. Determine the new tract layout — how is the grid divided into census tracts? (check `DissimilarityIndex.py` for tract division logic)
+3. Update the slide with correct grid dimensions, agent counts, and tract layout diagram
+
+**Files to check:**
+- `experiments_with_llama_cpp/run_*/run_config_effective.yaml` — grid size, agent counts
+- `DissimilarityIndex.py` — tract definition for DI calculation
+
+#### Task 3: Add value function explanation slide(s)
+
+Create new slide(s) for the presentation explaining the value function concept — how LLM move probabilities are extracted and used to drive simulations.
+
+**Content to cover:**
+1. What is the value function? P(MOVE | n_similar, n_occupied) for each agent role
+2. How it's extracted: exact token log-probabilities from the LLM (`-vf-lp` method)
+3. Example value function tables/heatmaps showing how move probability varies with neighborhood composition
+4. Interpretation: what the patterns mean (e.g., higher move probability when fewer similar neighbors)
+
+**Resources:**
+- `value_functions/logprob/logprob_value_function.py` — extraction method
+- `<run>/value_functions/value_function_heatmaps.png` — visual examples
+- `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json` — the actual tables
 
 ## 🔬 The Bias Paradox Revealed
 
