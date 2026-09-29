@@ -252,6 +252,165 @@ Created slide "Large Language Models Tested" with a table listing all 9 models:
 - Model name, parameter count, brief description
 - Placed in Results section, before Key Results table
 
+#### Task 6: Add short title for slide footnote
+
+The presentation slides need a short title to appear in the footnote. This should be concise but capture the key finding.
+
+**Candidate:** "Some LLMs Match Empirical Segregation" (may be too long)
+
+**Task:**
+1. Review presentation footnote requirements (character/word limit)
+2. Propose 2-3 short title options
+3. Add chosen title to the presentation template
+
+**Files:**
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — footnote/title configuration
+
+#### Task 7: Fix DeepSeek parameter count
+
+The model table (line 19) shows "—" for DeepSeek V4 Flash parameters. This needs to be filled in with the actual parameter count.
+
+**Task:**
+1. Look up DeepSeek V4 Flash documentation to find the parameter count (possibly 552B or similar)
+2. Update the table in this README
+3. Update the LLM overview slide in the presentation (Task 5 output)
+
+**Files to update:**
+- `README.md` — model table at line 19
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — LLM overview slide
+
+#### Task 8: Update prompts to current version
+
+The prompts used in the project are from an earlier version and need to be updated to reflect the current state of the research.
+
+**Task:**
+1. Review current prompt templates in `value_functions/prompt_refinement/`
+2. Identify outdated language or references
+3. Update prompts to match current project terminology and methodology
+4. Ensure consistency across all prompt templates
+
+**Files to review:**
+- `value_functions/prompt_refinement/ratio_prompt_templates.py`
+- `value_functions/prompt_refinement/sampling_common.py`
+- Any other prompt-related files in the codebase
+
+#### Task 9: Change value function comparison to DeepSeek vs Qwen
+
+Task 3 created value function comparison slides using Olmo vs Phi. These should be changed to compare DeepSeek vs Qwen, as these are better-known models.
+
+**Current state (from Task 3):**
+- "Value Functions: Olmo 2 32B" slide
+- "Value Functions: Phi 4 14B" slide
+- "Value Function Comparison" — side-by-side Olmo vs Phi
+
+**Task:**
+1. Update `generate_value_function_plots.py` to generate DeepSeek and Qwen plots instead
+2. Regenerate comparison plot as DeepSeek vs Qwen side-by-side
+3. Update the presentation slides to reference the new models
+4. Keep Olmo/Phi plots available for appendix if needed
+
+**Files to update:**
+- `analysis_tools/ccs2026_presentation/generate_value_function_plots.py`
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — value function slides
+
+#### Task 10: Add value function heatmaps to slides
+
+Value function heatmaps need to be added to the presentation in two places:
+1. All final appendix slides should include the heatmaps
+2. A new explanatory slide in the main text showing a heatmap alongside its corresponding value function plot
+
+**Why heatmaps matter:** The 1D value function plots (P(MOVE) vs similar neighbors) have "jagged edges" because they are compressed from the smooth 2D heatmap (similar neighbors × empty neighbors → P(MOVE)). Showing both helps the audience understand where the jaggedness comes from — it's an artifact of the dimensionality reduction, not noise in the data.
+
+**Task:**
+1. Locate existing value function heatmap files (likely in `<run>/value_functions/` or `<run>/plots/`)
+2. If heatmaps don't exist, create a script to generate them from the value function JSON files
+3. Deploy heatmaps to `pres-overleaf.link/pres/pics/`
+4. Add heatmaps to each model's appendix slide
+5. Create new explanatory slide in main text with:
+   - Value function heatmap (2D: similar neighbors × empty neighbors → P(MOVE)) — the "smooth" underlying data
+   - Corresponding 1D value function plot (P(MOVE) vs similar neighbors) — showing the "jagged" compression
+   - Explanation of how the 1D plot is derived from the 2D heatmap
+
+**Files:**
+- Value function data: `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json`
+- New script needed: `analysis_tools/ccs2026_presentation/generate_value_function_heatmaps.py`
+- Presentation: `pres-overleaf.link/pres/Schelling-llm-social-context.tex`
+
+#### Task 11: Add statistical significance legend to Key Results slide
+
+The Key Results table uses symbols (`<`, `>`, `≈`) to indicate statistical significance, but the slide doesn't explain what these mean. The audience needs to understand:
+- `≈` means p > 0.10 (not statistically distinguishable)
+- `<` or `>` means p < 0.01 (statistically significant)
+
+**Challenge:** The slide is already cramped, so the legend needs to be compact.
+
+**Possible approaches:**
+1. Footnote at bottom of slide (small text)
+2. Legend box in corner
+3. Separate "How to read this table" mini-slide before the results
+4. Symbol definitions in the slide title/subtitle area
+5. Use color coding in addition to symbols (e.g., bold for significant)
+
+**Task:**
+1. Review current slide layout and available space
+2. Choose approach that fits without cluttering
+3. Add legend/explanation to the presentation
+
+**Related to:** Task 1 (Key Results tables)
+
+**Files:**
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — Key Results slide
+
+#### Task 12: Add "Why Olmo?" slide
+
+Olmo is the best-performing model at matching empirical segregation orderings. A slide is needed to explain why this might be the case.
+
+**Location:** Marked in presentation with `%%ADD WHY OLMO SLIDE HERE`
+
+**Content (speculative, for future investigation):**
+- Olmo is designed specifically for research purposes
+- Uses an open-source training corpus (fully documented)
+- May avoid "anti-bias" adjustments that are built into proprietary/black-box models
+- Other commercial models may have post-training alignment that suppresses realistic bias patterns
+- Other LLMs, while open-source (weights available), do not have open-source training corpuses — **[VERIFY THIS CLAIM]**
+
+**Framing:** Present as speculation/hypothesis for future work, not a proven finding.
+
+**Future investigation examples:**
+- Sentiment analysis using the Olmo corpus (publicly available) to detect bias patterns in training data
+- Compare corpus composition across models where documentation is available
+
+**Task:**
+1. Find the `%%ADD WHY OLMO SLIDE HERE` comment in the presentation
+2. Create slide titled "Why Olmo?" with the speculative explanation
+3. Include "Future work" framing to indicate this needs further investigation
+4. Mention sentiment analysis on Olmo corpus as a concrete next step
+
+**Files:**
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — add slide at marked location
+
+#### Task 13: Highlight random baseline on first model slide
+
+The individual model segregation plots include a "random baseline" dotted line showing expected DI from random agent placement. This line is present but easy to overlook/forget when viewing multiple slides.
+
+**Problem:** Audience may not notice or remember what the dotted line represents.
+
+**Possible approaches:**
+1. Add annotation/callout on the first model slide pointing to the baseline
+2. Add text in the interpretation section: "Dotted line = random baseline"
+3. Add a legend or note that appears only on the first slide
+4. Mention it verbally and add to speaker notes
+
+**Task:**
+1. Decide how to highlight the random baseline on the first model result slide
+2. Implement chosen approach
+3. Ensure subsequent slides don't repeat the explanation (avoid clutter)
+
+**Related to:** Task 4 (individual model result slides)
+
+**Files:**
+- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — first model result slide
+
 ## 🔬 The Bias Paradox Revealed
 
 Our research uncovers a fundamental paradox in AI systems:

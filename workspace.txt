@@ -1,4 +1,50 @@
 date
+Tue Sep 29 09:01:21 EDT 2026
+
+Footnote title text correct
+
+Why does Deepseek have a blank in parameters? 
+	552B. check file
+
+quantized models, not full models
+
+update prompts
+
+Use well known models
+
+Gemma, deepseek, llama, Qwen
+
+add in heatmap in the main part, show the value function.
+
+Use heatmap also, in appendix
+
+50% is it 2/4 or 4/8?? those are different
+
+
+Granite, Mistral, Phi
+Last three are degenerate. mDOesn't engage
+
+
+Olmo designed for research, can see all the data on which it was trained
+	Maybe no "anti-bias" built in?
+	
+Open source models, but not open source on data
+
+
+Seg order slide should mention statistical significance
+
+seg by context: ---- is random baseline
+
+Jagged edges: it's from heatmap.
+
+
+For discussion: why olmo, sentiment analysis?
+
+Why Olmo?
+
+
+
+
 Tue Sep 29 02:10:38 EDT 2026
 
 Given this update to the results due to using the correct statsical analysis, I want you to read through the slides, especially the conclusion, and verify whether claims have changed
