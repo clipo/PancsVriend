@@ -151,3 +151,6 @@ experiments/**/*.json.gz
 
 # secrets
 .env
+
+# Virtual links (local directory references)
+*.link
