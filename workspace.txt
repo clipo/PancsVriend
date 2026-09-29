@@ -1,3 +1,78 @@
+date
+Tue Sep 29 00:34:00 EDT 2026
+
+Here is another task: a slide which lists all the LLMs we sue and brief information about each one, a short phrase. This should be a table which fits on one slide
+
+Mon Sep 28 23:33:39 EDT 2026
+
+Does the new grid size and layout appear anywhere else in the presentation? That will also need to be updated, if so.
+
+
+Mon Sep 28 23:25:15 EDT 2026
+
+Here is another task. Put this task in README, do not start it yet.  Clearly all the individual slides like %--- Mistral Results ---%
+\begin{frame}[t]{Mistral (Mixtral-8x22b-instruct) \hfill \small 100 runs, 7 scenarios}
+
+\begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+        \centering
+        \textbf{Segregation by Context}
+        \includegraphics[width=\textwidth]{pics/mistral_segregation_metrics_comparison_dissimilarity_index.png}
+    \end{column} etc are wrong. But we want slides like that for each of the new models and results. Make one for each , with empty spots for the images and interpreation. Then we need to pull in the best pictures and put in results. I need your help in locating the best pictures in the file structure. I could use some advice.
+
+
+Mon Sep 28 23:06:07 EDT 2026
+
+Now, since you make the nicely formatted latex tables, I want you to create a python script that is wrapped into that. that script will see if we are on hostname ECON-0FM96LD-L. if so, it will ask if I want to copy the resulting latex tabefile(s) into the pres folder. then the pres latex file can use Input to pull in the latex table file(s) without rewriting the presentation latex files, just recompling
+
+
+Mon Sep 28 22:22:32 EDT 2026
+
+
+Here is a task. Add this task to README. The bigger task here is updating the presentation. There are a number of subtasks to that task.
+
+
+Please consider this task. Do not start this task: explain this task to me and then, when we agree, we add it to README. Here is the task: One task is updating this table in pres \begin{frame}[t]{Key Results}
+
+Segregation orderings across LLMs compared to empirical data:
+
+\medskip
+
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Source} & \textbf{Ordering (lowest $\rightarrow$ highest segregation)} \\
+\midrule
+\textbf{Empirical} & Economic $<^{\star}$ Political $<^{\star}$ Racial \\
+\midrule
+Mistral & Economic $<^{\star}$ Racial $<$ Political \\
+Gemma & Racial $<$ Economic $<^{\star}$ Political \\
+Qwen & Racial $\approx$ Political $<$ Economic \\
+\midrule
+Phi4 & Economic $\leq$ Racial $\approx$ Political \\
+Hermes & Racial $\approx$ Political $<$ Economic \\
+Llama & No engagement (all zero) \\
+%Granite & Incomplete data \\
+\bottomrule
+\end{tabular} \\
+{$<^{\star}$ indicates match to the empirical order.}
+\end{center}
+
+\medskip
+
+\textbf{Pattern:} Most LLMs show political as highest segregation (unlike empirical).
+
+\end{frame}
+
+It must be updated with the new, correct list of the LLMs, which are very different. We also need the actual results depicted here. We cannot jump to this table, however, we must do a careful, documented, statistical analysis. 
+
+---
+
+Another task is to update the table of the shape 
+
+-----
+
 First, I need to create a function which defines the census tract of a given cell in the grid. call that d 
 
 

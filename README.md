@@ -115,20 +115,28 @@ The tract logic (`DissimilarityIndex.py`) uses a 3×3 block partition where edge
 - `pres-overleaf.link/pres/sakoda-schelling-llm-social-context.tex` — the slide to update
 - `DissimilarityIndex.py` — tract definition reference
 
-#### Task 3: Add value function explanation slide(s)
+#### Task 3: Add value function explanation slide(s) ✓ DONE
 
-Create new slide(s) for the presentation explaining the value function concept — how LLM move probabilities are extracted and used to drive simulations.
+Created slides explaining value functions with visual examples:
 
-**Content to cover:**
-1. What is the value function? P(MOVE | n_similar, n_occupied) for each agent role
-2. How it's extracted: exact token log-probabilities from the LLM (`-vf-lp` method)
-3. Example value function tables/heatmaps showing how move probability varies with neighborhood composition
-4. Interpretation: what the patterns mean (e.g., higher move probability when fewer similar neighbors)
+1. **"Value Functions: From LLM to Simulation"** — conceptual explanation
+2. **"Value Functions: Olmo 2 32B"** — context-sensitive example (6 scenarios)
+3. **"Value Functions: Phi 4 14B"** — context-insensitive example (6 scenarios)
+4. **"Value Function Comparison"** — side-by-side Olmo vs Phi
 
-**Resources:**
-- `value_functions/logprob/logprob_value_function.py` — extraction method
-- `<run>/value_functions/value_function_heatmaps.png` — visual examples
-- `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json` — the actual tables
+**Value function plot script:** `analysis_tools/ccs2026_presentation/generate_value_function_plots.py`
+
+Generates 2D value function plots showing P(MOVE) vs fraction of similar neighbors:
+- Per-model plots: 2×3 grid of all 6 scenarios
+- Comparison plot: Olmo vs Phi side-by-side
+
+```bash
+python analysis_tools/ccs2026_presentation/generate_value_function_plots.py --yes
+```
+
+Output: `pics/<model>_value_functions.png`, `pics/value_function_comparison.png`
+
+**Data source:** `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json`
 
 #### Task 4: Create individual model result slides
 
@@ -238,6 +246,12 @@ experiments_with_llama_cpp/cross_model/cross_model_bump_*.png
 experiments_with_llama_cpp/cross_model/cross_model_level_*.png
 ```
 These show all models together and may be useful for a summary slide.
+
+#### Task 5: Create LLM overview slide ✓ DONE
+
+Created slide "Large Language Models Tested" with a table listing all 9 models:
+- Model name, parameter count, brief description
+- Placed in Results section, before Key Results table
 
 ## 🔬 The Bias Paradox Revealed
 

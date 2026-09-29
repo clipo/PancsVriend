@@ -538,7 +538,7 @@ def generate_latex_table(ordering_3way_df):
 
 \smallskip
 
-\textbf{Pattern:} All LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
+\textbf{Pattern:} Most LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Most correctly order Economic $<$ Political, but none show Political $<$ Racial.
 
 \end{frame}
 """
