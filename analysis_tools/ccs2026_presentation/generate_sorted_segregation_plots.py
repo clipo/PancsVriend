@@ -34,14 +34,14 @@ PICS_DIR = PRES_DIR / "pics"
 # Target hostname for deployment
 TARGET_HOSTNAME = "ECON-0FM96LD-L"
 
-# Short labels as requested
+# Short labels - bold for the 3 empirical comparison scenarios
 SCENARIO_SHORT_LABELS = {
     'baseline': 'Color(RvB)',
     'green_yellow': 'Color(GvY)',
-    'race_white_black': 'Racial',
+    'race_white_black': r'$\bf{Racial}$',
     'ethnic_asian_hispanic': 'Ethnic',
-    'income_high_low': 'Economic',
-    'political_liberal_conservative': 'Political',
+    'income_high_low': r'$\bf{Economic}$',
+    'political_liberal_conservative': r'$\bf{Political}$',
 }
 
 # Colors for scenarios (consistent with original)

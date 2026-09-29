@@ -208,14 +208,29 @@ python analysis_tools/ccs2026_presentation/deploy_model_images.py --no
 
 **Sorted segregation plots:** `analysis_tools/ccs2026_presentation/generate_sorted_segregation_plots.py`
 
-Generates alternative segregation plots where scenarios are **sorted by mean DI** (lowest to highest) for each model, helping readers understand the ordering visually. Uses shorter labels:
-- Color(GvY), Color(RvB), Economic, Ethnic, Racial, Political
+Generates alternative segregation plots where scenarios are **sorted by mean DI** (lowest to highest) for each model, helping readers understand the ordering visually. Uses shorter labels with **bold** for the 3 empirical comparison scenarios:
+- Color(GvY), Color(RvB), **Economic**, Ethnic, **Racial**, **Political**
 
 ```bash
 python analysis_tools/ccs2026_presentation/generate_sorted_segregation_plots.py --yes
 ```
 
 Output: `pics/<model>_segregation_sorted.png`
+
+**Clean convergence plots:** `analysis_tools/ccs2026_presentation/generate_convergence_plots.py`
+
+Generates simplified convergence plots with:
+- Shorter labels (same as above, with bold)
+- No "active runs" strip (cleaner for slides)
+- Highest DI scenarios drawn last (visible on top when lines overlap)
+
+**Requires:** `<run>/analysis/dissimilarity_index/dissimilarity_by_step_all.csv.gz` (not in git due to size)
+
+```bash
+python analysis_tools/ccs2026_presentation/generate_convergence_plots.py --yes
+```
+
+Output: `pics/<model>_convergence_clean.png`
 
 **Cross-model comparison images (already generated):**
 ```
