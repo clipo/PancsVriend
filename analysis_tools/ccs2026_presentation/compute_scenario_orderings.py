@@ -14,7 +14,7 @@ Outputs:
 - pairwise_tests_all.csv: Full pairwise test results
 - ordering_3way.csv: Income vs Political vs Racial orderings
 - ordering_6way.csv: All scenario orderings
-- key_results_table.tex: LaTeX code for presentation
+- key_results_ordering.tex: LaTeX model rows only (for \input in presentation)
 """
 
 import pandas as pd
@@ -443,45 +443,23 @@ def check_grouping_pattern(ordering_str):
 
 
 def generate_latex_table(ordering_3way_df):
-    """Generate LaTeX code for the Key Results table.
+    """Generate LaTeX code for the Key Results ordering rows only.
 
     Uses grouping notation for cases where the first element matches empirical
     against all others, but internal ordering doesn't match.
     E.g., Olmo: "Economic <* (Racial < Political)" shows Economic lowest matches
     empirical, but Racial < Political doesn't match (should be Political < Racial).
+
+    Only generates the model rows (\midrule to \bottomrule) - the rest of the
+    frame is in the main presentation .tex file.
     """
     from datetime import datetime
     import re
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    n_models = len(ordering_3way_df)
-    models_list = ", ".join(ordering_3way_df['model'].tolist())
 
-    header = f"""% =============================================================================
-% Key Results Table - Auto-generated
-% =============================================================================
-% Source: analysis_tools/ccs2026_presentation/compute_scenario_orderings.py
-% Generated: {timestamp}
-% Models: {n_models} ({models_list})
-% Data: experiments_with_llama_cpp/cross_model/cross_model_vf-lp_sources.csv
-% Methodology: Independent t-tests (Welch's), Holm-corrected, requires p<0.01 AND |Cohen's d|>=0.2
-% Regenerate: python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes
-% =============================================================================
-
-"""
-
-    latex = header + r"""\begin{frame}[t]{Key Result. Segregation Ordering: Empirical vs. LLMs}
-
-
-\begin{center}
-\small
-\begin{tabular}{ll}
-\toprule
-\textbf{Source} & \textbf{Ordering (lowest $\rightarrow$ highest segregation)} \\
-\midrule
-\textbf{Empirical} & Economic $<^{\star}$ Political $<^{\star}$ Racial \\
-\midrule
-"""
+    # No comments at start - they break \noalign in tabular when using \input
+    latex = ""
 
     for _, row in ordering_3way_df.iterrows():
         model = row['model']
@@ -578,18 +556,8 @@ def generate_latex_table(ordering_3way_df):
 
         latex += f"{model_display} & {latex_ordering} \\\\\n"
 
-    latex += r"""\bottomrule
-\end{tabular} \\
-{$<^{\star}$ indicates match to the empirical order.}
-\end{center}
-
-\smallskip
-
-\textbf{Pattern:} Most context-sensitive LLMs show Racial segregation as \emph{lowest} (opposite of empirical). Only Olmo matches empirical by showing Economic as lowest. Three models (Granite, Mistral, Phi) are context-insensitive.
-
-\end{frame}
-"""
-
+    # Remove trailing \\\n from last row - main .tex will add \\ before \bottomrule
+    latex = latex.rstrip('\n').rstrip('\\').rstrip('\\')
     return latex
 
 
@@ -678,10 +646,19 @@ def main():
     # Generate LaTeX
     print("\n5. Generating LaTeX table...")
     latex_code = generate_latex_table(ordering_3way_df)
-    latex_path = SCRIPT_DIR / "key_results_table.tex"
+    latex_path = SCRIPT_DIR / "key_results_ordering.tex"
     with open(latex_path, 'w') as f:
-        f.write(latex_code)
+        f.write(latex_code.rstrip('\n'))  # No trailing newline - needed for \bottomrule
     print(f"   Saved: {latex_path}")
+
+    # Write metadata file
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    info_path = SCRIPT_DIR / "key_results_ordering_info.txt"
+    with open(info_path, 'w') as f:
+        f.write(f"Source: analysis_tools/ccs2026_presentation/compute_scenario_orderings.py\n")
+        f.write(f"Generated: {timestamp}\n")
+    print(f"   Saved: {info_path}")
 
     print("\n" + "=" * 60)
     print("Done!")

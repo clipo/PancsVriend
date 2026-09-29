@@ -34,7 +34,7 @@ Cross-model comparison plots and statistical tests are in `experiments_with_llam
 
 The presentation at `pres-overleaf.link/pres/Schelling-llm-social-context.tex` needs to be updated with new results for the CCS 2026 conference (October 12–16, Binghamton, NY). The following tasks are required:
 
-#### Task 1: Update Key Results tables
+#### Task 1: Update Key Results tables ✓ DONE
 
 The "Key Results" table comparing LLM scenario orderings to empirical data must be updated with the new 9-model results using statistically rigorous analysis.
 
@@ -84,7 +84,7 @@ python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --no
 
 **In the presentation:** Use `\input{key_results_table.tex}` to include the table.
 
-#### Task 2: Update Dissimilarity Index grid slide
+#### Task 2: Update Dissimilarity Index grid slide ✓ DONE
 
 The presentation slide "Dissimilarity Index: Sakoda-Schelling Model" describes the grid layout used for computing DI. The current slide shows a 10×10 grid, but the new experiments use a 20×20 grid.
 
@@ -119,15 +119,15 @@ The tract logic (`DissimilarityIndex.py`) uses a 3×3 block partition where edge
 Created slides explaining value functions with visual examples:
 
 1. **"Value Functions: From LLM to Simulation"** — conceptual explanation
-2. **"Value Functions: Olmo 2 32B"** — context-sensitive example (6 scenarios)
+2. **"Value Functions: DeepSeek V4 Flash"** — context-sensitive example (6 scenarios)
 3. **"Value Functions: Phi 4 14B"** — context-insensitive example (6 scenarios)
-4. **"Value Function Comparison"** — side-by-side Olmo vs Phi
+4. **"Value Function Comparison"** — side-by-side DeepSeek vs Phi (updated in Task 9)
 
 **Value function plot script:** `analysis_tools/ccs2026_presentation/generate_value_function_plots.py`
 
 Generates 2D value function plots showing P(MOVE) vs fraction of similar neighbors:
 - Per-model plots: 2×3 grid of all 6 scenarios
-- Comparison plot: Olmo vs Phi side-by-side
+- Comparison plot: DeepSeek vs Phi side-by-side
 
 ```bash
 python analysis_tools/ccs2026_presentation/generate_value_function_plots.py --yes
@@ -137,7 +137,7 @@ Output: `pics/<model>_value_functions.png`, `pics/value_function_comparison.png`
 
 **Data source:** `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json`
 
-#### Task 4: Create individual model result slides
+#### Task 4: Create individual model result slides ✓ DONE
 
 The presentation has 6 old model result slides that must be **removed and replaced** with new slides for the 9 current models.
 
@@ -286,24 +286,18 @@ The prompts used in the project are from an earlier version and need to be updat
 - `value_functions/prompt_refinement/sampling_common.py`
 - Any other prompt-related files in the codebase
 
-#### Task 9: Change value function comparison to DeepSeek vs Qwen
+#### Task 9: Change value function comparison to DeepSeek vs Phi ✓ DONE
 
-Task 3 created value function comparison slides using Olmo vs Phi. These should be changed to compare DeepSeek vs Qwen, as these are better-known models.
+Changed the main body value function slides to show DeepSeek (context-sensitive) vs Phi (context-insensitive).
 
-**Current state (from Task 3):**
-- "Value Functions: Olmo 2 32B" slide
-- "Value Functions: Phi 4 14B" slide
-- "Value Function Comparison" — side-by-side Olmo vs Phi
+**Updated:**
+- `generate_value_function_plots.py` — uses DeepSeek and Phi for comparison
+- Presentation slides:
+  - "Value Functions: DeepSeek V4 Flash (Context-Sensitive)"
+  - "Value Functions: Phi 4 14B (Context-Insensitive)"
+  - "Value Function Comparison" — DeepSeek vs Phi side-by-side
 
-**Task:**
-1. Update `generate_value_function_plots.py` to generate DeepSeek and Qwen plots instead
-2. Regenerate comparison plot as DeepSeek vs Qwen side-by-side
-3. Update the presentation slides to reference the new models
-4. Keep Olmo/Phi plots available for appendix if needed
-
-**Files to update:**
-- `analysis_tools/ccs2026_presentation/generate_value_function_plots.py`
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — value function slides
+**To regenerate comparison image:** `python analysis_tools/ccs2026_presentation/generate_value_function_plots.py --yes`
 
 #### Task 10: Add value function heatmaps to slides
 
@@ -328,30 +322,16 @@ Value function heatmaps need to be added to the presentation in two places:
 - New script needed: `analysis_tools/ccs2026_presentation/generate_value_function_heatmaps.py`
 - Presentation: `pres-overleaf.link/pres/Schelling-llm-social-context.tex`
 
-#### Task 11: Add statistical significance legend to Key Results slide
+#### Task 11: Add statistical significance legend to Key Results slide ✓ DONE
 
-The Key Results table uses symbols (`<`, `>`, `≈`) to indicate statistical significance, but the slide doesn't explain what these mean. The audience needs to understand:
-- `≈` means p > 0.10 (not statistically distinguishable)
-- `<` or `>` means p < 0.01 (statistically significant)
+Added compact legend in `\scriptsize` below the table explaining the symbols:
+- `<` or `>`: statistically significant (p<0.01, |d| ≥ 0.2)
+- `≈`: not significant (p>0.10)
+- `<*`: matches empirical
 
-**Challenge:** The slide is already cramped, so the legend needs to be compact.
+**Updated:** `compute_scenario_orderings.py` — the script that generates `key_results_table.tex`
 
-**Possible approaches:**
-1. Footnote at bottom of slide (small text)
-2. Legend box in corner
-3. Separate "How to read this table" mini-slide before the results
-4. Symbol definitions in the slide title/subtitle area
-5. Use color coding in addition to symbols (e.g., bold for significant)
-
-**Task:**
-1. Review current slide layout and available space
-2. Choose approach that fits without cluttering
-3. Add legend/explanation to the presentation
-
-**Related to:** Task 1 (Key Results tables)
-
-**Files:**
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — Key Results slide
+**To regenerate:** `python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes`
 
 #### Task 12: Add "Why Olmo?" slide
 

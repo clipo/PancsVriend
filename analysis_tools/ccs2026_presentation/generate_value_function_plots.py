@@ -162,20 +162,21 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
 
 def generate_combined_example_plot(output_path: Path) -> bool:
     """Generate a single plot comparing two contrasting models/scenarios."""
-    # Load Olmo (high differentiation) and Phi (low differentiation)
+    # Load DeepSeek (context-sensitive) and Phi (context-insensitive)
+    # Shows contrast between models that respond to context vs those that don't
     sources = pd.read_csv(CROSS_MODEL_SOURCES)
 
-    olmo_row = sources[sources['model'].str.startswith('olmo')].iloc[0]
+    deepseek_row = sources[sources['model'].str.startswith('deepseek')].iloc[0]
     phi_row = sources[sources['model'].str.startswith('phi')].iloc[0]
 
-    olmo_vfs = load_value_functions(olmo_row['run_dir'])
+    deepseek_vfs = load_value_functions(deepseek_row['run_dir'])
     phi_vfs = load_value_functions(phi_row['run_dir'])
 
-    if not olmo_vfs or not phi_vfs:
-        print("  WARNING: Could not load Olmo or Phi value functions")
+    if not deepseek_vfs or not phi_vfs:
+        print("  WARNING: Could not load DeepSeek or Phi value functions")
         return False
 
-    # Create 2x2 comparison: Olmo baseline vs political, Phi baseline vs political
+    # Create 1x2 comparison: DeepSeek (context-sensitive) vs Phi (context-insensitive)
     plt.rcParams.update({
         "figure.dpi": 300,
         "savefig.dpi": 300,
@@ -187,7 +188,7 @@ def generate_combined_example_plot(output_path: Path) -> bool:
 
     scenarios_to_show = ['baseline', 'political_liberal_conservative']
     models_data = [
-        ("Olmo 2 32B", olmo_vfs),
+        ("DeepSeek V4 Flash", deepseek_vfs),
         ("Phi 4 14B", phi_vfs),
     ]
 

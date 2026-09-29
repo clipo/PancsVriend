@@ -25,7 +25,8 @@ PRES_DIR = PROJECT_ROOT / "pres-overleaf.link" / "pres"
 
 # Files to deploy
 LATEX_FILES = [
-    "key_results_table.tex",
+    "key_results_ordering.tex",
+    "key_results_ordering_info.txt",
 ]
 
 TARGET_HOSTNAME = "ECON-0FM96LD-L"
@@ -71,7 +72,7 @@ def deploy_tables():
     print("\nDone! Tables deployed to presentation folder.")
     print(f"  Location: {PRES_DIR}")
     print("\nTo use in your presentation, add to the preamble or where needed:")
-    print("  \\input{key_results_table.tex}")
+    print("  \\input{key_results_ordering.tex}")
 
     return True
 
