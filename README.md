@@ -45,11 +45,10 @@ The "Key Results" table comparing LLM scenario orderings to empirical data must 
 
 **Task:** Build ordering strings (e.g., "Economic < Political < Racial") for each model where comparison symbols reflect statistical significance:
 
-| Symbol | Meaning | Threshold (Holm-corrected p) |
-|--------|---------|------------------------------|
-| `<` or `>` | Significantly different | p < 0.01 |
-| `≤` or `≥` | Marginally different | 0.01 ≤ p < 0.05 |
-| `≈` | Not statistically distinguishable | p ≥ 0.05 |
+| Symbol | Meaning | Threshold |
+|--------|---------|-----------|
+| `<` or `>` | Significantly different | p < 0.01 (Holm-corrected) AND \|Cohen's d\| ≥ 0.2 |
+| `≈` | Not statistically distinguishable | p ≥ 0.01 OR \|Cohen's d\| < 0.2 |
 
 **Star notation:** A comparison is marked with a star (`<*` in LaTeX: `$<^{\star}$`) when it matches the empirical ordering. The empirical ordering is Economic < Political < Racial, so any pairwise comparison where the lower-ranked scenario (in empirical) appears on the left is starred — including transitive comparisons (e.g., Economic < Racial).
 
@@ -57,7 +56,7 @@ The "Key Results" table comparing LLM scenario orderings to empirical data must 
 - `A <* (B < C)` — A being lowest matches empirical, but B < C doesn't (e.g., Olmo: `Economic <* (Racial < Political)`)
 - `(A < B) <* C` — C being highest matches empirical, but A < B doesn't
 
-**Model sorting:** Models are sorted by "goodness" (number of pairwise matches out of 3), then alphabetically within each tier. For example: Olmo (2/3) → Deepseek, Granite, Llama, Mistral, Phi, Qwen (1/3 each) → Gemma, Hermes (0/3).
+**Model sorting:** Models are sorted by: (1) decreasing pairwise matches to empirical, (2) decreasing number of significant differences, (3) alphabetically. Current order: Olmo (2/3 matches) → Deepseek, Llama, Qwen (1/3 each, 2 sig diffs) → Gemma, Hermes (0/3, 1 sig diff) → Granite, Mistral, Phi (0/3, 0 sig diffs — context-insensitive).
 
 **Data source:** Raw data in `<run>/analysis/run_summary_by_run_all_scenarios.csv` (10,000 rows per scenario per model). The existing `cross_model_pairwise_tests.csv` only contains adjacent-rank comparisons; direct pairwise tests between all scenario pairs must be generated.
 
@@ -849,8 +848,9 @@ Our research reveals the fundamental difference:
 - **Interpretation**: Matches empirical segregation indices from urban studies
 
 #### Statistical Significance
-- **3-way comparison** (Economic, Political, Racial): All pairwise differences significant at p < 0.01 for all 9 models
-- **6-way comparison** (all scenarios): Most but not all pairs significant; context-insensitive models (phi-4, granite, mistral) show some non-significant pairs (e.g., phi-4 race vs ethnic p = 1.0; qwen baseline vs income p = 0.20)
+- **Methodology**: Independent samples t-test (Welch's), Holm-corrected, requiring both p < 0.01 AND |Cohen's d| ≥ 0.2
+- **3-way comparison** (Economic, Political, Racial): 6/9 models show at least one significant difference; 3 models (Granite, Mistral, Phi) are context-insensitive with no significant differences
+- **Context-sensitive models**: Olmo (2/3 empirical matches), Deepseek/Llama/Qwen (1/3 each), Gemma/Hermes (0/3 but 1 sig diff)
 - Full pairwise test results: `analysis_tools/ccs2026_presentation/pairwise_tests_all.csv`
 
 ## 📚 Documentation
