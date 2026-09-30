@@ -306,28 +306,19 @@ Changed the main body value function slides to show DeepSeek (context-sensitive)
 
 **To regenerate comparison image:** `python analysis_tools/ccs2026_presentation/generate_value_function_plots.py --yes`
 
-#### Task 10: Add value function heatmaps to slides
+#### Task 10: Add value function heatmaps to slides ✓ DONE
 
-Value function heatmaps need to be added to the presentation in two places:
-1. All final appendix slides should include the heatmaps
-2. A new explanatory slide in the main text showing a heatmap alongside its corresponding value function plot
+**Completed:**
+1. Modified `plot_value_functions.py` to add `fig_single_scenario_heatmap()` for individual scenario heatmaps with horizontal colorbar
+2. Modified `run_llm_probability_simulation_analysis.py` to generate 13 images (1 combined + 6 individual) when freezing value functions
+3. Generated combined heatmaps for all 9 models (`<model>_heatmaps.png`)
+4. Added heatmap slides before each value function slide in appendix (18 slides total)
+5. Created explanatory slide "From 2D Heatmap to 1D Value Function (DeepSeek Political)" with side-by-side comparison
 
-**Why heatmaps matter:** The 1D value function plots (P(MOVE) vs similar neighbors) have "jagged edges" because they are compressed from the smooth 2D heatmap (similar neighbors × empty neighbors → P(MOVE)). Showing both helps the audience understand where the jaggedness comes from — it's an artifact of the dimensionality reduction, not noise in the data.
-
-**Task:**
-1. Locate existing value function heatmap files (likely in `<run>/value_functions/` or `<run>/plots/`)
-2. If heatmaps don't exist, create a script to generate them from the value function JSON files
-3. Deploy heatmaps to `pres-overleaf.link/pres/pics/`
-4. Add heatmaps to each model's appendix slide
-5. Create new explanatory slide in main text with:
-   - Value function heatmap (2D: similar neighbors × empty neighbors → P(MOVE)) — the "smooth" underlying data
-   - Corresponding 1D value function plot (P(MOVE) vs similar neighbors) — showing the "jagged" compression
-   - Explanation of how the 1D plot is derived from the 2D heatmap
-
-**Files:**
-- Value function data: `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json`
-- New script needed: `analysis_tools/ccs2026_presentation/generate_value_function_heatmaps.py`
-- Presentation: `pres-overleaf.link/pres/Schelling-llm-social-context.tex`
+**Files updated:**
+- `value_functions/sampling/plot_value_functions.py` — added `fig_single_scenario_heatmap()`
+- `run_llm_probability_simulation_analysis.py` — updated `_render_vf_heatmaps()` to generate per-scenario images
+- `pres-overleaf.link/pres/pics/<model>_heatmaps.png` — 9 combined heatmap images
 
 #### Task 11: Add statistical significance legend to Key Results slide ✓ DONE
 
@@ -340,33 +331,13 @@ Added compact legend in `\scriptsize` below the table explaining the symbols:
 
 **To regenerate:** `python analysis_tools/ccs2026_presentation/generate_and_deploy_tables.py --yes`
 
-#### Task 12: Add "Why Olmo?" slide
+#### Task 12: Add "Why Olmo?" slide ✓ DONE
 
-Olmo is the best-performing model at matching empirical segregation orderings. A slide is needed to explain why this might be the case.
-
-**Location:** Marked in presentation with `%%ADD WHY OLMO SLIDE HERE`
-
-**Content (speculative, for future investigation):**
-- Olmo is designed specifically for research purposes
-- Uses an open-source training corpus (fully documented)
-- May avoid "anti-bias" adjustments that are built into proprietary/black-box models
-- Other commercial models may have post-training alignment that suppresses realistic bias patterns
-- Other LLMs, while open-source (weights available), do not have open-source training corpuses — **[VERIFY THIS CLAIM]**
-
-**Framing:** Present as speculation/hypothesis for future work, not a proven finding.
-
-**Future investigation examples:**
-- Sentiment analysis using the Olmo corpus (publicly available) to detect bias patterns in training data
-- Compare corpus composition across models where documentation is available
-
-**Task:**
-1. Find the `%%ADD WHY OLMO SLIDE HERE` comment in the presentation
-2. Create slide titled "Why Olmo?" with the speculative explanation
-3. Include "Future work" framing to indicate this needs further investigation
-4. Mention sentiment analysis on Olmo corpus as a concrete next step
-
-**Files:**
-- `pres-overleaf.link/pres/Schelling-llm-social-context.tex` — add slide at marked location
+Added slide "Why Olmo? (Speculation)" before the Conclusion section. Content:
+- Hypothesis: Training corpus transparency (Dolma is fully open-source)
+- Other "open" LLMs have open weights but closed training data
+- Possible mechanism: Models trained to avoid biased outputs may flatten context-sensitivity
+- Clearly framed as speculation for future investigation
 
 #### Task 13: Highlight random baseline on first model slide ✓ DONE
 

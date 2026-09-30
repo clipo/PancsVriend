@@ -7,6 +7,23 @@ These are cleaner than the full heatmaps and easier to interpret on slides.
 
 Outputs to pres-overleaf.link/pres/pics/<model>_value_functions.png
 
+X-AXIS TRANSFORMATION NOTE (2026-09-29):
+    The value function JSON stores `ratio_float` as the OPPOSITE fraction:
+        ratio_float = (n_occupied - n_similar) / n_occupied
+
+    However, we want the x-axis to show "Fraction Similar Neighbors" to match
+    the heatmaps which show P(MOVE) indexed by (n_similar, n_occupied).
+
+    Therefore, we transform x-data to similar fraction:
+        similar_fraction = 1.0 - ratio_float
+
+    This ensures consistency:
+    - Heatmaps: LOW n_similar → HIGH P(MOVE) (top-left is hot)
+    - 1D plots: LOW similar fraction → HIGH P(MOVE) (left side is high)
+
+    The mechanical baseline step function [0,0.5,0.5,1] → [1,1,0,0] is correct
+    for similar fraction: agents move when similar < 50%, stay when similar ≥ 50%.
+
 Usage:
     python generate_value_function_plots.py           # Interactive
     python generate_value_function_plots.py --yes     # Auto-deploy
@@ -120,10 +137,12 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
                 continue
 
             # Extract ratio data points
+            # Transform ratio_float (opposite fraction) to similar fraction
             points = []
             for r in vf["ratios"][role]:
                 if r["ratio_float"] is not None and r["p_move_effective"] is not None:
-                    points.append((r["ratio_float"], r["p_move_effective"]))
+                    similar_frac = 1.0 - r["ratio_float"]
+                    points.append((similar_frac, r["p_move_effective"]))
 
             if not points:
                 continue
@@ -208,13 +227,15 @@ def generate_combined_example_plot(output_path: Path) -> bool:
             label = SCENARIO_SHORT_LABELS.get(scenario, scenario)
 
             # Average both roles for simplicity
+            # Transform ratio_float (opposite fraction) to similar fraction
             all_points = {}
             for role in ["red", "blue"]:
                 if role not in vf["ratios"]:
                     continue
                 for r in vf["ratios"][role]:
                     if r["ratio_float"] is not None and r["p_move_effective"] is not None:
-                        x = round(r["ratio_float"], 3)
+                        similar_frac = 1.0 - r["ratio_float"]
+                        x = round(similar_frac, 3)
                         if x not in all_points:
                             all_points[x] = []
                         all_points[x].append(r["p_move_effective"])

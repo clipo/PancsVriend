@@ -25,10 +25,6 @@ Granite, Mistral, Phi
 Last three are degenerate. mDOesn't engage
 
 
-Olmo designed for research, can see all the data on which it was trained
-	Maybe no "anti-bias" built in?
-	
-Open source models, but not open source on data
 
 
 Seg order slide should mention statistical significance
@@ -38,10 +34,15 @@ seg by context: ---- is random baseline
 Jagged edges: it's from heatmap.
 
 
-For discussion: why olmo, sentiment analysis?
+Why Olmo? <--new slide
 
-Why Olmo?
+Olmo designed for research, can see all the data on which it was trained
+	Maybe no "anti-bias" built in?
+	
+Open source models, but not open source on data
 
+
+For future work: why olmo, sentiment analysis?
 
 
 
