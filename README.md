@@ -128,12 +128,23 @@ Created slides explaining value functions with visual examples:
 Generates 2D value function plots showing P(MOVE) vs fraction of similar neighbors:
 - Per-model plots: 2×3 grid of all 6 scenarios
 - Comparison plot: DeepSeek vs Phi side-by-side
+- Single-scenario plots: Individual model+scenario (for main slides)
 
 ```bash
 python analysis_tools/ccs2026_presentation/generate_value_function_plots.py --yes
 ```
 
-Output: `pics/<model>_value_functions.png`, `pics/value_function_comparison.png`
+Output: `pics/<model>_value_functions.png`, `pics/value_function_comparison.png`, `pics/<model>_vf_<scenario>.png`
+
+**Adding single-scenario plots:** If you need additional single-scenario plots for presentation slides, add them to the `single_scenario_plots` list in `generate_value_function_plots.py`:
+
+```python
+single_scenario_plots = [
+    ("deepseek", "political_liberal_conservative", "deepseek_vf_political.png"),
+    # Add more here, e.g.:
+    # ("phi", "baseline", "phi_vf_baseline.png"),
+]
+```
 
 **Data source:** `<run>/value_functions/vf_*__<scenario>__R3_dual_count.json`
 

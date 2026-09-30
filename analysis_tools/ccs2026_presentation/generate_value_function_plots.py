@@ -179,6 +179,72 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
     return True
 
 
+def generate_single_scenario_plot(model: str, run_dir: str, scenario: str, output_path: Path) -> bool:
+    """Generate a single-scenario value function plot for use in slides."""
+    vfs = load_value_functions(run_dir)
+    if scenario not in vfs:
+        print(f"  WARNING: No {scenario} data for {model}")
+        return False
+
+    vf = vfs[scenario]
+
+    plt.rcParams.update({
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+    })
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+
+    # Mechanical baseline
+    ax.step([0, 0.5, 0.5, 1.0], [1, 1, 0, 0], where="post",
+            color="black", ls="--", lw=1.5, alpha=0.5, label="Mechanical")
+
+    # Plot both roles
+    for role, role_color, role_label in [("red", "#d62728", "Type A"),
+                                          ("blue", "#1f77b4", "Type B")]:
+        if role not in vf["ratios"]:
+            continue
+
+        # Extract ratio data points - transform to similar fraction
+        points = []
+        for r in vf["ratios"][role]:
+            if r["ratio_float"] is not None and r["p_move_effective"] is not None:
+                similar_frac = 1.0 - r["ratio_float"]
+                points.append((similar_frac, r["p_move_effective"]))
+
+        if not points:
+            continue
+
+        points.sort()
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+
+        ax.plot(xs, ys, color=role_color, lw=2.5, marker='o', ms=5,
+                alpha=0.85, label=role_label)
+
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_xlabel("Fraction Similar Neighbors")
+    ax.set_ylabel("P(MOVE)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='upper right', fontsize=10)
+
+    label = SCENARIO_SHORT_LABELS.get(scenario, scenario)
+    model_display = model.split('-')[0].capitalize()
+    ax.set_title(f"{model_display}: {label}", fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    return True
+
+
 def generate_combined_example_plot(output_path: Path) -> bool:
     """Generate a single plot comparing two contrasting models/scenarios."""
     # Load DeepSeek (context-sensitive) and Phi (context-insensitive)
@@ -308,6 +374,17 @@ def main():
     if generate_combined_example_plot(example_path):
         generated.append(("comparison", "comparison", example_path))
         print(f"   Generated: value_function_comparison.png")
+
+    # Generate single-scenario plots used in main presentation slides
+    single_scenario_plots = [
+        ("deepseek", "political_liberal_conservative", "deepseek_vf_political.png"),
+    ]
+    for model_prefix, scenario, filename in single_scenario_plots:
+        row = sources[sources['model'].str.startswith(model_prefix)].iloc[0]
+        output_path = output_dir / filename
+        if generate_single_scenario_plot(row['model'], row['run_dir'], scenario, output_path):
+            generated.append((row['model'], filename.replace('.png', ''), output_path))
+            print(f"   Generated: {filename}")
 
     print(f"\n   Generated {len(generated)} plots in {output_dir}")
 
