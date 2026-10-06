@@ -354,6 +354,28 @@ Added slide "Why Olmo? (Speculation)" before the Conclusion section. Content:
 
 Added italicized note on the Olmo slide (first model): "Dashed line = random baseline (expected DI from random agent placement)". Appears only on the first slide to avoid clutter on subsequent model slides.
 
+#### Task 14: Create Games Special Issue call-for-papers slide ✓ DONE
+
+Created a self-contained Beamer slide for promoting the *Games* special issue "Game Theory and Large Language Models" (deadline: 31 May 2027).
+
+**File:** `pres-overleaf.link/pres/games-special-issue/slide.tex`
+
+**Features:**
+- Self-contained: defines `GamesBrown` color (`#622A1E`) and temporarily overrides Beamer theme colors
+- Games logo integrated into title bar
+- Two-column layout: text content (72%) + vertical sidebar (25%) with guest editor photos, QR code, and deadline
+- Topics list and journal info at bottom
+
+**Usage:** Add `\input{games-special-issue/slide.tex}` anywhere in the presentation.
+
+**Assets in `games-special-issue/`:**
+- `games-logo.png` — journal logo (used in title bar)
+- `games-special-issue.png` — QR code linking to special issue page
+- `editor_409535.png`, `editor_409536.png` — guest editor photos
+- `panel.tex` — alternative version for tikzposter (poster format)
+
+**Special issue URL:** https://www.mdpi.com/journal/games/special_issues/Game_LLM
+
 ## 🔬 The Bias Paradox Revealed
 
 Our research uncovers a fundamental paradox in AI systems:
