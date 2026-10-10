@@ -22,7 +22,7 @@ python regenerate-all-tables-and-plots.py --yes
 | Script | Output | Description |
 |--------|--------|-------------|
 | `regenerate_all_tables_and_plots.py` | — | Master script that runs all others |
-| `generate_value_function_plots.py` | `*_value_functions.png` | Choice function 6-panel grids |
+| `generate_choice_function_plots.py` | `*_choice_functions.png` | Choice function 6-panel grids |
 | `generate_convergence_plots.py` | `*_convergence_clean.png` | Convergence trajectory plots |
 | `generate_sorted_segregation_plots.py` | `*_segregation_sorted.png` | Segregation bar charts |
 | `generate_and_deploy_tables.py` | `key_results_ordering.tex` | LaTeX tables for results |

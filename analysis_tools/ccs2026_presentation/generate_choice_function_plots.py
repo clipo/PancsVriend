@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate 2D value function plots for CCS 2026 presentation.
+Generate 2D choice function plots for CCS 2026 presentation.
 
 Creates plots showing P(MOVE) vs fraction of similar neighbors for each model.
 These are cleaner than the full heatmaps and easier to interpret on slides.
 
-Outputs to pres-overleaf.link/pres/pics/<model>_value_functions.png
+Outputs to pres-overleaf.link/pres/pics/<model>_choice_functions.png
 
 X-AXIS TRANSFORMATION NOTE (2026-09-29):
-    The value function JSON stores `ratio_float` as the OPPOSITE fraction:
+    The choice function JSON stores `ratio_float` as the OPPOSITE fraction:
         ratio_float = (n_occupied - n_similar) / n_occupied
 
     However, we want the x-axis to show "Fraction Similar Neighbors" to match
@@ -25,9 +25,9 @@ X-AXIS TRANSFORMATION NOTE (2026-09-29):
     for similar fraction: agents move when similar < 50%, stay when similar ≥ 50%.
 
 Usage:
-    python generate_value_function_plots.py           # Interactive
-    python generate_value_function_plots.py --yes     # Auto-deploy
-    python generate_value_function_plots.py --no      # Generate only, no deploy
+    python generate_choice_function_plots.py           # Interactive
+    python generate_choice_function_plots.py --yes     # Auto-deploy
+    python generate_choice_function_plots.py --no      # Generate only, no deploy
 """
 
 import argparse
@@ -92,8 +92,8 @@ SCENARIO_ROLE_LABELS = {
 SWAP_COLORS_SCENARIOS = {'political_liberal_conservative'}
 
 
-def load_value_functions(run_dir: str) -> dict:
-    """Load all value function JSON files for a model."""
+def load_choice_functions(run_dir: str) -> dict:
+    """Load all choice function JSON files for a model."""
     vf_dir = EXPERIMENTS_DIR / run_dir / "value_functions"
     vfs = {}
 
@@ -106,11 +106,11 @@ def load_value_functions(run_dir: str) -> dict:
     return vfs
 
 
-def generate_value_function_plot(model: str, run_dir: str, output_path: Path) -> bool:
-    """Generate a 2D value function plot for one model."""
-    vfs = load_value_functions(run_dir)
+def generate_choice_function_plot(model: str, run_dir: str, output_path: Path) -> bool:
+    """Generate a 2D choice function plot for one model."""
+    vfs = load_choice_functions(run_dir)
     if not vfs:
-        print(f"  WARNING: No value function data for {model}")
+        print(f"  WARNING: No choice function data for {model}")
         return False
 
     # Set up figure - 2x3 grid of scenarios
@@ -196,7 +196,7 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
 
     # Get model display name
     model_display = model.split('-')[0].capitalize()
-    fig.suptitle(f"Value Functions: {model_display}", fontsize=12, y=0.98)
+    fig.suptitle(f"Choice Functions: {model_display}", fontsize=12, y=0.98)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -206,8 +206,8 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
 
 
 def generate_single_scenario_plot(model: str, run_dir: str, scenario: str, output_path: Path) -> bool:
-    """Generate a single-scenario value function plot for use in slides."""
-    vfs = load_value_functions(run_dir)
+    """Generate a single-scenario choice function plot for use in slides."""
+    vfs = load_choice_functions(run_dir)
     if scenario not in vfs:
         print(f"  WARNING: No {scenario} data for {model}")
         return False
@@ -290,11 +290,11 @@ def generate_combined_example_plot(output_path: Path) -> bool:
     deepseek_row = sources[sources['model'].str.startswith('deepseek')].iloc[0]
     phi_row = sources[sources['model'].str.startswith('phi')].iloc[0]
 
-    deepseek_vfs = load_value_functions(deepseek_row['run_dir'])
-    phi_vfs = load_value_functions(phi_row['run_dir'])
+    deepseek_vfs = load_choice_functions(deepseek_row['run_dir'])
+    phi_vfs = load_choice_functions(phi_row['run_dir'])
 
     if not deepseek_vfs or not phi_vfs:
-        print("  WARNING: Could not load DeepSeek or Phi value functions")
+        print("  WARNING: Could not load DeepSeek or Phi choice functions")
         return False
 
     # Create 1x2 comparison: DeepSeek (context-sensitive) vs Phi (context-insensitive)
@@ -361,7 +361,7 @@ def generate_combined_example_plot(output_path: Path) -> bool:
         if ax_idx == 0:
             ax.set_ylabel("P(MOVE)", fontsize=10)
 
-    fig.suptitle("Value Function Comparison: Context Sensitivity", fontsize=13, y=1.02)
+    fig.suptitle("Choice Function Comparison: Context Sensitivity", fontsize=13, y=1.02)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -371,13 +371,13 @@ def generate_combined_example_plot(output_path: Path) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate value function plots")
+    parser = argparse.ArgumentParser(description="Generate choice function plots")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="Generate only, no deployment")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("Generating Value Function Plots for CCS 2026")
+    print("Generating Choice Function Plots for CCS 2026")
     print("=" * 60)
 
     # Load model sources
@@ -386,11 +386,11 @@ def main():
     print(f"   Found {len(sources)} models")
 
     # Create output directory
-    output_dir = SCRIPT_DIR / "value_function_plots"
+    output_dir = SCRIPT_DIR / "choice_function_plots"
     output_dir.mkdir(exist_ok=True)
 
     # Generate plots
-    print("\n2. Generating value function plots...")
+    print("\n2. Generating choice function plots...")
     generated = []
 
     # Generate per-model plots
@@ -399,17 +399,17 @@ def main():
         run_dir = row['run_dir']
         short_name = model.split('-')[0]
 
-        output_path = output_dir / f"{short_name}_value_functions.png"
+        output_path = output_dir / f"{short_name}_choice_functions.png"
 
-        if generate_value_function_plot(model, run_dir, output_path):
+        if generate_choice_function_plot(model, run_dir, output_path):
             generated.append((model, short_name, output_path))
-            print(f"   Generated: {short_name}_value_functions.png")
+            print(f"   Generated: {short_name}_choice_functions.png")
 
     # Generate comparison example
-    example_path = output_dir / "value_function_comparison.png"
+    example_path = output_dir / "choice_function_comparison.png"
     if generate_combined_example_plot(example_path):
         generated.append(("comparison", "comparison", example_path))
-        print(f"   Generated: value_function_comparison.png")
+        print(f"   Generated: choice_function_comparison.png")
 
     # Generate single-scenario plots used in main presentation slides
     single_scenario_plots = [
@@ -449,12 +449,12 @@ def main():
         PICS_DIR.mkdir(parents=True, exist_ok=True)
         for model, short_name, src_path in generated:
             if short_name == "comparison":
-                dst_path = PICS_DIR / "value_function_comparison.png"
+                dst_path = PICS_DIR / "choice_function_comparison.png"
             elif short_name.endswith("_vf_political"):
                 # Single-scenario plots keep their original filename
                 dst_path = PICS_DIR / f"{short_name}.png"
             else:
-                dst_path = PICS_DIR / f"{short_name}_value_functions.png"
+                dst_path = PICS_DIR / f"{short_name}_choice_functions.png"
             shutil.copy2(src_path, dst_path)
             print(f"   Copied: {dst_path.name}")
         print(f"\nDone! Deployed to {PICS_DIR}")

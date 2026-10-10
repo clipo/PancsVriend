@@ -11,7 +11,7 @@ Usage:
     python regenerate_all_tables_and_plots.py --no      # Generate only, no deploy
 
 Scripts run (in order):
-    1. generate_value_function_plots.py    - Choice function plots (6-panel grids)
+    1. generate_choice_function_plots.py    - Choice function plots (6-panel grids)
     2. generate_convergence_plots.py       - Convergence trajectory plots
     3. generate_sorted_segregation_plots.py - Segregation bar charts
     4. generate_and_deploy_tables.py       - LaTeX tables (key_results_ordering.tex)
@@ -32,7 +32,7 @@ SCRIPT_DIR = Path(__file__).parent
 
 # Scripts to run in order
 SCRIPTS = [
-    "generate_value_function_plots.py",
+    "generate_choice_function_plots.py",
     "generate_convergence_plots.py",
     "generate_sorted_segregation_plots.py",
     "generate_and_deploy_tables.py",
