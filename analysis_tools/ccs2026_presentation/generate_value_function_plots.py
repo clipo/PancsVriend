@@ -77,6 +77,20 @@ SCENARIO_ORDER = [
     'ethnic_asian_hispanic', 'income_high_low', 'political_liberal_conservative'
 ]
 
+# Context-specific role labels for legends (type_a=red, type_b=blue)
+# Note: political scenario swaps colors to match US convention (red=conservative, blue=liberal)
+SCENARIO_ROLE_LABELS = {
+    'baseline': ('Red', 'Blue'),
+    'green_yellow': ('Green', 'Yellow'),
+    'race_white_black': ('White', 'Black'),
+    'ethnic_asian_hispanic': ('Asian', 'Hispanic'),
+    'income_high_low': ('High Income', 'Low Income'),
+    'political_liberal_conservative': ('Conservative', 'Liberal'),  # swapped order, colors also swapped
+}
+
+# Scenarios where colors should be swapped (type_a=blue, type_b=red instead of default)
+SWAP_COLORS_SCENARIOS = {'political_liberal_conservative'}
+
 
 def load_value_functions(run_dir: str) -> dict:
     """Load all value function JSON files for a model."""
@@ -130,9 +144,21 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
         ax.step([0, 0.5, 0.5, 1.0], [1, 1, 0, 0], where="post",
                 color="black", ls="--", lw=1.5, alpha=0.5, label="Mechanical")
 
-        # Plot both roles
-        for role, role_color, role_label in [("red", "#d62728", "Type A"),
-                                              ("blue", "#1f77b4", "Type B")]:
+        # Get context-specific role labels
+        role_labels = SCENARIO_ROLE_LABELS.get(scenario, ('Type A', 'Type B'))
+
+        # Determine colors - swap for political to match US convention (red=conservative, blue=liberal)
+        if scenario in SWAP_COLORS_SCENARIOS:
+            # type_a (liberal) gets blue, type_b (conservative) gets red
+            # Labels are (Conservative, Liberal), so red label first, blue label second
+            role_color_map = [("blue", "#d62728", role_labels[0]),   # type_b=conservative in RED
+                              ("red", "#1f77b4", role_labels[1])]    # type_a=liberal in BLUE
+        else:
+            role_color_map = [("red", "#d62728", role_labels[0]),
+                              ("blue", "#1f77b4", role_labels[1])]
+
+        # Plot both roles with context-specific labels
+        for role, role_color, role_label in role_color_map:
             if role not in vf["ratios"]:
                 continue
 
@@ -160,13 +186,13 @@ def generate_value_function_plot(model: str, run_dir: str, output_path: Path) ->
         ax.set_xlim(-0.02, 1.02)
         ax.grid(True, alpha=0.3)
 
+        # Add legend to each subplot with context-specific labels
+        ax.legend(loc='upper right', fontsize=8)
+
         if idx >= 3:  # Bottom row
             ax.set_xlabel("Fraction Similar Neighbors")
         if idx % 3 == 0:  # Left column
             ax.set_ylabel("P(MOVE)")
-
-    # Add legend to first subplot
-    axes[0].legend(loc='upper right', fontsize=7)
 
     # Get model display name
     model_display = model.split('-')[0].capitalize()
@@ -204,9 +230,19 @@ def generate_single_scenario_plot(model: str, run_dir: str, scenario: str, outpu
     ax.step([0, 0.5, 0.5, 1.0], [1, 1, 0, 0], where="post",
             color="black", ls="--", lw=1.5, alpha=0.5, label="Mechanical")
 
+    # Get context-specific role labels
+    role_labels = SCENARIO_ROLE_LABELS.get(scenario, ('Type A', 'Type B'))
+
+    # Determine colors - swap for political to match US convention
+    if scenario in SWAP_COLORS_SCENARIOS:
+        role_color_map = [("blue", "#d62728", role_labels[0]),   # conservative in RED
+                          ("red", "#1f77b4", role_labels[1])]    # liberal in BLUE
+    else:
+        role_color_map = [("red", "#d62728", role_labels[0]),
+                          ("blue", "#1f77b4", role_labels[1])]
+
     # Plot both roles
-    for role, role_color, role_label in [("red", "#d62728", "Type A"),
-                                          ("blue", "#1f77b4", "Type B")]:
+    for role, role_color, role_label in role_color_map:
         if role not in vf["ratios"]:
             continue
 
@@ -414,6 +450,9 @@ def main():
         for model, short_name, src_path in generated:
             if short_name == "comparison":
                 dst_path = PICS_DIR / "value_function_comparison.png"
+            elif short_name.endswith("_vf_political"):
+                # Single-scenario plots keep their original filename
+                dst_path = PICS_DIR / f"{short_name}.png"
             else:
                 dst_path = PICS_DIR / f"{short_name}_value_functions.png"
             shutil.copy2(src_path, dst_path)
