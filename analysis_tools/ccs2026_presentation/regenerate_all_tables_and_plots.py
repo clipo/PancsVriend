@@ -12,11 +12,11 @@ Usage:
 
 Scripts run (in order):
     1. generate_choice_function_plots.py    - Choice function plots (6-panel grids)
-    2. generate_convergence_plots.py       - Convergence trajectory plots
+    2. generate_convergence_plots.py        - Convergence trajectory plots
     3. generate_sorted_segregation_plots.py - Segregation bar charts
-    4. generate_and_deploy_tables.py       - LaTeX tables (key_results_ordering.tex)
-    5. deploy_heatmaps.py                  - P(MOVE) heatmaps per scenario
-    6. deploy_model_images.py              - Copy model images to pics/
+    4. generate_and_deploy_tables.py        - LaTeX tables (key_results_ordering.tex)
+    5. generate_and_deploy_heatmaps.py      - Regenerate P(MOVE) heatmaps from JSONs
+    6. deploy_model_images.py               - Copy model images to pics/
 
 Requires:
     - Access to experiments_with_llama_cpp/ data
@@ -36,7 +36,7 @@ SCRIPTS = [
     "generate_convergence_plots.py",
     "generate_sorted_segregation_plots.py",
     "generate_and_deploy_tables.py",
-    "deploy_heatmaps.py",
+    "generate_and_deploy_heatmaps.py",
     "deploy_model_images.py",
 ]
 

@@ -49,6 +49,29 @@ SCENARIO_ORDER = ["baseline", "race_white_black", "ethnic_asian_hispanic",
                   "income_high_low", "political_liberal_conservative",
                   "green_yellow"]
 
+# Scenarios where we swap role order and colors to match real-world conventions.
+# For political: Conservative=red (left), Liberal=blue (right) per US convention.
+# In the underlying data, red="Liberal" and blue="Conservative", so we swap.
+SWAP_ROLES_SCENARIOS = {"political_liberal_conservative"}
+
+
+def get_display_roles(scenario, roles):
+    """Return (ordered_roles, color_map) for display.
+
+    For most scenarios: roles in standard order, standard colors.
+    For political: swap order (blue first) and swap colors (blue->red, red->blue).
+    """
+    if scenario in SWAP_ROLES_SCENARIOS:
+        # Swap order: put "blue" (Conservative) first, "red" (Liberal) second
+        ordered = sorted(roles, key=lambda r: (r != "blue", r))
+        # Swap colors: Conservative (blue role) gets red color, Liberal (red role) gets blue
+        colors = {"blue": ROLE_COLORS["red"], "red": ROLE_COLORS["blue"]}
+    else:
+        # Standard: red first, standard colors
+        ordered = sorted(roles, key=lambda r: (r != "red", r))
+        colors = ROLE_COLORS
+    return ordered, colors
+
 
 
 def fig_label(label):
@@ -63,11 +86,16 @@ def fig_label(label):
     return re.sub(r"-lp$", "-LP", label)
 
 
-def draw_value_function_axes(ax, vf, legend_roles=True):
+def draw_value_function_axes(ax, vf, legend_roles=True, color_map=None):
     """The vf-1 panel: 23 ratio datapoints per role with 95% CIs (variance-propagated equal-weight member mean)
     (fixed-size markers), the no-neighbours diamond at x=-0.06, and the
     mechanical step. Sample sizes are NOT encoded in marker area — they get
-    their own bar panel (draw_n_bars), per user decision 2026-08-23."""
+    their own bar panel (draw_n_bars), per user decision 2026-08-23.
+
+    color_map: optional dict mapping role names to colors (for scenario-specific color swaps).
+    """
+    if color_map is None:
+        color_map = ROLE_COLORS
     ax.step([0, 0.5, 0.5, 1.0], [0, 0, 1, 1], where="post",
             color="black", ls="--", lw=1.0, alpha=0.6)
     for role, rows in vf["ratios"].items():
@@ -77,10 +105,12 @@ def draw_value_function_axes(ax, vf, legend_roles=True):
         pts.sort()
         xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
         lo = [p[1] - p[2][0] for p in pts]; hi = [p[2][1] - p[1] for p in pts]
-        col = ROLE_COLORS.get(role, "black")
+        col = color_map.get(role, "black")
+        # For legend, use display color name not internal role name
+        display_color = "red" if col == ROLE_COLORS["red"] else "blue"
         ax.errorbar(xs, ys, yerr=[lo, hi], color=col, lw=1.6, marker="o",
                     ms=3.5, capsize=2, elinewidth=0.9,
-                    label=f"{role} role" if legend_roles else None)
+                    label=f"{display_color} role" if legend_roles else None)
         none_row = next(r for r in rows if r["ratio"] == NO_NEIGHBORS_KEY)
         if none_row["p_move_effective"] is not None:
             ax.scatter([-0.06], [none_row["p_move_effective"]], color=col,
@@ -90,10 +120,15 @@ def draw_value_function_axes(ax, vf, legend_roles=True):
     ax.grid(alpha=0.3)
 
 
-def draw_n_bars(ax, vf):
+def draw_n_bars(ax, vf, color_map=None):
     """Companion bar panel: pooled sample count per ratio datapoint, one thin
     bar per role at each ratio position (+ the no-neighbours point at -0.06).
-    Shares the x-axis with the curve panel above it."""
+    Shares the x-axis with the curve panel above it.
+
+    color_map: optional dict mapping role names to colors (for scenario-specific color swaps).
+    """
+    if color_map is None:
+        color_map = ROLE_COLORS
     w = 0.011
     for k, (role, rows) in enumerate(sorted(vf["ratios"].items(),
                                             key=lambda kv: kv[0] != "red")):
@@ -102,7 +137,7 @@ def draw_n_bars(ax, vf):
         for r in rows:
             x = -0.06 if r["ratio"] == NO_NEIGHBORS_KEY else r["ratio_float"]
             xs.append(x + off); ns.append(r["n_samples"])
-        ax.bar(xs, ns, width=w, color=ROLE_COLORS.get(role, "black"),
+        ax.bar(xs, ns, width=w, color=color_map.get(role, "black"),
                alpha=0.85, linewidth=0)
     ax.set_xlim(-0.12, 1.02)
     ax.set_ylabel("N", fontsize=7)
@@ -161,11 +196,13 @@ def fig_single_scenario_heatmap(vf, scenario, out_path, dpi=300):
 
     Used for presentation slides where only one scenario's heatmap is needed.
     Colorbar is horizontal at the bottom for compact presentation layout.
+    For political scenario, swaps order and colors: Conservative (red, left), Liberal (blue, right).
     Returns the output path.
     """
     import numpy as np
 
-    roles = sorted(vf["compositions"].keys(), key=lambda r: (r != "red", r))
+    all_roles = list(vf["compositions"].keys())
+    roles, colors = get_display_roles(scenario, all_roles)
     vmax = max((c["p_move_effective"] or 0.0)
                for rows in vf["compositions"].values() for c in rows)
     vmax = max(vmax, 1e-9)
@@ -181,7 +218,9 @@ def fig_single_scenario_heatmap(vf, scenario, out_path, dpi=300):
     for j, role in enumerate(roles):
         ax = axes[j]
         im = draw_heatmap_axes(ax, vf, role, vmax, exact)
-        ax.set_title(f"{role}\n({labels.get(role, '?')})", fontsize=10)
+        # Use display color name, not internal role name
+        display_color = "red" if colors[role] == ROLE_COLORS["red"] else "blue"
+        ax.set_title(f"{display_color}\n({labels.get(role, '?')})", fontsize=10)
         ax.set_xlabel("n_similar", fontsize=9)
         if j == 0:
             ax.set_ylabel("n_occupied", fontsize=9)
@@ -211,30 +250,36 @@ def fig_heatmaps(found, scenarios, out_path, dpi=300):
     directly comparable; the triangle above the diagonal is unreachable).
     Small black dots mark cells where the mechanical rule says MOVE, so each
     panel carries its own reference without a second colour scale.
+    For political scenario, swaps order and colors: Conservative (red, left), Liberal (blue, right).
     """
     import numpy as np
 
-    roles = sorted({r for vf in found.values() for r in vf["compositions"]},
-                   key=lambda r: (r != "red", r))   # red first, matches the line plots
+    # Standard role order for column layout (most scenarios use this)
+    all_roles = sorted({r for vf in found.values() for r in vf["compositions"]},
+                       key=lambda r: (r != "red", r))   # red first for standard scenarios
     vmax = max((c["p_move_effective"] or 0.0)
                for vf in found.values()
                for rows in vf["compositions"].values() for c in rows)
     vmax = max(vmax, 1e-9)
     # constrained_layout: the one manager that spaces suptitle, panel titles
     # and a figure-level colorbar without manual rect tuning at any row count.
-    fig, axes = plt.subplots(len(scenarios), len(roles), squeeze=False,
-                             figsize=(3.4 * len(roles) + 1.6, 3.2 * len(scenarios) + 1.6),
+    fig, axes = plt.subplots(len(scenarios), len(all_roles), squeeze=False,
+                             figsize=(3.4 * len(all_roles) + 1.6, 3.2 * len(scenarios) + 1.6),
                              constrained_layout=True)
     im = None
     exact = any(is_exact(vf) for vf in found.values())
     for i, sc in enumerate(scenarios):
         vf = found[sc]
         labels = vf["meta"].get("role_labels", {})
-        for j, role in enumerate(roles):
+        # Get scenario-specific role order and colors
+        sc_roles, sc_colors = get_display_roles(sc, list(vf["compositions"].keys()))
+        for j, role in enumerate(sc_roles):
             ax = axes[i][j]
             im = draw_heatmap_axes(ax, vf, role, vmax, exact)
             ax.set_xticks(range(0, 9, 2)); ax.set_yticks(range(0, 9, 2))
-            ax.set_title(f"{sc} — {role}\n({labels.get(role, '?')})", fontsize=8)
+            # Use display color name, not internal role name
+            display_color = "red" if sc_colors[role] == ROLE_COLORS["red"] else "blue"
+            ax.set_title(f"{sc} — {display_color}\n({labels.get(role, '?')})", fontsize=8)
             if j == 0:
                 ax.set_ylabel("n_occupied", fontsize=8)
             if i == len(scenarios) - 1:
@@ -278,12 +323,19 @@ def _fig_scenarios(found, scenarios, out, ncols=3, dpi=300):
         # An exact table has no sample counts of its own (the n_samples slots
         # are the checked-against campaign's), so the N panel would be a lie.
         axn = None if exact else fig.add_subplot(gs[3 * br + 1, bc], sharex=ax)
-        draw_value_function_axes(ax, vf, legend_roles=(i == 0))
+        # Get scenario-specific colors (swapped for political)
+        _, sc_colors = get_display_roles(sc, list(vf["ratios"].keys()))
+        draw_value_function_axes(ax, vf, legend_roles=(i == 0), color_map=sc_colors)
         if axn is not None:
-            draw_n_bars(axn, vf)
+            draw_n_bars(axn, vf, color_map=sc_colors)
         labels = vf["meta"].get("role_labels", {})
-        ax.set_title(f"{sc}\nred = {labels.get('red', '?')}  |  "
-                     f"blue = {labels.get('blue', '?')}", fontsize=8.5)
+        # For political scenario, swap the display: Conservative (displayed as red) first
+        if sc in SWAP_ROLES_SCENARIOS:
+            ax.set_title(f"{sc}\nred = {labels.get('blue', '?')}  |  "
+                         f"blue = {labels.get('red', '?')}", fontsize=8.5)
+        else:
+            ax.set_title(f"{sc}\nred = {labels.get('red', '?')}  |  "
+                         f"blue = {labels.get('blue', '?')}", fontsize=8.5)
         # With no bar panel below it the curve axis carries the x labels itself.
         ax.tick_params(labelbottom=exact, labelsize=7)
         if bc == 0:

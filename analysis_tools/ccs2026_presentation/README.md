@@ -26,7 +26,7 @@ python regenerate-all-tables-and-plots.py --yes
 | `generate_convergence_plots.py` | `*_convergence_clean.png` | Convergence trajectory plots |
 | `generate_sorted_segregation_plots.py` | `*_segregation_sorted.png` | Segregation bar charts |
 | `generate_and_deploy_tables.py` | `key_results_ordering.tex` | LaTeX tables for results |
-| `deploy_heatmaps.py` | `*_heatmap_*.png` | P(MOVE) heatmaps per scenario |
+| `generate_and_deploy_heatmaps.py` | `*_heatmap_*.png` | Regenerate P(MOVE) heatmaps from JSONs |
 | `deploy_model_images.py` | — | Copies model images to `pics/` |
 
 ## Usage Flags
