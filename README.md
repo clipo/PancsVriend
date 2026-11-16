@@ -460,18 +460,6 @@ Our analysis reveals that biases don't just vary in magnitude but in how they ev
 - **Automatic validation** of API keys and configurations
 - **Consistent arguments** across all scripts
 
-### ⏱️ Real-Time Progress Monitoring
-- **Live progress dashboard** showing "Run X of Y, Step Z of 1000"
-- **Auto-refreshing monitoring** every 10 seconds
-- **Progress files** updated every 10 simulation steps
-- **No more guessing** if experiments are stuck or progressing
-
-### 📊 Enhanced Dashboard System
-- **Auto-detection** of active experiments
-- **Quick launch** for progress monitoring
-- **Multiple dashboard options** (analysis vs monitoring)
-- **Smart experiment selection** based on current activity
-
 ## 🚀 Quick Start
 
 ### Installation
@@ -496,12 +484,6 @@ python switch_llm.py --preset qwen --test
 # Test LLM connectivity (uses Mixtral by default)
 python check_llm.py
 
-# Run comprehensive study with real-time progress monitoring
-python comprehensive_comparison_study.py --quick-test
-
-# Launch interactive dashboard with progress monitoring
-python launch_dashboard_menu.py
-
 # Multi-scenario runner
 python run_all_contexts.py --runs 10 --processes 5
 ```
@@ -521,32 +503,17 @@ python run_all_contexts.py --runs 10 --processes 5
 
 ### Quick Testing
 ```bash
-# Quick test with default model (Mixtral)
-python comprehensive_comparison_study.py --quick-test
-
 # Test different models
 python switch_llm.py --preset mixtral --test
 ```
 
 ### Production Experiments
 ```bash
-# Full comprehensive study
-python comprehensive_comparison_study.py --preset mixtral
-
 # Specific scenario testing
 python switch_llm.py --preset qwen --llm race_white_black 30
 
 # Custom configuration
 python run_all_contexts.py --llm-model "gpt-4" --llm-url "https://api.openai.com/v1/chat/completions" --llm-api-key "your-key"
-```
-
-### Real-Time Monitoring
-```bash
-# Launch progress dashboard
-python launch_dashboard_menu.py
-
-# Direct progress monitoring
-streamlit run dashboard_with_progress.py
 ```
 
 ## 🖥️ Running with a Local GGUF Model (llama.cpp)
@@ -692,7 +659,6 @@ See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for
 ### Agent Types
 - **Mechanical Agents**: Traditional Schelling model with utility functions
 - **Standard LLM Agents**: Context-aware decisions using current neighborhood state
-- **Memory LLM Agents**: Human-like agents with persistent memory and history
 
 ### Social Context Scenarios
 - **baseline**: Red vs blue teams (control group)
@@ -712,7 +678,6 @@ See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for
 ## 🛠 Core Components
 
 ### Experiment Scripts
-- `comprehensive_comparison_study.py` - **Main entry point** for three-way comparisons
 - `run_all_contexts.py` - Multi-scenario runner (resume, manifests, run-summary roll-up)
 - `baseline_runner.py` - Runs mechanical agent simulations
 - `llm_runner.py` - Runs LLM agent simulations with social contexts
@@ -722,11 +687,6 @@ See [`LLAMA_CPP_SIMULATION_RUN_GUIDE.md`](LLAMA_CPP_SIMULATION_RUN_GUIDE.md) for
 - `llm_presets.py` - Predefined LLM configurations
 - `update_default_llm.py` - Change default model in config.py
 - `check_llm.py` - Connectivity testing
-
-### Real-Time Monitoring
-- `dashboard_with_progress.py` - Live progress monitoring dashboard
-- `launch_dashboard_menu.py` - Smart dashboard launcher
-- `dashboard.py` - Comprehensive analysis dashboard
 
 ### Analysis Tools
 - `statistical_analysis.py` - ANOVA, effect sizes, multivariate analysis
@@ -773,12 +733,6 @@ All scripts support consistent LLM configuration:
 ```bash
 # Generate comprehensive statistical report
 python statistical_analysis.py
-
-# Detailed pairwise comparisons
-python pairwise_comparison_analysis.py
-
-# Convergence analysis with speed metrics
-python convergence_analysis.py
 ```
 
 ### Comprehensive Visualization
@@ -802,18 +756,6 @@ quarto render schelling_llm_paper.qmd --to pdf
 ```
 
 ## 📈 Experiment Workflows
-
-### Comprehensive Comparison
-```bash
-# Quick validation
-python comprehensive_comparison_study.py --quick-test
-
-# Full three-way study (mechanical vs standard LLM vs memory LLM)
-python comprehensive_comparison_study.py --preset mixtral
-
-# Monitor progress in real-time
-python launch_dashboard_menu.py  # Choose progress dashboard
-```
 
 ### Social Context Studies
 ```bash
@@ -839,40 +781,12 @@ Experiments generate structured outputs with real-time progress files:
 ```
 experiments/
 ├── baseline_[timestamp]/              # Mechanical agent results
-├── llm_[scenario]_[timestamp]/        # LLM scenario results
-└── comprehensive_study_[timestamp]/   # Multi-agent comparisons
-    ├── llm_results/
-    │   ├── progress_realtime.json     # ← Real-time progress monitoring
-    │   ├── experiments/exp_0001/
-    │   └── logs/
-    ├── comprehensive_analysis/
-    └── three_way_comparison_report.md
+└── llm_[scenario]_[timestamp]/        # LLM scenario results
 
 reports/
 ├── comprehensive_report_[timestamp].pdf
 ├── statistical_analysis_[timestamp].txt
 └── experiment_summary_[timestamp].json
-```
-
-## 🔍 Progress Monitoring
-
-### Real-Time Dashboard Features
-- **Live progress counters**: "Run 15 of 30, Step 450 of 1000"
-- **Progress bars** for both run and step completion
-- **Status indicators** (running/completed/failed)
-- **Auto-refresh** every 10 seconds
-- **Multi-experiment monitoring** for parallel runs
-
-### Dashboard Access
-```bash
-# Smart launcher (detects active experiments)
-python launch_dashboard_menu.py
-
-# Direct progress dashboard
-streamlit run dashboard_with_progress.py
-
-# Analysis dashboard
-streamlit run dashboard.py
 ```
 
 ## 🚨 AI Ethics and Bias Detection
@@ -1014,14 +928,9 @@ We welcome contributions! Please:
 ### Experiment Runners
 - `baseline_runner.py` - Mechanical agent experiments
 - `llm_runner.py` - LLM agent experiments with social scenarios
-- `comprehensive_comparison_study.py` - Full 3-way comparison
-- `run_pure_comparison.py` - Pure agent type comparison
-- `experiment_explorer.py` - Design space exploration
 
 ### Analysis & Visualization
 - `statistical_analysis.py` - ANOVA, effect sizes, statistical tests
-- `pairwise_comparison_analysis.py` - Detailed pairwise comparisons
-- `convergence_analysis.py` - Convergence speed and rate analysis
 - `comprehensive_visualization_report.py` - Complete PDF report generator
 - **NEW**: `analyze_experiment_results.py` - Extract and compare final metrics across scenarios
 - **NEW**: `analyze_convergence_patterns.py` - Time series analysis of segregation evolution
@@ -1034,11 +943,6 @@ We welcome contributions! Please:
 - `update_default_llm.py` - Update default LLM configuration
 - `llm_presets.py` - Predefined LLM configurations
 - `check_llm.py` - Connectivity and performance testing
-
-### Dashboard & Monitoring
-- `launch_dashboard_menu.py` - Dashboard launcher with options
-- `dashboard_with_progress.py` - Real-time progress monitoring
-- `cleanup_experiments.py` - Experiment cleanup utility
 
 ### Scientific Paper
 - `schelling_llm_paper.qmd` - Quarto scientific paper
