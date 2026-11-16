@@ -25,7 +25,7 @@ python check_llm.py                       # LLM connectivity (config.py, or --ll
 # Orchestrated value-function pipeline (simulation + analysis + cross-model stage)
 python run_llm_probability_simulation_analysis.py --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 
-python value_functions/sampling/census.py --models llama mistral                   # sequential sanity census + escalation + sanity sims, pinned clock, no shell wrapper
+python value_functions/sampling/census.py --models llama mistral                   # sequential census + one fresh-draw escalation + sanity sims, pinned clock
 python run_all_contexts.py --runs 10 --processes 5 --llm-model phi4:latest   # multi-scenario live-LLM runner
 python baseline_runner.py --runs 100                                          # mechanical agents
 python llm_runner.py --scenario race_white_black --runs 10                    # one LLM scenario
@@ -49,11 +49,12 @@ mechanical decisions when the LLM fails; a failed decision is an error.
   **baseline_runner.py** / **llm_runner.py**: single-track runners;
   **plateau_detection.py**: convergence points and segregation speeds.
 - **run_llm_probability_simulation_analysis.py**: the orchestrated pipeline
-  (vf build → contexts → scenario analysis → rank stability → cross-model).
-  Its `cross_model` stage regenerates
+  (vf build → contexts → scenario analysis → rank stability → cross-model
+  → census goodness of fit). Its `cross_model` stage regenerates
   `experiments_with_llama_cpp/cross_model/cross_model_{bump,level}_*.png` and
-  `cross_model_*_tests.csv` from every model's newest full run, so those
-  figures are never hand-run (`analysis_tools/analysis_guide.md` §7b).
+  `cross_model_*_tests.csv` from every model's newest full run, and its
+  `census_gof` stage `census_goodness_of_fit.{csv,png}` in the same folder, so
+  those are never hand-run (`analysis_tools/analysis_guide.md` §7b).
 - **analysis_tools/**: `run_all_scenario_analysis.py` (per-campaign analysis,
   `analysis_guide.md`), `build_run_summary.py`, `pack_run_records.py`,
   `anova_by_metric.py`, `plot_style.py`.
@@ -77,6 +78,14 @@ mechanical decisions when the LLM fails; a failed decision is an error.
   batch, which retired sampling (results tracked).
 - `comparison/`: `vf_rank_stability.py` (per-run certification) and
   `cross_model_vf_comparison.py` (bump/level charts across models).
+  The census has two checks with two jobs (user decision 2026-11-16):
+  the GOODNESS OF FIT (`census_goodness_of_fit.py`, one deviance test per
+  model over all cells) is what the PAPER reports; the PER-CELL check in
+  `sanity_vs_exact.py` (ONE round of fresh draws for the census misses, exact
+  binomial, Holm) is the INTERNAL sanity check that the extracted table can
+  replace sampling. Shared statistics in `census_stats.py`; why the pooled
+  escalation was retired is in `sanity_vs_exact.py`'s docstring. A census is
+  escalated once. September 2026: all 9 pass both.
 - `results/` (gitignored): `sampled_small/` (the sequential census), `llm_logprob/`,
   `date_sensitivity/`, `figures/`, `chance_null/`. Every location is defined once in
   `value_functions/paths.py`. The retired `-vf-r3` sampled store (`sampled/`) and the

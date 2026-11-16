@@ -143,6 +143,7 @@ model's newest full run under that run's `run_root`
 | `cross_model_level_<metric>.png` | level chart per metric |
 | `cross_model_chance_tests.csv`, `cross_model_pairwise_tests.csv`, `cross_model_rankings.csv` | the paired t-tests behind every marker |
 | `cross_model_vf-lp_sources.csv` | which run folder each model's rows came from (added 2026-09-15; the choice is "newest of the largest", below) |
+| `census_goodness_of_fit.csv`, `census_goodness_of_fit.png` | the census result REPORTED IN THE PAPER: per model, one deviance test of the sequential census against the exact table, with its simulated null (`census_gof` stage, added 2026-11-16, `value_functions/comparison/census_goodness_of_fit.py`; the per-cell check in `sanity_vs_exact.py` is internal only) |
 
 Significance rules (decided 2026-09-05). "Chance" is tested as a scenario
 like any other: each run's `initial_<metric>` (frame 0, a uniformly random
