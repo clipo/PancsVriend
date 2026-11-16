@@ -1048,7 +1048,6 @@ We welcome contributions! Please:
 - `references.bib` - Bibliography
 - `paper_README.md` - Paper rendering instructions
 - `journal_style_guide.md` - Journal submission guide
-- `verify_paper_data.R` - Data verification script
 
 ## 📄 Citation
 
