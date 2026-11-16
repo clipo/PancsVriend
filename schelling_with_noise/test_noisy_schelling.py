@@ -8,7 +8,7 @@ results between different noise levels.
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 
 from schelling_with_noise.noisy_schelling import (
     run_noise_comparison_study, 
