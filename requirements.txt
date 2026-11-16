@@ -2,7 +2,6 @@ llama-cpp-python==0.3.20
 matplotlib>=3.4.0
 numpy>=1.21.0
 pandas>=1.5.0
-plotly>=5.0.0
 pyarrow>=12.0.0
 pygame>=2.0.0
 pygame_gui>=0.6.0
