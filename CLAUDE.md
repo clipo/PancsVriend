@@ -69,6 +69,10 @@ mechanical decisions when the LLM fails; a failed decision is an error.
   from `scenarios_a2.py`, the temperature from `--temperature` (0.3), the
   skeleton from a blank count store, and the sequential check picks its cells
   from the exact surface. A new model needs no campaign of any kind.
+- `new_model_chain.py`: brings a new model / quantisation through everything
+  in order — download, wait for the machine, server, exact tables, batch
+  numerics probe, server down, simulation pipeline — with ntfy pings
+  (`python value_functions/new_model_chain.py gemma-q8`; registry in `MODELS`).
 - `batch_numerics/`: the probe showing served probabilities depend on the
   batch, which retired sampling (results tracked).
 - `comparison/`: `vf_rank_stability.py` (per-run certification) and

@@ -1,0 +1,98 @@
+# =============================================================================
+# EXACT-table run — gemma-4-31B at Q8_0 (quantisation comparison, 2026-09-07)
+# =============================================================================
+# The same model as configs/vf_run_gemma_lp.yaml (gemma-4-31B-it, chat
+# template, reasoning off, T = 0.3, R3 dual-count prompt) served from the
+# Q8_0 gguf (llms/gemma-4-31B-it-Q8_0.gguf, unsloth) instead of Q5_K_M.
+#
+# Why: the batch-numerics probe (value_functions/batch_numerics/results/)
+# put every Q4/Q5/IQ3 model — dense or MoE — far above the four Q8_0 ones
+# (max concurrent span 0.30–1.00 vs 0.15–0.37), with the Q5_K_M Gemma the
+# worst dense model at 1.00. This run holds everything but the weight
+# precision fixed, so
+#   * probe_gemma-4-31b-q8-chat-grammar_* vs probe_gemma-4-31b-chat-grammar_*
+#     says whether quantisation drives the batch artifact, and
+#   * vf_gemma-4-31b-q8-chat-grammar-lp__* vs vf_gemma-4-31b-chat-grammar-lp__*
+#     (and the two -vf-lp run folders) say how much the Q5 value function and
+#     its segregation outcomes depend on the quantisation.
+#
+# This label never had a sampling campaign (the sampling route is retired):
+# the exact tables come straight from value_functions/logprob/
+# logprob_value_function.py (no sampled table → blank skeleton, scenarios
+# from scenarios_a2.py, T = 0.3), validated by sequential re-sampling as
+# every other exact table is. vf_build_args is therefore empty; the frozen
+# vf_*.json in the run folder carry the extractor's meta.
+#
+# Produced end to end by value_functions/new_model_chain.py gemma-q8:
+#   download → server → exact tables → batch-numerics probe → server down →
+#   this pipeline (simulation + analysis + rank stability + cross-model).
+#
+#   python run_llm_probability_simulation_analysis.py \
+#       --config-yaml configs/vf_run_gemma_q8_lp.yaml --config-profile production
+# =============================================================================
+
+run_root: "experiments_with_llama_cpp"
+run_id: null
+
+llm_model: "gemma-4-31b-q8-vf-lp"
+
+manifest_file: null
+skip_vf_build: true          # exact tables: no sampling stage (see header)
+skip_contexts: false
+skip_analysis: false
+continue_on_error: false
+dry_run: false
+
+vf_build_args: {}
+
+contexts_args:
+  scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
+  runs: 10000
+  max_steps: 1000
+  grid_size: 20
+  num_type_a: 160
+  num_type_b: 160
+  value_function: "value_functions/results/llm_logprob/tables/vf_gemma-4-31b-q8-chat-grammar-lp__{scenario}__R3_dual_count.json"
+  temperature: 0.3           # recorded in config.json; the table was extracted at 0.3
+  scenario_file: "scenarios_a2.py"
+  llm_model: "gemma-4-31b-q8-vf-lp"
+  processes: 15        # one model at a time on the 20-core box (2026-09-07)
+  no_parallel: false
+  new: true
+
+analysis_args: {}
+
+profiles:
+
+  smoke_test:
+    skip_rank_stability: true   # one scenario x 2 runs: nothing to certify (2026-09-11)
+    contexts_args:
+      scenarios: [baseline]
+      runs: 2
+      max_steps: 2
+      grid_size: 20
+      num_type_a: 160
+      num_type_b: 160
+      value_function: "value_functions/results/llm_logprob/tables/vf_gemma-4-31b-q8-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      temperature: 0.3
+      scenario_file: "scenarios_a2.py"
+      llm_model: "gemma-4-31b-q8-vf-lp"
+      processes: 2
+      no_parallel: false
+      new: true
+
+  production:
+    contexts_args:
+      scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
+      runs: 10000
+      max_steps: 1000
+      grid_size: 20
+      num_type_a: 160
+      num_type_b: 160
+      value_function: "value_functions/results/llm_logprob/tables/vf_gemma-4-31b-q8-chat-grammar-lp__{scenario}__R3_dual_count.json"
+      temperature: 0.3
+      scenario_file: "scenarios_a2.py"
+      llm_model: "gemma-4-31b-q8-vf-lp"
+      processes: 15
+      no_parallel: false
+      new: true

@@ -63,6 +63,10 @@ MODELS = [
      ["--jinja", "--reasoning", "off"]),
     ("mistral-small-4-119b-chat-grammar", "llms/Mistral-Small-4-119B-2603-UD-Q4_K_M-00001-of-00003.gguf",
      ["--jinja", "--reasoning", "off"]),
+    # 2026-09-07: the Q8_0 Gemma (quantisation comparison). No sampled
+    # campaign, so probe it with --probe-args "--from-exact --match-cells
+    # gemma-4-31b-chat-grammar" (value_functions/new_model_chain.py does).
+    ("gemma-4-31b-q8-chat-grammar", "llms/gemma-4-31B-it-Q8_0.gguf", ["--jinja", "--reasoning", "off"]),
 ]
 # Other launchers that own the port; --wait blocks while any of them runs.
 OTHER_LAUNCHERS = ("run_logprob_resume_chain.sh", "run_logprob_vf_campaign.sh",

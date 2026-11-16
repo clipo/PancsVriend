@@ -109,6 +109,10 @@ MODELS = [
     ("granite-4.2-30b", "granite-4.2-30B", "#1f78b4"),
     ("phi-4-14b", "phi-4-14B", "#666666"),
     ("olmo-2-32b", "olmo-2-32B", "#a6761d"),
+    # 2026-09-07: the same Gemma at Q8_0 (quantisation comparison; the
+    # batch-numerics probe put every Q4/Q5/IQ3 model, dense or MoE, far above
+    # the Q8_0 ones). Same hue family as gemma-4-31B, darker.
+    ("gemma-4-31b-q8", "gemma-4-31B Q8_0", "#0b5e3f"),
 ]
 METRICS = ["dissimilarity_index", "clusters", "switch_rate", "distance",
            "mix_deviation", "share", "ghetto_rate"]

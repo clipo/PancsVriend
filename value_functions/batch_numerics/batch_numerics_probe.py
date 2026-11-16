@@ -3,6 +3,15 @@
 
     python value_functions/batch_numerics/batch_numerics_probe.py --label qwen3.6-27b-chat-grammar
     python value_functions/batch_numerics/batch_numerics_probe.py --label ... --cells 8 --repeats 16 --seq-samples 300
+    python value_functions/batch_numerics/batch_numerics_probe.py --label gemma-4-31b-q8-chat-grammar \
+        --from-exact --match-cells gemma-4-31b-chat-grammar --seq-samples 300
+
+--from-exact (2026-09-07): rank the candidate cells on the label's EXACT
+tables (value_functions/results/llm_logprob/tables/vf_<label>-lp__*) instead
+of a sampled campaign — for a label that never had one (the sampling route is
+retired). The campaign columns are then NaN. --match-cells <other label> adds
+every cell another probe run measured (results/probe_<other>_summary.csv), so
+two quantisations of one model are probed on the same cells.
 
 Everything about this artifact lives in this folder: the probe (this file), its
 results (results/probe_<label>*.csv/json/png) and README.md. All requests go
@@ -51,7 +60,7 @@ import requests
 _THIS = Path(__file__).resolve().parent            # value_functions/batch_numerics
 REPO_ROOT = _THIS.parents[1]
 sys.path.insert(0, str(REPO_ROOT))
-from value_functions.paths import SAMPLED_DIR, add_import_paths  # noqa: E402
+from value_functions.paths import SAMPLED_DIR, LOGPROB_TABLES_DIR, add_import_paths  # noqa: E402
 add_import_paths()
 
 from sampling_common import load_value_function, role_keywords, wilson_ci  # noqa: E402
@@ -109,28 +118,58 @@ def main() -> int:
     ap.add_argument("--seq-samples", type=int, default=0, help="0 = skip sequential sampling")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--from-exact", action="store_true",
+                    help="rank candidate cells on the label's exact (-lp) tables, not a sampled campaign "
+                         "(labels without one); campaign columns are NaN")
+    ap.add_argument("--match-cells", default=None, metavar="LABEL",
+                    help="also probe every cell of results/probe_<LABEL>_summary.csv (same cells across "
+                         "two quantisations of one model)")
     args = ap.parse_args()
 
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
     tpl, fn = RATIO_CANDIDATES[args.style]
-    # candidate cells: unsaturated, ranked by p(1-p) (where the artifact is most sensitive)
-    cands = []
-    for f in sorted(VF_DIR.glob(f"vf_{args.label}__*__{args.style}.json")):
+    # candidate cells: unsaturated, ranked by p(1-p) (where the artifact is most sensitive).
+    # Tuple: (p(1-p), scenario, role, n_similar, n_occupied, campaign n_move, campaign n, meta);
+    # campaign counts are None when the ranking comes from the exact tables.
+    cands, allcells = [], {}
+    if args.from_exact:
+        src = sorted(LOGPROB_TABLES_DIR.glob(f"vf_{args.label}-lp__*__{args.style}.json"))
+    else:
+        src = sorted(VF_DIR.glob(f"vf_{args.label}__*__{args.style}.json"))
+    for f in src:
         vf = load_value_function(f); scenario = f.name.split("__")[1]
         for role, rows in vf["compositions"].items():
             for c in rows:
-                n = c["n_move"] + c["n_stay"]
-                if n and 0 < c["n_move"] < n:
-                    cands.append((c["p_move_effective"] * (1 - c["p_move_effective"]), scenario, role,
-                                  c["n_similar"], c["n_occupied"], c["n_move"], n, vf["meta"]))
+                p = c["p_move_effective"]
+                if args.from_exact:
+                    nm, n = None, None
+                    unsat = p is not None and 0.005 < p < 0.995
+                else:
+                    nm, n = c["n_move"], c["n_move"] + c["n_stay"]
+                    unsat = bool(n) and 0 < nm < n
+                rec = (p * (1 - p) if p is not None else -1.0, scenario, role,
+                       c["n_similar"], c["n_occupied"], nm, n, vf["meta"])
+                allcells[(scenario, role, c["n_similar"], c["n_occupied"])] = rec
+                if unsat:
+                    cands.append(rec)
     if not cands:
-        print("no unsaturated cells in the sampled artifacts"); return 2
+        print("no unsaturated cells in the " + ("exact tables" if args.from_exact else "sampled artifacts")); return 2
     meta = cands[0][-1]
     model = args.model or meta.get("model") or args.label
     temperature = args.temperature if args.temperature is not None else float(meta["temperature"])
     cands.sort(key=lambda x: -x[0])
     rng = random.Random(args.seed)
     chosen = cands[:args.cells] + rng.sample(cands[args.cells:], min(args.extra_cells, max(0, len(cands) - args.cells)))
+    if args.match_cells:
+        ref = pd.read_csv(OUT_DIR / f"probe_{args.match_cells}_summary.csv")
+        have = {(c[1], c[2], c[3], c[4]) for c in chosen}
+        added = 0
+        for r in ref.itertuples():
+            key = (r.scenario, r.role, int(r.n_similar), int(r.n_occupied))
+            if key in have or key not in allcells:
+                continue
+            chosen.append(allcells[key]); have.add(key); added += 1
+        print(f"--match-cells {args.match_cells}: {added} cell(s) added (shared with that probe)")
     props = requests.get(f"{args.url}/props", timeout=60).json()
     print(f"label={args.label} model={model} T={temperature} server={props.get('model_path')} "
           f"slots={props.get('total_slots')} cells={len(chosen)}")
@@ -180,22 +219,26 @@ def main() -> int:
     for key in keys:
         d = df[(df.scenario == key[0]) & (df.role == key[1]) & (df.n_similar == key[2]) & (df.n_occupied == key[3])]
         s = d[d.condition == "sequential"].p_move; c = d[d.condition == "concurrent"].p_move; il = d[d.condition == "interleaved"].p_move
-        nm, n = campaign[key]; lo, hi = wilson_ci(nm, n)
+        nm, n = campaign[key]
+        if n:
+            lo, hi = wilson_ci(nm, n); cp = nm / n
+        else:                                   # --from-exact: no campaign
+            lo = hi = cp = float("nan"); n = 0
         row = {"label": args.label, "scenario": key[0], "role": key[1], "n_similar": key[2], "n_occupied": key[3],
                "sequential_p": s.iloc[0], "sequential_range": float(s.max() - s.min()),
                "concurrent_mean": float(c.mean()), "concurrent_sd": float(c.std(ddof=1)),
                "concurrent_min": float(c.min()), "concurrent_max": float(c.max()),
                "interleaved_mean": float(il.mean()), "interleaved_sd": float(il.std(ddof=1)),
                "interleaved_min": float(il.min()), "interleaved_max": float(il.max()),
-               "campaign_p": nm / n, "campaign_n": n, "campaign_ci_low": lo, "campaign_ci_high": hi,
-               "campaign_minus_sequential": nm / n - s.iloc[0]}
+               "campaign_p": cp, "campaign_n": n, "campaign_ci_low": lo, "campaign_ci_high": hi,
+               "campaign_minus_sequential": cp - s.iloc[0]}
         if key in seq:
             mv, tot = seq[key]; lo2, hi2 = wilson_ci(mv, tot)
             row.update({"seq_sampling_p": mv / tot, "seq_sampling_n": tot, "seq_sampling_ci_low": lo2,
                         "seq_sampling_ci_high": hi2, "sequential_inside_seq_sampling_ci": lo2 <= s.iloc[0] <= hi2})
         summ.append(row)
         print(f"  {key[0][:10]:10s}/{key[1]} {key[2]}/{key[3]}: sequential {s.iloc[0]:.4f} (range {row['sequential_range']:.1e})  "
-              f"concurrent {c.min():.3f}-{c.max():.3f} (sd {row['concurrent_sd']:.3f})  campaign {nm/n:.3f} [{lo:.3f},{hi:.3f}]")
+              f"concurrent {c.min():.3f}-{c.max():.3f} (sd {row['concurrent_sd']:.3f})  campaign {cp:.3f} [{lo:.3f},{hi:.3f}]")
     sm = pd.DataFrame(summ); sm.to_csv(out / f"probe_{args.label}_summary.csv", index=False)
     agg = {"label": args.label, "model": model, "temperature": temperature,
            "server": {k: props.get(k) for k in ("model_path", "build_info", "total_slots")},
@@ -204,8 +247,12 @@ def main() -> int:
            "concurrent_sd_median": float(sm.concurrent_sd.median()),
            "concurrent_span_median": float((sm.concurrent_max - sm.concurrent_min).median()),
            "concurrent_span_max": float((sm.concurrent_max - sm.concurrent_min).max()),
-           "campaign_minus_sequential_median_abs": float(sm.campaign_minus_sequential.abs().median()),
-           "campaign_minus_sequential_max_abs": float(sm.campaign_minus_sequential.abs().max()),
+           "campaign_minus_sequential_median_abs": (float(sm.campaign_minus_sequential.abs().median())
+                                                   if sm.campaign_n.gt(0).any() else None),
+           "campaign_minus_sequential_max_abs": (float(sm.campaign_minus_sequential.abs().max())
+                                                if sm.campaign_n.gt(0).any() else None),
+           "cells_from": "exact tables" if args.from_exact else "sampled campaign",
+           "matched_cells_from": args.match_cells,
            "created": datetime.now().isoformat(timespec="seconds")}
     (out / f"probe_{args.label}.json").write_text(json.dumps(agg, indent=1))
     fig_probe(df, sm, args.label, out / f"probe_{args.label}.png")
@@ -227,8 +274,9 @@ def fig_probe(df, sm, label, path):
         d = df[(df.scenario == key[0]) & (df.role == key[1]) & (df.n_similar == key[2]) & (df.n_occupied == key[3])]
         row = sm.iloc[y]
         # campaign CI (grey band) and sequential-sampling CI (dark band), behind the points
-        ax.plot([row.campaign_ci_low, row.campaign_ci_high], [y + 0.22, y + 0.22], color="#ADB5BD", lw=5, solid_capstyle="butt",
-                label="campaign rate, Wilson 95% CI (concurrency 4)" if y == 0 else None, zorder=1)
+        if not np.isnan(row.campaign_ci_low):
+            ax.plot([row.campaign_ci_low, row.campaign_ci_high], [y + 0.22, y + 0.22], color="#ADB5BD", lw=5, solid_capstyle="butt",
+                    label="campaign rate, Wilson 95% CI (concurrency 4)" if y == 0 else None, zorder=1)
         if "seq_sampling_ci_low" in row and not np.isnan(row.get("seq_sampling_ci_low", np.nan)):
             ax.plot([row.seq_sampling_ci_low, row.seq_sampling_ci_high], [y - 0.22, y - 0.22], color="#495057", lw=5,
                     solid_capstyle="butt", label="sequential sampling, Wilson 95% CI" if y == 0 else None, zorder=1)
