@@ -27,8 +27,11 @@ Writes census_goodness_of_fit.csv and census_goodness_of_fit.png (simulated null
 distribution per model, observed G marked) into --out-dir, by default the
 cross-model results folder. Run as the `census_gof` stage of
 run_llm_probability_simulation_analysis.py, so it never needs running by hand.
-Exit 0 always: a FAIL is a result, not an error, and so is having no census yet
-(a fresh clone or a model whose census has not run): it says so and writes nothing.
+Exit codes: 0 table written (a FAIL verdict is a result, not an error);
+NOTHING_TO_TEST (4) when no model has a complete census — a fresh clone, or a
+missing / partial census store — in which case nothing is written and any
+table from an earlier run is left as it was. The pipeline stage records that
+as its own status, so it is never mistaken for a fresh result.
 """
 import argparse
 import csv
@@ -47,6 +50,7 @@ import census_stats as cs                            # noqa: E402
 import sanity_vs_exact as sve                        # noqa: E402
 
 SUFFIX = "-chat-grammar"
+NOTHING_TO_TEST = 4
 
 
 def display_names():
@@ -83,8 +87,9 @@ def main():
 
     labels = census_labels(args.style)
     if not labels:
-        print(f"[census-gof] no complete census under {SANITY_TABLES_DIR}; nothing to test")
-        return 0
+        print(f"[census-gof] NOTHING TO TEST: no complete census under {SANITY_TABLES_DIR}; "
+              f"nothing written")
+        return NOTHING_TO_TEST
     order = display_names()
     rank = {key + SUFFIX: i for i, (key, _) in enumerate(order)}
     names = {key + SUFFIX: name for key, name in order}

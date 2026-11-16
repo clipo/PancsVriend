@@ -8,10 +8,12 @@ Covers:
 - a sampled-table (-vf-r3) run records it as skipped
 - --skip-census-gof / skip_census_gof omit it; the cross-model stage is unaffected
 - an explicit --out-dir in cross_model_args wins
-- a failure is recorded in run_layout_manifest.json and raises
+- a failure is recorded in run_layout_manifest.json and raises; "no complete
+  census" is recorded as its own status (nothing_to_test), flags any earlier
+  table, and does not fail the pipeline
 - census_goodness_of_fit.py on synthetic inputs: one row per model, PASS for a
   census drawn from its table, csv + png written, seed and reps recorded;
-  no census at all is not a failure (exit 0, nothing written)
+  no census, or only a partial one, exits NOTHING_TO_TEST and writes nothing
 """
 import gzip
 import json
@@ -93,6 +95,26 @@ def test_failure_is_recorded_and_raises(tmp_path, monkeypatch):
     assert rec["status"] == "failed" and rec["exit_code"] != 0
 
 
+def test_nothing_to_test_is_its_own_status(tmp_path, monkeypatch):
+    import census_goodness_of_fit as gof
+    assert orch.CENSUS_GOF_NOTHING_TO_TEST == gof.NOTHING_TO_TEST
+    run_dir = tmp_path / "root" / "run_unit"
+    run_dir.mkdir(parents=True)
+    (tmp_path / "root" / "cross_model").mkdir()
+    (tmp_path / "root" / "cross_model" / "census_goodness_of_fit.csv").write_text("old\n")
+    layout = orch._resolve_run_layout(str(tmp_path / "root"), "run_unit", "unit-vf-lp")
+    fake = tmp_path / "fake_gof.py"
+    fake.write_text(f"import sys; sys.exit({gof.NOTHING_TO_TEST})\n")
+    monkeypatch.setattr(orch, "CENSUS_GOF_SCRIPT", fake)
+
+    class A:
+        dry_run = False
+        continue_on_error = False
+    orch._run_census_gof_stage(A(), layout, [])            # does not raise
+    rec = json.loads((run_dir / "run_layout_manifest.json").read_text())["census_gof"]
+    assert rec["status"] == "nothing_to_test" and rec["existing_table_left_unchanged"] is True
+
+
 def test_script_on_synthetic_census(tmp_path, monkeypatch):
     import census_goodness_of_fit as gof
     import sanity_vs_exact as sve
@@ -130,5 +152,17 @@ def test_script_without_any_census(tmp_path, monkeypatch):
     (tmp_path / "tables").mkdir()
     monkeypatch.setattr(gof, "SANITY_TABLES_DIR", tmp_path / "tables")
     monkeypatch.setattr(sys, "argv", [SCRIPT, "--out-dir", str(tmp_path / "out")])
-    assert gof.main() == 0
+    assert gof.main() == gof.NOTHING_TO_TEST
+    assert not (tmp_path / "out").exists()
+
+
+def test_script_with_only_a_partial_census(tmp_path, monkeypatch):
+    import census_goodness_of_fit as gof
+    import sanity_vs_exact as sve
+    (tmp_path / "tables").mkdir()
+    (tmp_path / "tables" / "vf_unit-b-chat-grammar-sanity__baseline__R3_dual_count.json").write_text("{}")
+    monkeypatch.setattr(gof, "SANITY_TABLES_DIR", tmp_path / "tables")
+    monkeypatch.setattr(sve, "SANITY_TABLES_DIR", tmp_path / "tables")
+    monkeypatch.setattr(sys, "argv", [SCRIPT, "--out-dir", str(tmp_path / "out")])
+    assert gof.main() == gof.NOTHING_TO_TEST           # one scenario of six: not complete
     assert not (tmp_path / "out").exists()

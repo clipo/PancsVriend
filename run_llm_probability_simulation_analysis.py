@@ -43,7 +43,10 @@ stage, and under the same family rule and lock, it regenerates
 (value_functions/comparison/census_goodness_of_fit.py): for every model with a
 sequential census, one deviance test of the census against the exact table —
 the census result reported in the paper. It reads only the census and exact
-tables, so it costs seconds and needs no server. `skip_census_gof: true` (or
+tables, so it costs seconds and needs no server. When no model has a complete
+census it writes nothing and the stage records status `nothing_to_test` (with a
+warning that any existing table is from an earlier run) instead of
+`regenerated`. `skip_census_gof: true` (or
 --skip-census-gof) disables it; a `census_gof` block in run_layout_manifest.json
 records the command.
 
@@ -113,6 +116,7 @@ ANALYSIS_SCRIPT = REPO_ROOT / "analysis_tools" / "run_all_scenario_analysis.py"
 RANK_STABILITY_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "vf_rank_stability.py"
 CROSS_MODEL_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "cross_model_vf_comparison.py"
 CENSUS_GOF_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "census_goodness_of_fit.py"
+CENSUS_GOF_NOTHING_TO_TEST = 4      # census_goodness_of_fit.NOTHING_TO_TEST
 # Canonical store of value-function artifacts AND their multi-split rulers
 # (multisplit_<label>[_suffix]/). A ruler is a property of the table and the
 # board it was measured on, so it lives with the table, never inside a
@@ -1197,6 +1201,12 @@ def _run_census_gof_stage(args, run_layout, cm_args) -> None:
         if rc == 0:
             record["status"] = "regenerated"
             print(f"[census-gof] table and figure refreshed under {out_dir}")
+        elif rc == CENSUS_GOF_NOTHING_TO_TEST:
+            record["status"] = "nothing_to_test"
+            stale = Path(out_dir) / "census_goodness_of_fit.csv"
+            record["existing_table_left_unchanged"] = stale.exists()
+            print("[warn] Census goodness-of-fit stage: no complete census found; nothing "
+                  "regenerated" + (f" — {stale} is from an EARLIER run" if stale.exists() else ""))
         else:
             failure = f"census_goodness_of_fit.py exited {rc}"
     if failure is not None:
