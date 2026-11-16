@@ -451,7 +451,6 @@ Our analysis reveals that biases don't just vary in magnitude but in how they ev
 
 - **Authors**: Andreas Pape, Carl Lipo, et al.
 - **Institution**: Binghamton University
-- **Render Instructions**: See [`paper_README.md`](paper_README.md)
 
 ## ✨ New Features (2024)
 
@@ -800,8 +799,6 @@ python comprehensive_visualization_report.py
 ```bash
 # Render the scientific paper (requires Quarto + R)
 quarto render schelling_llm_paper.qmd --to pdf
-
-# See paper_README.md for setup instructions
 ```
 
 ## 📈 Experiment Workflows
@@ -1046,7 +1043,6 @@ We welcome contributions! Please:
 ### Scientific Paper
 - `schelling_llm_paper.qmd` - Quarto scientific paper
 - `references.bib` - Bibliography
-- `paper_README.md` - Paper rendering instructions
 - `journal_style_guide.md` - Journal submission guide
 
 ## 📄 Citation
