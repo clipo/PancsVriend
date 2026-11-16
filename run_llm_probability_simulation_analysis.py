@@ -37,6 +37,16 @@ concurrently (run_vf_prod10k_queue.sh waves) serialise on
 extra flags (--out-dir, --dpi); `skip_cross_model: true` disables the stage.
 A `cross_model` block in run_layout_manifest.json records the command.
 
+Census goodness-of-fit stage (added 2026-11-16): right after the cross-model
+stage, and under the same family rule and lock, it regenerates
+<run_root>/cross_model/census_goodness_of_fit.{csv,png}
+(value_functions/comparison/census_goodness_of_fit.py): for every model with a
+sequential census, one deviance test of the census against the exact table —
+the census result reported in the paper. It reads only the census and exact
+tables, so it costs seconds and needs no server. `skip_census_gof: true` (or
+--skip-census-gof) disables it; a `census_gof` block in run_layout_manifest.json
+records the command.
+
 Rank-stability stage (added 2026-09-04): after the scenario analysis, the DI
 ordering of this run's scenarios is classified against the value function's
 multi-split RULER (value_functions/comparison/vf_rank_stability.py). The stage derives
@@ -102,6 +112,7 @@ CONTEXTS_SCRIPT = REPO_ROOT / "run_all_contexts.py"
 ANALYSIS_SCRIPT = REPO_ROOT / "analysis_tools" / "run_all_scenario_analysis.py"
 RANK_STABILITY_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "vf_rank_stability.py"
 CROSS_MODEL_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "cross_model_vf_comparison.py"
+CENSUS_GOF_SCRIPT = REPO_ROOT / "value_functions" / "comparison" / "census_goodness_of_fit.py"
 # Canonical store of value-function artifacts AND their multi-split rulers
 # (multisplit_<label>[_suffix]/). A ruler is a property of the table and the
 # board it was measured on, so it lives with the table, never inside a
@@ -508,6 +519,7 @@ def _apply_config_to_args(
         "skip_analysis",
         "skip_rank_stability",
         "skip_cross_model",
+        "skip_census_gof",
         "continue_on_error",
         "dry_run",
     ]
@@ -682,6 +694,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip the final cross-model figure/table regeneration stage",
     )
     parser.add_argument(
+        "--skip-census-gof",
+        action="store_true",
+        help="Skip the census goodness-of-fit table/figure regeneration stage",
+    )
+    parser.add_argument(
         "--continue-on-error",
         action="store_true",
         help="Continue to next stage if a command fails",
@@ -798,6 +815,7 @@ def main() -> None:
             "skip_analysis": args.skip_analysis,
             "skip_rank_stability": args.skip_rank_stability,
             "skip_cross_model": args.skip_cross_model,
+            "skip_census_gof": args.skip_census_gof,
             "continue_on_error": args.continue_on_error,
             "dry_run": args.dry_run,
             "resolved": {
@@ -827,6 +845,7 @@ def main() -> None:
                 "skip_analysis": args.skip_analysis,
                 "skip_rank_stability": args.skip_rank_stability,
                 "skip_cross_model": args.skip_cross_model,
+                "skip_census_gof": args.skip_census_gof,
             },
             "passthrough": {
                 "vf_build_args": args.vf_build_args,
@@ -919,6 +938,9 @@ def main() -> None:
 
     if not args.skip_cross_model:
         _run_cross_model_stage(args, run_layout, cross_model_base_args)
+
+    if not args.skip_census_gof:
+        _run_census_gof_stage(args, run_layout, cross_model_base_args)
 
     print("\nPipeline completed.")
 
@@ -1135,6 +1157,54 @@ def _run_cross_model_stage(args, run_layout, cm_args) -> None:
         print(f"[error] Cross-model stage: {failure}")
     if not args.dry_run:
         _record_stage(run_layout, "cross_model", record)
+    if failure is not None and not args.continue_on_error:
+        raise SystemExit(3)
+
+
+def _run_census_gof_stage(args, run_layout, cm_args) -> None:
+    """Regenerate census_goodness_of_fit.{csv,png} next to the cross-model results.
+
+    The census result reported in the paper (one deviance test per model,
+    census_goodness_of_fit.py). Same family rule as the cross-model stage: only
+    an exact-table (-vf-lp) run refreshes it, and it writes under the same lock.
+    """
+    import fcntl
+
+    print("\n" + "=" * 90 + "\nCensus goodness-of-fit stage")
+    run_root = _get_flag_value(cm_args, "--run-root") or run_layout["run_root"]
+    family = _get_flag_value(cm_args, "--family") or _table_family(run_layout["model_slug"])
+    if family != "lp":
+        note = (f"{run_layout['model_slug']} is table family {family!r}; the census goodness of "
+                f"fit is a check on the exact (lp) tables, so it is not regenerated here")
+        print(f"[skip] Census goodness-of-fit stage: {note}")
+        if not args.dry_run:
+            _record_stage(run_layout, "census_gof", {"status": "skipped", "reason": note})
+        return
+    out_dir = _get_flag_value(cm_args, "--out-dir") or str(Path(run_root).resolve() / "cross_model")
+    cmd = [sys.executable, str(CENSUS_GOF_SCRIPT), "--out-dir", out_dir]
+    record: dict[str, Any] = {"out_dir": out_dir, "command": shlex.join(cmd)}
+    print("[cmd]", shlex.join(cmd))
+    failure: str | None = None
+    if args.dry_run:
+        record["status"] = "dry_run"
+    else:
+        lock_path = Path(run_root) / ".cross_model_figures.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            rc = subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+        record["exit_code"] = rc
+        if rc == 0:
+            record["status"] = "regenerated"
+            print(f"[census-gof] table and figure refreshed under {out_dir}")
+        else:
+            failure = f"census_goodness_of_fit.py exited {rc}"
+    if failure is not None:
+        record["status"] = "failed"
+        record["error"] = failure
+        print(f"[error] Census goodness-of-fit stage: {failure}")
+    if not args.dry_run:
+        _record_stage(run_layout, "census_gof", record)
     if failure is not None and not args.continue_on_error:
         raise SystemExit(3)
 

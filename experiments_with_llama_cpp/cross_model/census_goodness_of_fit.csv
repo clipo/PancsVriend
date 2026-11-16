@@ -1,0 +1,10 @@
+model,label,cells,census_draws,G,G_null_mean,G_null_q95,p_value,p_mc_se,verdict,median_abs_diff,bootstrap_reps,seed
+gemma-4-31B,gemma-4-31b-chat-grammar,540,54000,7.33,10.36,19.22,0.7117,0.0045,PASS,0.0,10000,0
+qwen3.6-27B,qwen3.6-27b-chat-grammar,540,54000,188.46,177.61,210.06,0.2651,0.0044,PASS,2e-05,10000,0
+llama-3.3-70B,llama-3.3-70b-chat-grammar,540,54000,47.89,47.88,64.72,0.4685,0.005,PASS,0.0,10000,0
+hermes-4.3-36B,hermes-4.3-36b-chat-grammar,540,54000,144.11,149.17,179.06,0.5946,0.0049,PASS,0.0,10000,0
+deepseek-v4-flash,deepseek-v4-flash-chat-grammar,540,54000,140.03,137.98,166.81,0.4311,0.005,PASS,0.0,10000,0
+mistral-small-4-119B,mistral-small-4-119b-chat-grammar,540,54000,39.98,40.01,55.9,0.4622,0.005,PASS,0.0,10000,0
+granite-4.2-30B,granite-4.2-30b-chat-grammar,540,54000,28.69,37.21,52.84,0.8419,0.0036,PASS,0.0,10000,0
+phi-4-14B,phi-4-14b-chat-grammar,540,54000,28.75,41.02,56.65,0.9396,0.0024,PASS,0.0,10000,0
+olmo-2-32B,olmo-2-32b-chat-grammar,540,54000,526.6,515.55,565.26,0.3564,0.0048,PASS,0.01023,10000,0
