@@ -289,11 +289,16 @@ class RawWriter:
     The sweep scripts accumulated every raw record in memory and wrote once at
     the end — a killed run lost all raw data. This writes through per record.
     Use as a context manager.
+
+    append=True adds to an existing file instead of replacing it: a new gzip
+    member starting with its own `_meta` line (every reader skips `_meta`
+    lines). Escalation rounds use it — on 2026-09-19 a second round opened
+    the file with "wt" and destroyed the 2026-09-11 round's raw replies.
     """
 
-    def __init__(self, path, meta):
+    def __init__(self, path, meta, append=False):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._f = gzip.open(path, "wt", encoding="utf-8")
+        self._f = gzip.open(path, "at" if append else "wt", encoding="utf-8")
         self._f.write(json.dumps({"_meta": True, **meta}) + "\n")
         self.n = 0
 

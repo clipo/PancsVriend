@@ -12,12 +12,13 @@ Per model, under its pinned clock (value_functions/serving.py):
   3. build the census: 540 cells x n=100, ONE request in flight
      (configs/value_function_scenarios_<key>_sanity.yaml)
   4. compare every cell with the exact table (comparison/sanity_vs_exact.py)
-  5. ESCALATE the misses on the SAME server: adaptive extra draws sized from
-     the observed deviation (floor --escalate, ceiling --max-n, --rounds),
-     merged into the census counts, re-tested. This is the step that used to
-     live in a shell wrapper; it runs here so a census is never left with
-     un-escalated borderline cells and never escalated under a different
-     prompt than the table.
+  5. ESCALATE the misses on the SAME server: ONE round of fresh draws per
+     miss, sized for power from the census alone (floor --escalate, ceiling
+     --max-n), tested on the fresh draws only (sanity_vs_exact.py docstring:
+     the pooled multi-round re-test was retired 2026-11-16). It runs here so a
+     census is never escalated under a different prompt than the table. A
+     census can be escalated once; --escalate-only on an escalated census is
+     refused by sanity_vs_exact.py (exit 4) — rebuild it instead.
   6. stop the server, hash the weights again, redraw the exact-vs-sanity
      figures
   7. the 100-run sanity simulation (configs/vf_run_<key>_sanity.yaml) — the
@@ -75,6 +76,22 @@ def misses(label: str) -> int | None:
     return sum(r["inside"].strip() != "True" for r in csv.DictReader(open(p)))
 
 
+def verdict(label: str) -> dict:
+    p = SEQCHECK_PLOTS_DIR / f"sanity_vs_exact_{label}.json"
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+def verdict_line(label: str) -> str:
+    v = verdict(label)
+    if not v:
+        return "no verdict"
+    g, s = v["goodness_of_fit"], v["sanity_check"]
+    return (f"goodness of fit (paper) {g['verdict']}, p {g['p_mc']:.3f}; per-cell sanity check "
+            f"(internal) {s['verdict']}: {s['census_misses']} census misses, "
+            f"{s['cells_disagree']} disagree, {s['cells_consistent']} consistent, "
+            f"{s['cells_beyond_cap']} beyond cap, {s['cells_not_tested']} not tested")
+
+
 def archive_existing(label: str, key: str, log: Path) -> None:
     hits = list(SANITY_TABLES_DIR.glob(f"vf_{label}-sanity__*.json"))
     if not hits:
@@ -125,13 +142,15 @@ def census_one(key: str, args: argparse.Namespace, log: Path) -> str:
         n0 = misses(m.label)
         say(f"{key}: census vs exact table: {n0}/540 misses before escalation", log)
         if n0 and not args.no_escalate:
-            rc = run(cmp + ["--url", srv.chat_url, "--escalate", str(args.escalate), "--adaptive",
-                            "--max-n", str(args.max_n), "--rounds", str(args.rounds)],
+            rc = run(cmp + ["--url", srv.chat_url, "--escalate", str(args.escalate),
+                            "--max-n", str(args.max_n)],
                      REPO / "logs" / f"census_escalate_{key}.log")
-            n1 = misses(m.label)
-            say(f"{key}: escalated {n0} miss cell(s) on the same pinned server: {n0} -> {n1} misses", log)
+            if rc == 4:
+                say(f"{key}: escalation REFUSED or UNRESOLVED (exit 4, logs/census_escalate_{key}.log)", log)
+            n1 = verdict_line(m.label)
+            say(f"{key}: escalated {n0} miss cell(s) once on the same pinned server: {n1}", log)
         else:
-            n1 = n0
+            n1 = verdict_line(m.label)
     after = record_hash(m.label, gguf, f"after the {key} census", log)
     if after != before:
         say(f"{key}: WARNING served weights hash changed during the census", log)
@@ -141,8 +160,8 @@ def census_one(key: str, args: argparse.Namespace, log: Path) -> str:
         rc = run([PY, str(REPO / "run_llm_probability_simulation_analysis.py"), "--config-yaml", str(run_cfg),
                   "--config-profile", "production"], REPO / "logs" / f"census_sims_{key}.log")
         if rc != 0:
-            return f"{key}: misses {n0}->{n1}; sanity sims FAILED (logs/census_sims_{key}.log)"
-    return f"{key}: misses {n0}->{n1}"
+            return f"{key}: census misses {n0}; {n1}; sanity sims FAILED (logs/census_sims_{key}.log)"
+    return f"{key}: census misses {n0}; {n1}"
 
 
 def main() -> int:
@@ -150,8 +169,7 @@ def main() -> int:
     ap.add_argument("--models", nargs="+", required=True, help="registry keys, or 'all'")
     ap.add_argument("--port", type=int, default=8085)
     ap.add_argument("--escalate", type=int, default=300, help="floor of extra draws per miss cell")
-    ap.add_argument("--max-n", type=int, default=1200, help="ceiling of extra draws per miss cell")
-    ap.add_argument("--rounds", type=int, default=2)
+    ap.add_argument("--max-n", type=int, default=1200, help="ceiling of fresh draws per miss cell")
     ap.add_argument("--no-escalate", action="store_true")
     ap.add_argument("--escalate-only", action="store_true", help="skip the build; compare + escalate the existing census")
     ap.add_argument("--skip-sims", action="store_true")
@@ -162,7 +180,7 @@ def main() -> int:
         ap.error(f"unknown model key(s) {unknown}; known: {list(MODELS)}")
     (REPO / "logs").mkdir(exist_ok=True)
     log = REPO / "logs" / f"census_{datetime.now():%Y%m%d_%H%M%S}.log"
-    ntfy("census STARTED", f"{', '.join(keys)}; escalate {args.escalate}-{args.max_n} x{args.rounds}", "rocket")
+    ntfy("census STARTED", f"{', '.join(keys)}; escalate once, {args.escalate}-{args.max_n} fresh draws per miss", "rocket")
     results = []
     for key in keys:
         try:

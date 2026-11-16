@@ -151,7 +151,8 @@ def merge_existing(counts, label, style, roles):
 
 def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
                        url, model, temperature, grammar_on, concurrency, seed,
-                       raw, ping_label, ping_ctx, seed_ctx=None):
+                       raw, ping_label, ping_ctx, seed_ctx=None,
+                       index_offset_fn=None):
     """The sampling loop, shared by the initial build and --top-up.
 
     alloc_fn(role, cell) -> how many NEW samples that (role, cell) gets —
@@ -163,6 +164,13 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
     (KV_CACHE_SAMPLING_ARTIFACT.md): cache_prompt=false and a deterministic
     request_seed(stage|scenario|style|role|sim|occ|i) per request, recorded in
     each raw record. None keeps the legacy payload (no cache/seed fields).
+
+    index_offset_fn(role, cell) -> first sample index i for that cell (default
+    0). A stage that samples the same cell more than once under one stage
+    string (escalation rounds) must pass it, or round 2 re-issues round 1's
+    seeds: sequential sampling is bit-reproducible under a fixed seed, so
+    those draws are copies that narrow the CI without adding information
+    (2026-09-19: 300 of every escalated cell's draws were such replays).
     """
     # One request queue per ROLE rather than one per (role, cell)
     # (2026-09-05). The 45 cells of a role used to be sampled strictly one
@@ -186,6 +194,7 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
             k = alloc_fn(role, cell)
             if k == 0:
                 continue
+            off = index_offset_fn(role, cell) if index_offset_fn else 0
             if fn is grid_context:
                 rendered = [render_prompt(style, tpl, fn, n_sim, n_occ,
                                           role_kw, rng=g0_rng)
@@ -201,14 +210,14 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
                 seed_fn = (lambda i, s=stage, sc=scenario, r=role,
                            ns=n_sim, no=n_occ:
                            request_seed(s, sc, style, r, ns, no, i))
-            jobs.append((cell, rendered, seed_fn))
+            jobs.append((cell, rendered, seed_fn, off))
         if jobs:
-            prompts = [p for _, rendered, _ in jobs for p, _ in rendered]
+            prompts = [p for _, rendered, _, _ in jobs for p, _ in rendered]
             if seed_ctx is None:
                 cache_prompt, flat_seed_fn = None, None
             else:
                 cache_prompt = False
-                seeds = [seed_fn(i) for _, rendered, seed_fn in jobs
+                seeds = [seed_fn(off + i) for _, rendered, seed_fn, off in jobs
                          for i in range(len(rendered))]
                 flat_seed_fn = seeds.__getitem__
             replies = sample_batch(url, model, prompts, temperature,
@@ -216,11 +225,11 @@ def sample_into_counts(counts, alloc_fn, roles, kw_by_role, style, tpl, fn,
                                    concurrency,
                                    cache_prompt=cache_prompt, seed_fn=flat_seed_fn)
             pos = 0
-            for cell, rendered, seed_fn in jobs:
+            for cell, rendered, seed_fn, off in jobs:
                 n_sim, n_occ = cell
                 cell_replies = replies[pos:pos + len(rendered)]
                 pos += len(rendered)
-                for i, (r, (_, ctx)) in enumerate(zip(cell_replies, rendered)):
+                for i, (r, (_, ctx)) in enumerate(zip(cell_replies, rendered), start=off):
                     rec = {"agent_role": role, "n_occupied": n_occ,
                            "n_similar": n_sim, "sample": i,
                            "context": ctx, "text": r["text"],

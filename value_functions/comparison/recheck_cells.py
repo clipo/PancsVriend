@@ -11,9 +11,9 @@ For each selected cell it does TWO independent things against a live server:
      a different number means the exact side is not reproducible, which would
      be a finding in itself.
   2. Draws a FRESH, INDEPENDENT n sample — NOT merged with the stored counts.
-     The escalation in sanity_vs_exact.py adds draws to the original 100, so a
-     stage-1 fluctuation keeps 25% weight and can hold a cell outside its
-     interval on its own. A clean sample removes that coupling entirely.
+     (Before 2026-11-16 the escalation in sanity_vs_exact.py pooled its draws
+     with the original 100, so a stage-1 fluctuation could hold a cell outside
+     its interval on its own; it now tests fresh draws only, as this does.)
 
 A discrepancy that survives both is a real disagreement between enumeration and
 sampling for that prompt, and the next step is to read the stored token paths.
