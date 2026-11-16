@@ -154,3 +154,7 @@ experiments/**/*.json.gz
 
 # Virtual links (local directory references)
 *.link
+
+# Run logs and local Claude Code config (machine-specific, never committed)
+logs/
+.claude/
