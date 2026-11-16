@@ -27,7 +27,8 @@ Writes census_goodness_of_fit.csv and census_goodness_of_fit.png (simulated null
 distribution per model, observed G marked) into --out-dir, by default the
 cross-model results folder. Run as the `census_gof` stage of
 run_llm_probability_simulation_analysis.py, so it never needs running by hand.
-Exit 0 always unless inputs are missing (2): a FAIL is a result, not an error.
+Exit 0 always: a FAIL is a result, not an error, and so is having no census yet
+(a fresh clone or a model whose census has not run): it says so and writes nothing.
 """
 import argparse
 import csv
@@ -82,8 +83,8 @@ def main():
 
     labels = census_labels(args.style)
     if not labels:
-        print(f"[error] no complete census under {SANITY_TABLES_DIR}", file=sys.stderr)
-        return 2
+        print(f"[census-gof] no complete census under {SANITY_TABLES_DIR}; nothing to test")
+        return 0
     order = display_names()
     rank = {key + SUFFIX: i for i, (key, _) in enumerate(order)}
     names = {key + SUFFIX: name for key, name in order}
