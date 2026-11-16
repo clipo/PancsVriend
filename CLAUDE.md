@@ -25,6 +25,7 @@ python check_llm.py                       # LLM connectivity (config.py, or --ll
 # Orchestrated value-function pipeline (simulation + analysis + cross-model stage)
 python run_llm_probability_simulation_analysis.py --config-yaml configs/vf_run_gemma_lp.yaml --config-profile production
 
+python value_functions/sampling/census.py --models llama mistral                   # sequential sanity census + escalation + sanity sims, pinned clock, no shell wrapper
 python run_all_contexts.py --runs 10 --processes 5 --llm-model phi4:latest   # multi-scenario live-LLM runner
 python baseline_runner.py --runs 100                                          # mechanical agents
 python llm_runner.py --scenario race_white_black --runs 10                    # one LLM scenario
@@ -85,9 +86,11 @@ the Llama-3.3 and Mistral templates print it, so their prompts — and their
 exact tables — changed every calendar day until 2026-09-12. Every server that
 serves those models runs under a pinned clock: **llama `2024-07-26`** (the
 template's own default "26 Jul 2024"), **Mistral `2026-03-16`** (its release date)
-(`run_logprob_vf_campaign.sh` PIN_DATE, libfaketime at
-`/srv/shared/schelling/tools/libfaketime`); traces record `server_env` and
-`rendered_probe_prompt`. Details: `prompt_refinement/LLAMA_CPP_SERVING_NOTES.md` §6.
+(`value_functions/serving.py`: the model registry, pins and `PinnedServer`;
+libfaketime at `/srv/shared/schelling/tools/libfaketime`); traces record
+`server_env` and `rendered_probe_prompt`. The census — build, compare,
+escalate misses on the same pinned server, sanity sims — is
+`value_functions/sampling/census.py`. Details: `prompt_refinement/LLAMA_CPP_SERVING_NOTES.md` §6.
 
 Only the exact `-vf-lp` tables are a result: the sampled `-vf-r3` tables carry
 the batch-numerics artifact, so the cross-model stage skips them (`--family r3`

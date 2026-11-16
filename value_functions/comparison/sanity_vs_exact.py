@@ -186,10 +186,14 @@ def main():
                 if args.adaptive:
                     todo = []
                     for r in miss:
-                        want = min(draws_needed(r["p_sanity"],
-                                                abs(r["p_exact"] - r["p_sanity"])), args.max_n)
+                        # target = draws the observed deviation would need, but never
+                        # fewer than --escalate MORE than the cell already has: a big
+                        # deviation "needs" few draws by the formula, and 2026-09-19 that
+                        # left the largest miss (llama ethnic red 0/6, dev 0.10) with none
+                        want = min(max(draws_needed(r["p_sanity"], abs(r["p_exact"] - r["p_sanity"])),
+                                       r["n_samples"] + args.escalate), args.max_n)
                         extra = max(want - r["n_samples"], 0)
-                        if extra >= max(args.escalate, 1):
+                        if extra > 0:
                             todo.append((r, extra))
                     if not todo:
                         print(f"  round {rnd+1}: every remaining cell is at the --max-n "
