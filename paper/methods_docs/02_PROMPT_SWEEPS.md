@@ -54,6 +54,32 @@ without the MOVE/STAY GBNF grammar. Three findings fixed the protocol:
 
 **Production protocol = R3 dual-count, chat + grammar.**
 
+### The production prompt, verbatim
+
+`prompt_refinement/ratio_prompt_templates.py` `RATIO_FRAME`, with the R3
+sentence as `{context}`. `{a_agent_type}` is the identity with its article
+("a red team resident", "a white middle class family"); the labels are the
+only thing that differs between scenarios (01 §4).
+
+```
+You are {a_agent_type} living in a neighborhood, considering whether to move to a different house.
+
+As a real person, you have your own preferences about neighborhood composition, but you also consider practical factors like proximity to friends, community ties, and comfort level.
+
+You will be told how many neighbors you currently have and their composition. You cannot see where anyone lives, only how many. After learning the composition, decide: would you move to a different house, or stay where you are? Answer with ONLY one word - MOVE or STAY - with no explanation or other text.
+
+Your neighborhood:
+
+You have 5 neighbors: 2 are red team residents like you and 3 are blue team residents.
+
+Your response:
+```
+
+It is sent as the single user message of a chat request; the reply is
+constrained by the grammar in 04 §2. (The paper's Appendix A reproduces this
+prompt but ends the second paragraph "and comfort." — the served text is
+"and comfort level.")
+
 ## 3. Headline findings
 
 - Prompt structure is behaviourally massive: the legacy production prompt
@@ -66,8 +92,10 @@ without the MOVE/STAY GBNF grammar. Three findings fixed the protocol:
 
 ## 4. Caveat carried to the paper
 
-The sweeps ran before the clean serving protocol, so transition-cell numeric
-values and interpolated thresholds carry unquantified KV-cache episode bias
-(`KV_CACHE_SAMPLING_ARTIFACT.md`); qualitative rankings and saturated-cell
-structure are unaffected. The production value functions (03) were
-re-measured under the clean protocol.
+The sweeps were sampled with several requests in flight and prompt caching
+on, on one model family at a time, before the batch-numerics artifact (04 §4)
+and the date injection (04 §3) were understood. Transition-cell numeric
+values and interpolated thresholds from the sweeps are therefore not
+citable; qualitative rankings and saturated-cell structure are unaffected.
+The sweeps chose the protocol only. Every number in the paper comes from the
+exact tables of 03, extracted sequentially under pinned clocks.

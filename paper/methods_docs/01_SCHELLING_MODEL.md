@@ -8,8 +8,9 @@ Implementation: `base_simulation.py` (engine), `Agent.py` (mechanical agent),
 
 | parameter | value | source |
 |---|---|---|
-| grid | 10 × 10, hard boundary (no wrap) | `config.GRID_SIZE` |
-| agents | 40 type-A + 40 type-B (20 cells empty) | `config.NUM_TYPE_A/B` |
+| grid | 20 × 20, hard boundary (no wrap) | run YAML `grid_size: 20` (`config.GRID_SIZE` default is 10) |
+| agents | 160 type-A + 160 type-B (80 cells empty) | run YAML `num_type_a/b: 160` |
+| runs | 10,000 per model × scenario (9 × 6 × 10,000 = 540,000) | run YAML `runs` |
 | initial placement | uniform random shuffle of agents + empties | `base_simulation.populate_grid` |
 | neighbourhood | Moore (8-cell); off-grid and empty cells excluded from ratios | `Agent._unlike_ratio` |
 
@@ -28,15 +29,25 @@ only; an agent with no neighbours is satisfied. It moves iff u ≤
 occupied neighbours are unlike it**. The LLM / value-function decision is 02
 and 03.
 
-**Convergence**: a run stops after `NO_MOVE_THRESHOLD` = 5 consecutive steps
-with zero moves, or at `--max-steps`. The reported `convergence_step` is the
-FIRST step of that zero-move window, so `final_step = convergence_step + 4`.
+A step is one full sweep: EVERY agent decides once per step (not one agent
+per step).
 
-**Seeding**: every run is seeded with `random_seed = run_id`, seeding both
-numpy (grid init, visit order) and stdlib random (decisions, destinations).
-Run k of any two batches therefore shares its initial grid and random stream,
-so batches are pairable run-for-run and value-function runs are exactly
-reproducible.
+**Stopping**: a run stops after `NO_MOVE_THRESHOLD` = 5 consecutive steps
+with zero moves, or at `max_steps` = 1000. The reported `convergence_step` is
+the FIRST step of that zero-move window, so `final_step = convergence_step +
+4`. A run's **final** value of a metric is its value at `final_step`, the
+last step simulated — one rule for converged and capped runs alike (no
+window means). Capped runs are therefore not necessarily stationary; the
+share of runs that meet the criterion is reported per model × scenario.
+
+**Seeding**: every run is seeded with `random_seed = run_id`: numpy draws the
+initial grid and the per-step visit order. In value-function runs the
+accept/reject draw and the destination draw are `keyed_uniform(run_id, step,
+agent_id, salt)` — a splitmix64 hash, so each draw is a pure function of its
+key (`rng_scheme: keyed` in `config.json`; `VF_RNG_SCHEME=shared` reproduces
+runs made before 2026-09-04). Run k of any two batches shares its initial
+grid, so batches are paired run-for-run — the basis of the paired tests in
+§3b — and every run is regenerable from its `run_id`.
 
 ## 3. Metrics
 
@@ -57,13 +68,42 @@ The dissimilarity index is the headline metric and owns its module,
 `DissimilarityIndex.py` — the tract partition, the index, the frozen 10×10
 reference implementation used as the test oracle, and the reference values.
 
+At 20×20 the tracts split rows and columns 6-8-6: four 6×6 corners (36
+cells), four 6×8 edges (48) and one 8×8 centre (64).
+
 The index is a property of the (data, partition) pair, so its floor moves
-with the grid: at 10×10 with this population, random allocation already
-scores 0.25 (sd 0.07) and a two-cluster city with a randomly angled boundary
-scores 0.81, against a maximum of 1.0. The random floor falls as 1/√(agents
-per tract) — 0.13 at 20×20 — while the ceiling stays flat, so **DI levels do
-not compare across grid sizes**. `python DissimilarityIndex.py` regenerates
-the tract maps and the reference table.
+with the grid. At 20×20 with 160 + 160 agents, random allocation scores
+**0.125 (sd 0.033; 5th–95th percentile 0.075–0.181; 20,000 draws)** and a
+two-cluster city with a randomly angled boundary scores 0.80 (sd 0.07),
+against a maximum of 1.0. At 10×10 the same quantities are 0.25 and 0.81:
+the random floor falls as 1/√(agents per tract) while the ceiling stays
+flat, so **DI levels do not compare across grid sizes**. `python
+DissimilarityIndex.py` regenerates the tract maps and the reference table.
+
+## 3b. Significance rules (decided 2026-09-05)
+
+"Chance" is tested like a scenario: each run's `initial_<metric>` (frame 0, a
+uniformly random allocation) is its own paired draw from the chance
+distribution, and a scenario not significantly above its initial grids
+"shows no segregation". Every statement in the cross-model ranking table and
+bump charts is a **paired t-test** on per-run differences (final − initial
+for chance; final − final for two scenarios, paired by `run_id`),
+**Holm-corrected**, with no normality gate and no practical floor. At n =
+10,000 a DI gap of ~0.002 is significant, so effect size is reported
+alongside: bump-chart gap bars are binned on Cohen's d (mean gap / pooled SD
+of the two scenarios' final values; 0.2 / 0.5 / 0.8). Details:
+`analysis_tools/analysis_guide.md` §7b.
+
+The paper's ordering table (`key_results_ordering.tex`) is produced by a
+different script, `analysis_tools/paper/compute_scenario_orderings.py` (identical copy in
+`analysis_tools/ccs2026_presentation/`),
+which uses **independent Welch t-tests**, Holm-corrected over the three
+headline pairs, AND an effect-size floor: `<` needs p < 0.01 and |Cohen's d|
+≥ 0.2, `≤` needs p < 0.05 and |d| ≥ 0.2, and `≈` is anything with |d| < 0.2
+or p ≥ 0.05. Every `≈` in the paper's table comes from the floor, so it is a
+judgment of practical equality, not a significance result. The full note is
+[06](06_STATISTICAL_METHODOLOGY.md). The two procedures should be reconciled
+before submission — see 05 caveat 6.
 
 Caveat: the 4- vs 8-neighbourhood split between metrics is historical.
 
@@ -83,7 +123,7 @@ identity labels differ (red = type_a, blue = type_b):
 
 ## 5. Per-experiment outputs
 
-`experiments/<name>/` holds `config.json` (full provenance, including the
+`<run_dir>/<experiment>/` holds `config.json` (full provenance, including the
 value-function file), `metrics_history.csv.gz` (row per run × step, all seven
 metrics) and `run_summary.csv` (`convergence_summary.csv` and `step_statistics.csv` were dropped on 2026-09-05 as re-derivable from these two)
 (one row per run: convergence step plus every metric at the final step), and

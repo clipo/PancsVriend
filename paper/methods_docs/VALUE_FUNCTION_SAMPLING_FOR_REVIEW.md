@@ -1,3 +1,11 @@
+> **RETIRED (2026-09-06).** This note describes the sample-size rule of the
+> sampled value functions (`-vf-r3`). Those tables were collected with four
+> requests in flight and carry the batch-numerics artifact (04 §4); they are
+> not a result, and the store was deleted on 2026-09-15. The paper uses the
+> exact log-probability tables of [03](03_VALUE_FUNCTION.md), which have no
+> sampling error and need no sample-size rule. Kept for the record of the
+> statistical design only.
+
 # How many samples per cell? The value-function sampling rule, for review
 
 *Self-contained note for colleagues vetting the measurement design: what is
