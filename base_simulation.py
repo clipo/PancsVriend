@@ -394,14 +394,29 @@ class Simulation:
         # these lines were 120k of the 240k lines in each campaign log.
         if show_progress or self.full_move_log:
             print(f"[Run {self.run_id}] Move summary: {moves} moves, {decisions - moves} stays, {self.step} steps")
-        
+
+        # With an output directory the per-step metric rows go to the run's
+        # own staged file (run_files.stage_metrics) and only the final row
+        # travels back: holding every run's rows in the parent cost ~43 GB per
+        # 10,000 x 10,000-step capped scenario (2026-11-23). analyze_results
+        # writes metrics_history.csv.gz from the staged files, run by run.
+        history, staged = self.metrics_history, {}
+        if output_dir is not None and self.metrics_history:
+            path, columns, all_int = run_files.stage_metrics(
+                output_dir, self.run_id, self.metrics_history)
+            staged = {'metrics_file': path, 'metrics_columns': columns,
+                      'metrics_all_int': all_int,
+                      'metrics_final_row': dict(self.metrics_history[-1])}
+            history = []
+
         return {
             'run_id': self.run_id,
             'scenario': self.scenario,
             'converged': self.converged,
             'convergence_step': self.convergence_step,
             'final_step': self.step,
-            'metrics_history': self.metrics_history,
+            'metrics_history': history,
+            **staged,
             # COUNT only, not the frames (2026-08-27). The full per-move history
             # is persisted to states_run_<id>.npz and every consumer reads it
             # from there; returning it here also shipped it through the Pool
@@ -609,6 +624,94 @@ class Simulation:
             return pd.DataFrame()
 
     @staticmethod
+    def _read_metrics_if_present(output_dir):
+        """Stored metrics_history (Parquet or CSV, round-trip floats), or an
+        empty frame when there is none or it cannot be read."""
+        path = run_files.metrics_history_path(output_dir)
+        if not os.path.exists(path):
+            return pd.DataFrame()
+        try:
+            frame = run_files.read_metrics_history(output_dir, float_precision='round_trip')
+            return frame if frame is not None else pd.DataFrame()
+        except Exception as exc:
+            print(f"Warning: could not read {path} ({exc}); "
+                  f"treating as empty — prior rows may be lost")
+            return pd.DataFrame()
+
+    @staticmethod
+    def _write_metrics_streamed(results, metrics_path):
+        """Write metrics_history from staged per-run files, one run at a time.
+
+        Produces the same text the one-shot DataFrame wrote: rows sorted by
+        (run_id, step), each column typed int64 only if it was all-int in
+        every run (run_files.stage_metrics), else float64. Results that still
+        carry a full in-memory history (callers without an output directory)
+        are written the same way. Returns False, writing nothing, in the cases
+        it does not handle (rows with differing keys, a repeated run_id, an
+        uncompressed target); the caller then uses the in-memory path.
+        """
+        if not (metrics_path.endswith(".gz") or run_files.is_parquet(metrics_path)):
+            return False
+        sources, columns, all_int = [], None, None
+        for r in results:
+            if r.get('metrics_file'):
+                cols, flags = list(r['metrics_columns']), list(r['metrics_all_int'])
+                src = ('file', r['metrics_file'])
+            elif r.get('metrics_history'):
+                hist = r['metrics_history']
+                cols = list(hist[0].keys())
+                if any(list(row.keys()) != cols for row in hist):
+                    return False
+                flags = [all(run_files._is_int_value(row[c]) for row in hist) for c in cols]
+                src = ('list', hist)
+            else:
+                continue                    # resume placeholder: no rows
+            if columns is None:
+                columns, all_int = cols, flags
+            elif cols != columns:
+                return False
+            else:
+                all_int = [a and b for a, b in zip(all_int, flags)]
+            sources.append((int(r['run_id']), src))
+        if not sources or not {'run_id', 'step'} <= set(columns):
+            return False
+        run_ids = [rid for rid, _ in sources]
+        if len(set(run_ids)) != len(run_ids):
+            return False
+        dtypes = [np.int64 if whole else np.float64 for whole in all_int]
+
+        def frames():
+            for rid, (kind, payload) in sorted(sources, key=lambda s: s[0]):
+                if kind == 'file':
+                    _, arrays, _ = run_files.load_staged_metrics(payload)
+                else:
+                    arrays = [[row[c] for row in payload] for c in columns]
+                frame = pd.DataFrame(
+                    {c: np.asarray([np.nan if v is None else v for v in a]
+                                   if isinstance(a, list) else a).astype(dt)
+                     for c, a, dt in zip(columns, arrays, dtypes)},
+                    columns=columns)
+                order = np.argsort(frame['step'].to_numpy(), kind='stable')
+                yield frame.iloc[order].reset_index(drop=True)
+
+        tmp = metrics_path + ".tmp"
+        try:
+            if run_files.is_parquet(metrics_path):
+                run_files._write_parquet_parts(frames(), tmp)
+            else:                       # a directory with a pre-2026-11-23 CSV
+                with gzip.open(tmp, "wt", compresslevel=9, newline="", encoding="utf-8") as fh:
+                    first = True
+                    for frame in frames():
+                        fh.write(frame.to_csv(index=False, header=first))
+                        first = False
+        except BaseException:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
+        os.replace(tmp, metrics_path)
+        return True
+
+    @staticmethod
     def analyze_results(results, output_dir, n_runs):
         """Write the experiment's metrics_history and run_summary from a batch of results.
 
@@ -631,27 +734,44 @@ class Simulation:
         every other run keeps the rows on disk, and run_summary reuses its
         existing row for a placeholder rather than rebuilding it.
         """
-        all_metrics = []
-        for result in results:
-            for metric in result['metrics_history']:
-                all_metrics.append(metric)
-
         metrics_path = run_files.metrics_history_path(output_dir)
+        staged = [r for r in results if r.get('metrics_file')]
+        disk_metrics = Simulation._read_metrics_if_present(output_dir)
+        disk_has_rows = not disk_metrics.empty and 'run_id' in disk_metrics.columns
 
-        # --- metrics: new rows replace their own run_id, others persist ------
-        new_metrics = pd.DataFrame(all_metrics)
-        disk_metrics = Simulation._read_csv_if_present(metrics_path)
-        if not disk_metrics.empty and 'run_id' in disk_metrics.columns:
-            if not new_metrics.empty:
-                disk_metrics = disk_metrics[
-                    ~disk_metrics['run_id'].isin(set(new_metrics['run_id']))]
-            merged_metrics = pd.concat([disk_metrics, new_metrics], ignore_index=True)
-        else:
-            merged_metrics = new_metrics
-        if not merged_metrics.empty and {'run_id', 'step'} <= set(merged_metrics.columns):
-            merged_metrics = merged_metrics.sort_values(['run_id', 'step'],
-                                                        kind='stable').reset_index(drop=True)
-        merged_metrics.to_csv(metrics_path, index=False)
+        streamed = bool(staged) and not disk_has_rows and \
+            Simulation._write_metrics_streamed(results, metrics_path)
+        if not streamed:
+            # Rows already on disk (a resume) are merged in memory, exactly as
+            # before; staged rows are read back into dicts for it.
+            all_metrics = []
+            for result in results:
+                rows = (run_files.staged_metrics_rows(result['metrics_file'])
+                        if result.get('metrics_file') else result['metrics_history'])
+                all_metrics.extend(rows)
+
+            # --- metrics: new rows replace their own run_id, others persist --
+            new_metrics = pd.DataFrame(all_metrics)
+            if disk_has_rows:
+                if not new_metrics.empty:
+                    disk_metrics = disk_metrics[
+                        ~disk_metrics['run_id'].isin(set(new_metrics['run_id']))]
+                merged_metrics = pd.concat([disk_metrics, new_metrics], ignore_index=True)
+            else:
+                merged_metrics = new_metrics
+            if not merged_metrics.empty and {'run_id', 'step'} <= set(merged_metrics.columns):
+                merged_metrics = merged_metrics.sort_values(['run_id', 'step'],
+                                                            kind='stable').reset_index(drop=True)
+            run_files.write_metrics_history(merged_metrics, metrics_path)
+            del all_metrics, new_metrics, merged_metrics
+        del disk_metrics
+        run_files.remove_metrics_stage(output_dir)
+
+        # run_summary takes each run's final-step row from the result; a
+        # staged run carries just that row.
+        results_for_summary = [
+            dict(r, metrics_history=[r['metrics_final_row']]) if r.get('metrics_file') else r
+            for r in results]
 
         # --- one row per run: convergence step + final-step metrics ----------
         # Written here rather than in each runner so baseline_runner,
@@ -660,7 +780,10 @@ class Simulation:
         # module imports DissimilarityIndex and config, and base_simulation is
         # imported by tests that stub those.
         from run_summary import write_run_summary
-        summary = write_run_summary(output_dir, results)
+        summary = write_run_summary(output_dir, results_for_summary)
+        for r in results:                   # their staged files are gone now
+            for key in ('metrics_file', 'metrics_columns', 'metrics_all_int'):
+                r.pop(key, None)
 
         convergence_rows = []
         if not summary.empty:
@@ -702,7 +825,7 @@ class Simulation:
             print(f"Loading existing analysis files from {output_dir}")
             
             # Load pre-computed metrics and convergence data
-            metrics_df = pd.read_csv(metrics_file, float_precision='round_trip')
+            metrics_df = run_files.read_metrics_history(output_dir, float_precision='round_trip')
             convergence_df = pd.read_csv(convergence_file)
             metrics_by_run = {
                 run_id: group.to_dict('records')

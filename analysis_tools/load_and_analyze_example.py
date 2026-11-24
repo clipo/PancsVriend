@@ -56,7 +56,8 @@ def main():
         
         # List the analysis files that were created
         analysis_files = [
-            "metrics_history.csv.gz",
+            "metrics_history.parquet",
+            "metrics_history.csv.gz",          # experiments before 2026-11-23
             "run_summary.csv",
         ]
         

@@ -179,7 +179,7 @@ def compare_convergence_across_runs(results_dir):
     - comparison_df: DataFrame with convergence metrics for all runs
     """
     
-    metrics_df = pd.read_csv(run_files.metrics_history_path(results_dir))
+    metrics_df = run_files.read_metrics_file(run_files.metrics_history_path(results_dir))
     
     comparison_data = []
     

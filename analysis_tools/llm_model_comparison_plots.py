@@ -235,7 +235,7 @@ def _plot_convergence_patterns(
                 metrics_path = Path(run_files.metrics_history_path(Path("experiments") / folder))
                 if not metrics_path.exists():
                     continue
-                df = pd.read_csv(metrics_path)
+                df = run_files.read_metrics_file(metrics_path)
                 metrics_cache[model_key] = df
 
             if df.empty or metric not in df.columns:
@@ -331,7 +331,7 @@ def _plot_metrics_comparison(
         metrics_path = Path(run_files.metrics_history_path(Path("experiments") / folder))
         if not metrics_path.exists():
             continue
-        df = pd.read_csv(metrics_path)
+        df = run_files.read_metrics_file(metrics_path)
         if df.empty:
             continue
         final_metrics = df.loc[df.groupby("run_id")["step"].idxmax()].copy()
@@ -474,7 +474,7 @@ def _build_segregation_ranking_table(
             metrics_path = Path(run_files.metrics_history_path(Path("experiments") / model_payload["folder"]))
             if not metrics_path.exists():
                 continue
-            df = pd.read_csv(metrics_path)
+            df = run_files.read_metrics_file(metrics_path)
             if df.empty or "run_id" not in df.columns or "step" not in df.columns:
                 continue
             final_metrics = df.loc[df.groupby("run_id")["step"].idxmax()].copy()

@@ -76,7 +76,7 @@ def load_data():
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(EXP_DIR / folder))
         if filepath.exists():
-            df = pd.read_csv(filepath)
+            df = run_files.read_metrics_file(filepath)
             data[scenario_name] = df
     return data
 

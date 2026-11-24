@@ -64,7 +64,7 @@ def analyze_stability():
         for scenario_name, folder in scenarios.items():
             filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
             if filepath.exists():
-                df = pd.read_csv(filepath)
+                df = run_files.read_metrics_file(filepath)
                 
                 # Calculate stability over time windows
                 time_windows = [(0, 20), (20, 50), (50, 100), (100, 200)]
@@ -103,7 +103,7 @@ def analyze_stability():
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
-            df = pd.read_csv(filepath)
+            df = run_files.read_metrics_file(filepath)
             
             # Calculate coefficient of variation for each step
             cv_by_step = []
@@ -139,7 +139,7 @@ def analyze_stability():
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
-            df = pd.read_csv(filepath)
+            df = run_files.read_metrics_file(filepath)
             
             # Calculate average stability across all metrics
             stabilities = []
@@ -163,7 +163,7 @@ def analyze_stability():
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
-            df = pd.read_csv(filepath)
+            df = run_files.read_metrics_file(filepath)
             
             # Compare early vs late variance
             early_df = df[df['step'] <= 30]

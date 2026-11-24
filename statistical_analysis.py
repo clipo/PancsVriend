@@ -31,7 +31,7 @@ def perform_statistical_tests(experiments_data, metric='distance', alpha=0.05):
     all_data = []
     
     for exp_name, exp_dir in experiments_data.items():
-        df = pd.read_csv(run_files.metrics_history_path(exp_dir))
+        df = run_files.read_metrics_file(run_files.metrics_history_path(exp_dir))
         final_values = df.groupby('run_id').last()[metric].values
         experiment_values[exp_name] = final_values
         
@@ -192,7 +192,7 @@ def analyze_convergence_patterns(experiments_data):
         if not os.path.exists(conv_path):            # pre-2026-09-05 directories
             conv_path = f"{exp_dir}/convergence_summary.csv"
         conv_df = pd.read_csv(conv_path)
-        metrics_df = pd.read_csv(run_files.metrics_history_path(exp_dir))
+        metrics_df = run_files.read_metrics_file(run_files.metrics_history_path(exp_dir))
         
         # Convergence statistics
         conv_steps = conv_df['convergence_step'].dropna()
@@ -226,7 +226,7 @@ def perform_multivariate_analysis(experiments_data, metrics=['distance', 'mix_de
     labels = []
     
     for exp_name, exp_dir in experiments_data.items():
-        df = pd.read_csv(run_files.metrics_history_path(exp_dir))
+        df = run_files.read_metrics_file(run_files.metrics_history_path(exp_dir))
         final_values = df.groupby('run_id').last()
         
         for _, row in final_values.iterrows():

@@ -82,7 +82,7 @@ def load_batch(exp_dir, max_steps):
     """{metric: (n_runs, max_steps) ndarray}, runs ordered by run_id,
     columns steps 1..max_steps, forward-filled after convergence."""
     exp_dir = Path(exp_dir)
-    mh = pd.read_csv(run_files.metrics_history_path(exp_dir))
+    mh = run_files.read_metrics_file(run_files.metrics_history_path(exp_dir))
     run_ids = sorted(mh.run_id.unique())
     out = {}
     for m in METRIC_KEYS:

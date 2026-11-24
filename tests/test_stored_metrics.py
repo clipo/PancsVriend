@@ -61,11 +61,11 @@ def experiment(tmp_path, monkeypatch):
 
 
 def _read_metrics(exp_dir):
-    return pd.read_csv(run_files.metrics_history_path(exp_dir), float_precision='round_trip')
+    return run_files.read_metrics_file(run_files.metrics_history_path(exp_dir), float_precision='round_trip')
 
 
 def _write_metrics(exp_dir, df):
-    df.to_csv(run_files.metrics_history_path(exp_dir), index=False)
+    run_files.write_metrics_history(df, run_files.metrics_history_path(exp_dir))
 
 
 # --- step_log_extent / stale_metrics_runs -----------------------------------
@@ -119,9 +119,9 @@ def test_run_ids_argument_limits_the_check(experiment):
 
 def test_repair_is_a_no_op_on_a_complete_experiment(experiment):
     path = run_files.metrics_history_path(experiment)
-    before = gzip.open(path, 'rb').read()
+    before = open(path, 'rb').read()
     assert Simulation.repair_stored_metrics(str(experiment)) == []
-    assert gzip.open(path, 'rb').read() == before
+    assert open(path, 'rb').read() == before
 
 
 def test_repair_rebuilds_only_the_stale_run_and_restores_its_rows(experiment):
@@ -166,7 +166,7 @@ def test_repair_step_verifies_by_default_and_rebuilds_only_when_forced(experimen
 
     monkeypatch.setattr(experiment_list, 'SCENARIOS', {'llm_baseline': experiment.name}, raising=False)
     path = run_files.metrics_history_path(experiment)
-    before = gzip.open(path, 'rb').read()
+    before = open(path, 'rb').read()
     calls = []
     monkeypatch.setattr(Simulation, 'load_and_analyze_results',
                         lambda *a, **k: calls.append(('full', a, k)))
@@ -174,7 +174,7 @@ def test_repair_step_verifies_by_default_and_rebuilds_only_when_forced(experimen
     rebuilt = runner.repair_selected_experiments(experiments_dir=experiment.parent, verbose=False)
     assert rebuilt == {experiment.name: []}               # complete: nothing rebuilt
     assert calls == []                                    # and no full rebuild
-    assert gzip.open(path, 'rb').read() == before
+    assert open(path, 'rb').read() == before
 
     runner.repair_selected_experiments(experiments_dir=experiment.parent, force=True, verbose=False)
     assert len(calls) == 1 and calls[0][2] == {'force_recompute': True}

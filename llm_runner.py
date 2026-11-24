@@ -1551,6 +1551,12 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                                       'created')}
                                     if vf_meta else None),
             'save_every_steps': save_every_steps,
+            # metrics_history / packed step log are Parquet in new experiments
+            # and every reader gets the exact stored float64 values. Until
+            # 2026-11-24 they were csv.gz and some analysis readers parsed them
+            # with pandas' default parser, which is up to an ulp off: outputs
+            # derived that way can differ from these in the last digits.
+            'metrics_float_reads': 'exact',
         }
         
         with open(f"{output_dir}/config.json", 'w') as f:
@@ -1635,13 +1641,26 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
         for run_id in run_files.list_run_ids(output_dir):
             if run_id in newly_executed_run_ids or run_id in seen:
                 continue
-            existing_results.append({
+            placeholder = {
                 'run_id': run_id,
                 'converged': True,  # Assume converged if the record exists
                 'convergence_step': None,  # Unknown from the record alone
                 'final_step': 'unknown',
                 'metrics_history': [],  # analyze_results keeps the stored rows
-            })
+            }
+            # A run finished by an interrupted attempt left its metric rows
+            # staged (run_files.stage_metrics, written after its frames and
+            # step log): use them, as a finished run's rows, instead of losing
+            # them and rebuilding every such run in memory later (2026-11-23).
+            stage = run_files.metrics_stage_path(output_dir, run_id)
+            if os.path.exists(stage):
+                columns, arrays, all_int = run_files.load_staged_metrics(stage)
+                placeholder.update({
+                    'metrics_file': stage, 'metrics_columns': columns,
+                    'metrics_all_int': all_int,
+                    'metrics_final_row': {c: a[-1].item() for c, a in zip(columns, arrays)},
+                })
+            existing_results.append(placeholder)
         
         # Combine existing and new results (no duplicates now)
         all_results = existing_results + results

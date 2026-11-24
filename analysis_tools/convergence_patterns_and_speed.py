@@ -138,7 +138,7 @@ for idx, metric in enumerate(metrics):
                 if scenario_name in metrics_history_cache:
                     df = metrics_history_cache[scenario_name]
                 else:
-                    df = pd.read_csv(filepath)
+                    df = run_files.read_metrics_file(filepath)
                     metrics_history_cache[scenario_name] = df
 
         if df is None or df.empty:
@@ -284,7 +284,7 @@ for scenario_name, folder in scenarios.items():
         df_base = metrics_history_cache[scenario_name]
     else:
         path = Path(run_files.metrics_history_path(f'experiments/{folder}'))
-        df_base = pd.read_csv(path) if path.exists() else None
+        df_base = run_files.read_metrics_file(path) if path.exists() else None
         if df_base is not None:
             metrics_history_cache[scenario_name] = df_base
 

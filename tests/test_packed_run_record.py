@@ -83,7 +83,7 @@ def experiment(tmp_path, monkeypatch):
 def test_pack_preserves_every_reader_and_removes_per_run_files(experiment):
     ids = run_files.list_run_ids(experiment)
     before = _snapshot(experiment, ids)
-    before_metrics = pd.read_csv(run_files.metrics_history_path(experiment))
+    before_metrics = run_files.read_metrics_file(run_files.metrics_history_path(experiment))
 
     assert run_files.pack_run_record(str(experiment), verbose=False) == 4
 
@@ -95,7 +95,7 @@ def test_pack_preserves_every_reader_and_removes_per_run_files(experiment):
     assert all(run_files.has_per_step_log(experiment, rid) for rid in ids)
     _assert_same(before, _snapshot(experiment, ids))
     # Nothing else in the directory is touched.
-    pd.testing.assert_frame_equal(pd.read_csv(run_files.metrics_history_path(experiment)), before_metrics)
+    pd.testing.assert_frame_equal(run_files.read_metrics_file(run_files.metrics_history_path(experiment)), before_metrics)
     # Packing again is a no-op.
     assert run_files.pack_run_record(str(experiment), verbose=False) == 0
 
@@ -105,7 +105,7 @@ def test_packed_container_is_a_plain_npz(experiment):
     with np.load(experiment / 'states' / run_files.PACKED_STATES) as z:
         assert sorted(z.files) == ['run_0', 'run_1', 'run_2', 'run_5']
         assert z['run_1'].dtype == np.int8
-    packed = pd.read_csv(experiment / 'move_logs' / run_files.PACKED_STEP_LOG)
+    packed = pd.read_parquet(experiment / 'move_logs' / run_files.PACKED_STEP_LOG)
     assert list(packed.columns) == ['run_id', *run_files.STEP_LOG_COLUMNS]
 
 
@@ -153,12 +153,12 @@ def test_pack_leaves_full_format_runs_alone(tmp_path, monkeypatch):
 def test_stale_check_and_repair_work_on_a_packed_experiment(experiment):
     run_files.pack_run_record(str(experiment), verbose=False)
     assert run_files.stale_metrics_runs(experiment) == []
-    original = pd.read_csv(run_files.metrics_history_path(experiment), float_precision='round_trip')
+    original = run_files.read_metrics_file(run_files.metrics_history_path(experiment), float_precision='round_trip')
     damaged = original[~((original['run_id'] == 2) & (original['step'] < 2))]
-    damaged.to_csv(run_files.metrics_history_path(experiment), index=False)
+    run_files.write_metrics_history(damaged, run_files.metrics_history_path(experiment))
     assert run_files.stale_metrics_runs(experiment) == [2]
     assert Simulation.repair_stored_metrics(str(experiment)) == [2]
-    repaired = pd.read_csv(run_files.metrics_history_path(experiment), float_precision='round_trip')
+    repaired = run_files.read_metrics_file(run_files.metrics_history_path(experiment), float_precision='round_trip')
     cols = ['run_id', 'step', *run_files.METRIC_COLUMNS]
     pd.testing.assert_frame_equal(
         repaired[cols].sort_values(['run_id', 'step']).reset_index(drop=True),

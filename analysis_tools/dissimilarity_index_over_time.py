@@ -101,7 +101,7 @@ def stored_run_timeseries(
     if not os.path.exists(path):
         return None, list(run_ids)
     try:
-        metrics = pd.read_csv(path, float_precision='round_trip')
+        metrics = run_files.read_metrics_file(path, float_precision='round_trip')
     except Exception as exc:
         print(f"  [WARN] Could not read {path} ({exc}); computing from frames")
         return None, list(run_ids)

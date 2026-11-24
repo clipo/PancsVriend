@@ -33,7 +33,7 @@ def test_analyze_results_writes_csv(tmp_path):
     # Check generated files: metrics_history plus run_summary (the per-run
     # bookkeeping; convergence_summary.csv and step_statistics.csv are no
     # longer written, 2026-09-05)
-    metrics_file = output_dir / "metrics_history.csv.gz"
+    metrics_file = output_dir / "metrics_history.parquet"
     summary_file = output_dir / "run_summary.csv"
     assert metrics_file.exists(), "metrics_history.csv not created"
     assert summary_file.exists(), "run_summary.csv not created"
@@ -41,7 +41,7 @@ def test_analyze_results_writes_csv(tmp_path):
     assert not (output_dir / "step_statistics.csv").exists()
 
     # Validate contents
-    df_metrics = pd.read_csv(metrics_file)
+    df_metrics = pd.read_parquet(metrics_file)
     df_summary = pd.read_csv(summary_file)
     assert len(df_metrics) == 2
     assert len(df_summary) == 1
@@ -114,9 +114,9 @@ def test_analyze_results_writes_metrics_and_summary_only(tmp_path):
     Simulation.analyze_results(results, str(output_dir), len(results))
 
     # Files should exist — and only these two
-    assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing"
+    assert (output_dir / 'metrics_history.parquet').exists(), "metrics_history.csv missing"
     assert (output_dir / 'run_summary.csv').exists(), "run_summary.csv missing"
-    assert sorted(p.name for p in output_dir.iterdir()) == ['metrics_history.csv.gz', 'run_summary.csv']
+    assert sorted(p.name for p in output_dir.iterdir()) == ['metrics_history.parquet', 'run_summary.csv']
 
 
 def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
@@ -140,7 +140,7 @@ def test_load_and_analyze_results_integration(tmp_path, monkeypatch):
     out_dir, out_results, out_conv = Simulation.load_and_analyze_results(output_dir=str(output_dir))
 
     # Check output files
-    assert (output_dir / 'metrics_history.csv.gz').exists(), "metrics_history.csv missing after integration"
+    assert (output_dir / 'metrics_history.parquet').exists(), "metrics_history.csv missing after integration"
     assert (output_dir / 'run_summary.csv').exists(), "run_summary.csv missing after integration"
 
     # Validate returned data
@@ -673,7 +673,7 @@ def test_analyze_results_single_run(tmp_path):
     assert len(out_conv) == 1
     
     # Check files created
-    assert (tmp_path / "metrics_history.csv.gz").exists()
+    assert (tmp_path / "metrics_history.parquet").exists()
     assert (tmp_path / "run_summary.csv").exists()
 
 

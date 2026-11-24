@@ -46,7 +46,7 @@ def create_clear_dynamics_visualization():
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
         if filepath.exists():
-            df = pd.read_csv(filepath)
+            df = run_files.read_metrics_file(filepath)
             all_data[scenario_name] = df
     
     # Create figure with clearer layout

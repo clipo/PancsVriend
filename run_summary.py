@@ -132,6 +132,20 @@ def _read_csv_if_present(path):
         return pd.DataFrame()
 
 
+def _read_metrics_if_present(output_dir):
+    """Stored metrics_history (Parquet, or CSV with round-trip floats), or an
+    empty frame — the metrics_history counterpart of _read_csv_if_present."""
+    path = run_files.metrics_history_path(output_dir)
+    if not os.path.exists(path):
+        return pd.DataFrame()
+    try:
+        frame = run_files.read_metrics_history(output_dir, float_precision='round_trip')
+        return frame if frame is not None else pd.DataFrame()
+    except Exception as exc:
+        print(f"[run_summary] Warning: could not read {path} ({exc}); treating as empty")
+        return pd.DataFrame()
+
+
 def _rebuild_from_move_log(output_dir, run_id, threshold):
     """Per-step move counts + the final grid, straight from the run's files.
 
@@ -217,7 +231,7 @@ def _metrics_by_run(output_dir, results):
     """
     final_rows = {}
 
-    disk = _read_csv_if_present(run_files.metrics_history_path(output_dir))
+    disk = _read_metrics_if_present(output_dir)
     if not disk.empty and {"run_id", "step"} <= set(disk.columns):
         idx = disk.groupby("run_id")["step"].idxmax()
         # to_dict('records'), not iterrows(): a row Series upcasts the integer
