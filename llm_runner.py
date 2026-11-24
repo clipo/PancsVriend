@@ -956,6 +956,14 @@ class LLMSimulation(Simulation):
         
         return result
 
+def simulation_path(value_function_policy):
+    """'fast' (vf_fastpath.FastVFSimulation) when VF_FAST_PATH is on and the
+    run is a value-function run, else 'reference' (the object-grid path). The
+    one place the choice is made, for the workers and for config.json."""
+    on = os.environ.get('VF_FAST_PATH', '').strip().lower() in ('1', 'true', 'yes')
+    return 'fast' if (on and value_function_policy) else 'reference'
+
+
 def run_single_simulation(args):
     """Run a single LLM simulation - compatible with baseline_runner structure.
     Supports optional resume seeds and max_steps.
@@ -997,7 +1005,15 @@ def run_single_simulation(args):
         # (under fork the parent's apply already covers it).
         apply_scenario_file(scenario_file)
 
-    sim = LLMSimulation(run_id, scenario, llm_model, llm_url, llm_api_key,
+    # Array-based fast path for value-function runs (speed review item 4,
+    # vf_fastpath.py): same decisions, random numbers and record as the object
+    # grid, ~6.5x faster per step. On when VF_FAST_PATH=1 (production since
+    # 2026-11-24); config.json records which path produced each experiment.
+    sim_class = LLMSimulation
+    if simulation_path(value_function_policy) == 'fast':
+        from vf_fastpath import FastVFSimulation
+        sim_class = FastVFSimulation
+    sim = sim_class(run_id, scenario, llm_model, llm_url, llm_api_key,
                         # Seed by run_id: run k of ANY two batches shares its
                         # initial grid and RNG streams, making full-vs-half
                         # value-function checks and LLM-vs-mechanical
@@ -1551,6 +1567,10 @@ def run_llm_experiment(scenario=None, n_runs=None, max_steps=None, llm_model=Non
                                       'created')}
                                     if vf_meta else None),
             'save_every_steps': save_every_steps,
+            # Which simulation code produced the runs (simulation_path):
+            # 'fast' = vf_fastpath.FastVFSimulation, 'reference' = the
+            # object-grid path. Both give identical runs (checked bit for bit).
+            'simulation_path': simulation_path(value_function_policy),
             # metrics_history / packed step log are Parquet in new experiments
             # and every reader gets the exact stored float64 values. Until
             # 2026-11-24 they were csv.gz and some analysis readers parsed them
