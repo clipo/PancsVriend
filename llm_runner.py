@@ -609,7 +609,11 @@ class LLMAgent(Agent):
 
         if not choose_move:
             return None
-        empty_spaces = _empty_cells(grid)
+        # The simulation's running list (Simulation.update_agents) when it
+        # keeps one; the same cells in the same order as a fresh scan.
+        empty_spaces = getattr(self, "empty_cells", None)
+        if empty_spaces is None:
+            empty_spaces = _empty_cells(grid)
         if not empty_spaces:
             return None
         if keyed:

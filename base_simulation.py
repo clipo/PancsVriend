@@ -6,6 +6,7 @@ import os
 import gzip
 import json
 import multiprocessing as mp
+import bisect
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 from tqdm import tqdm
@@ -211,6 +212,13 @@ class Simulation:
         all_positions = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE) if self.grid[r][c]]
         np.random.shuffle(all_positions)
         moved = False
+        # Running list of empty cells in row-major order (2026-11-23): built
+        # once per step and updated on every move, instead of each mover
+        # rescanning the grid (llm_runner._empty_cells, 33 us per mover). The
+        # destination draw indexes this list by position, so it must equal
+        # _empty_cells(grid) at every decision: same cells, same order.
+        empty_cells = [(r, c) for r in range(cfg.GRID_SIZE) for c in range(cfg.GRID_SIZE)
+                       if self.grid[r][c] is None]
             
         if verbose_move_log:
             print(f"[Step {self.step}] Processing {len(all_positions)} agents for movement decisions")
@@ -220,6 +228,7 @@ class Simulation:
             if agent is not None:
                 agent.new_position = None  # Reset new position for this agent
                 agent.step = self.step     # keys the decision RNG (value-function mode)
+                agent.empty_cells = empty_cells
             move_to = self.decision_func(agent, r, c, self.grid)
                         
             # Log each agent's move decision
@@ -235,6 +244,9 @@ class Simulation:
                         self.grid[r_new][c_new] = agent
                         self.grid[r][c] = None
                         moved = True
+                        k = bisect.bisect_left(empty_cells, (r_new, c_new))
+                        del empty_cells[k]             # the destination was empty
+                        bisect.insort(empty_cells, (r, c))
                                             
                         # Log the move
                         self.log_agent_move(agent, r, c, move_to, True, (r_new, c_new), 'successful_move', verbose_move_log)
