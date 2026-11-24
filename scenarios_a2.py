@@ -42,8 +42,12 @@ Your response:
 """
     },
 
+    # type_a was 'white middle class family' until 2026-11-17: a class cue on
+    # one group only, which confounded race with class. Every exact table and
+    # run made before that date used the old label (the old tables are archived
+    # under value_functions/results/llm_logprob/_archive_race_middle_class/).
     'race_white_black': {
-        'type_a': 'white middle class family',
+        'type_a': 'white family',
         'type_b': 'Black family',
         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 

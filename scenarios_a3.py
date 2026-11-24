@@ -59,8 +59,11 @@ Your response:
 """
     },
 
+    # type_a was 'white middle class family' until 2026-11-17: a class cue on
+    # one group only, which confounded race with class. Runs made before that
+    # date used the old label (recorded in their config.json).
     'race_white_black': {
-        'type_a': 'white middle class family',
+        'type_a': 'white family',
         'type_b': 'Black family',
         'prompt_template': """You are a {agent_type} considering whether to move to a different house in your neighborhood.
 
