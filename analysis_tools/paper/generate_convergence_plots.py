@@ -75,16 +75,61 @@ SCENARIO_COLORS = {
 }
 
 
+# Steps drawn (the x-axis ends here). --max-step changes it; 1000 was the
+# simulation cap until 2026-11-23.
+MAX_STEP = 1000
+
+
 def load_dissimilarity_by_step(run_dir: str) -> pd.DataFrame:
-    """Load dissimilarity_by_step data for a model."""
+    """Load dissimilarity_by_step data for a model (only the four columns the
+    plot uses; scenario as a category, so a 10,000-step model's ~600M rows fit
+    in memory — same parser, same values)."""
     # Try the analysis folder first
     dissim_path = EXPERIMENTS_DIR / run_dir / "analysis" / "dissimilarity_index" / "dissimilarity_by_step_all.csv.gz"
     if dissim_path.exists():
-        return pd.read_csv(dissim_path)
+        return pd.read_csv(dissim_path,
+                           usecols=['scenario', 'run_id', 'step', 'dissimilarity_index'],
+                           dtype={'scenario': 'category'})
     return pd.DataFrame()
 
 
 def step_stats_forward_filled(df: pd.DataFrame, metric: str):
+    """Vectorised _step_stats_forward_filled_loop: the same numbers.
+
+    The loop filtered the whole frame once per step and walked every run in
+    Python — 10,000 steps x 10,000 runs per scenario at a 10,000-step cap,
+    which does not finish. Here the runs x steps table is built once, each run
+    carries its final value forward past its last step (exactly the loop's
+    rule), and every step's mean and population SD (np.std, ddof=0) are taken
+    over a contiguous vector of runs in run_id order, as the loop's 1-D
+    np.mean / np.std were (checked bit for bit, 2026-11-23).
+    """
+    if df.empty or metric not in df.columns:
+        return pd.Series(dtype=float), pd.Series(dtype=float)
+    steps = sorted(df['step'].unique())
+    table = df.pivot(index='run_id', columns='step', values=metric)
+    table = table.reindex(columns=steps).sort_index()
+    last = df.groupby('run_id')['step'].max().reindex(table.index).to_numpy()
+    values = table.to_numpy()
+    step_arr = np.asarray(steps)
+    # past a run's last step: its final value (the loop's "run ended" case)
+    final = values[np.arange(len(values)), np.searchsorted(step_arr, last)]
+    ended = step_arr[None, :] > last[:, None]
+    values = np.where(ended, final[:, None], values)
+    rows = np.ascontiguousarray(values.T)          # one contiguous row per step
+    means, cis = [], []
+    for row in rows:
+        row = row[~np.isnan(row)]                  # a run absent mid-way: skipped, as before
+        if row.size:
+            means.append(row.mean())
+            cis.append(1.96 * row.std() / np.sqrt(len(row)))
+        else:
+            means.append(np.nan)
+            cis.append(np.nan)
+    return pd.Series(means, index=steps), pd.Series(cis, index=steps)
+
+
+def _step_stats_forward_filled_loop(df: pd.DataFrame, metric: str):
     """
     Compute mean and CI at each step, forward-filling for runs that ended early.
 
@@ -175,8 +220,8 @@ def generate_convergence_plot(model: str, run_dir: str, output_path: Path) -> bo
         if mean_values.empty:
             continue
 
-        # Limit to 1000 steps
-        max_step = min(1000, mean_values.index.max())
+        # Limit to MAX_STEP steps
+        max_step = min(MAX_STEP, mean_values.index.max())
         steps = mean_values.index[mean_values.index <= max_step]
 
         color = SCENARIO_COLORS.get(scenario, '#999999')
@@ -208,14 +253,27 @@ def generate_convergence_plot(model: str, run_dir: str, output_path: Path) -> bo
 
 
 def main():
-    global deploy_dir
+    global deploy_dir, EXPERIMENTS_DIR, CROSS_MODEL_SOURCES, MAX_STEP
 
     parser = argparse.ArgumentParser(description="Generate clean convergence plots")
     parser.add_argument("--target", choices=["pres", "paper"], default="pres",
                         help="Target: 'pres' (presentation) or 'paper' (default: pres)")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="Generate only, no deployment")
+    parser.add_argument("--experiments-dir", type=Path, default=None,
+                        help="Run root holding the model run folders and cross_model/ "
+                             "(default: experiments_with_llama_cpp)")
+    parser.add_argument("--max-step", type=int, default=None,
+                        help=f"Last step drawn (default {MAX_STEP})")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="Where the PNGs go (default: analysis_tools/paper/convergence_plots)")
     args = parser.parse_args()
+
+    if args.experiments_dir is not None:
+        EXPERIMENTS_DIR = args.experiments_dir.resolve()
+        CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sources.csv"
+    if args.max_step is not None:
+        MAX_STEP = args.max_step
 
     target_config = TARGETS[args.target]
     deploy_dir = target_config["output_dir"]
@@ -232,8 +290,8 @@ def main():
     print(f"   Found {len(sources)} models")
 
     # Create output directory
-    output_dir = SCRIPT_DIR / "convergence_plots"
-    output_dir.mkdir(exist_ok=True)
+    output_dir = args.output_dir or (SCRIPT_DIR / "convergence_plots")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate plots
     print("\n2. Generating convergence plots...")
