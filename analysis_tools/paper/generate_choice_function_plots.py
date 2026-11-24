@@ -30,14 +30,19 @@ Usage:
     python generate_choice_function_plots.py --no      # Generate only, no deploy
     python generate_choice_function_plots.py --exact-store --no   # read the live exact tables
 
+    python generate_choice_function_plots.py --no --experiments-dir <run root>   # other runs
+
 TABLE SOURCE (2026-11-23):
-    By default the tables are the copies frozen into each model's run folder
-    (cross_model_vf-lp_sources.csv). --exact-store reads the live exact store,
-    value_functions/results/llm_logprob/tables/, instead. The two agree unless
-    a table was replaced after the run: the race scenario's type_a label lost
-    its class cue on 2026-11-17 ('white middle class family' -> 'white
-    family'), so until the runs are redone only --exact-store draws the
-    corrected race table. The other five scenarios are identical either way.
+    By default the tables are the copies frozen into each model's run folder,
+    listed in <run root>/cross_model/cross_model_vf-lp_sources.csv (run root:
+    experiments_with_llama_cpp, or --experiments-dir). --exact-store reads the
+    live exact store, value_functions/results/llm_logprob/tables/, instead.
+    The two agree unless a table was replaced after the run: the race
+    scenario's type_a label lost its class cue on 2026-11-17 ('white middle
+    class family' -> 'white family'), so runs made before that date carry the
+    old race table. For the corrected one, use --exact-store or point
+    --experiments-dir at runs made after 2026-11-17. The other five scenarios
+    are identical either way.
 """
 
 import argparse
@@ -405,17 +410,23 @@ def generate_combined_example_plot(output_path: Path) -> bool:
 
 
 def main():
-    global deploy_dir, use_exact_store
+    global deploy_dir, use_exact_store, EXPERIMENTS_DIR, CROSS_MODEL_SOURCES
 
     parser = argparse.ArgumentParser(description="Generate choice function plots")
     parser.add_argument("--target", choices=["pres", "paper"], default="pres",
                         help="Target: 'pres' (presentation) or 'paper' (default: pres)")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="Generate only, no deployment")
+    parser.add_argument("--experiments-dir", type=Path, default=None,
+                        help="Run root holding the model run folders and cross_model/ "
+                             "(default: experiments_with_llama_cpp)")
     parser.add_argument("--exact-store", action="store_true",
                         help="Read the live exact tables (value_functions/results/llm_logprob/tables) "
                              "instead of the copies frozen into each run folder")
     args = parser.parse_args()
+    if args.experiments_dir is not None:
+        EXPERIMENTS_DIR = args.experiments_dir.resolve()
+        CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sources.csv"
     use_exact_store = args.exact_store
 
     target_config = TARGETS[args.target]

@@ -56,15 +56,23 @@ def get_hostname():
     return socket.gethostname()
 
 
+# Set by main() from --experiments-dir; None = compute_scenario_orderings' own default
+experiments_dir = None
+
+
 def run_analysis():
     """Run the compute_scenario_orderings.py script."""
     print("=" * 60)
     print("Running compute_scenario_orderings.py...")
     print("=" * 60)
 
-    # Import and run the main function
-    from compute_scenario_orderings import main
-    main()
+    # Import and run the main function, on --experiments-dir when given
+    import compute_scenario_orderings as orderings
+    if experiments_dir is not None:
+        orderings.EXPERIMENTS_DIR = Path(experiments_dir).resolve()
+        orderings.CROSS_MODEL_SOURCES = (orderings.EXPERIMENTS_DIR / "cross_model"
+                                         / "cross_model_vf-lp_sources.csv")
+    orderings.main()
 
 
 def deploy_tables():
@@ -97,7 +105,7 @@ def deploy_tables():
 
 
 def main():
-    global deploy_dir, target_desc
+    global deploy_dir, target_desc, experiments_dir
 
     parser = argparse.ArgumentParser(
         description="Generate and deploy LaTeX tables"
@@ -118,7 +126,11 @@ def main():
         action="store_true",
         help="Generate only, skip deployment"
     )
+    parser.add_argument("--experiments-dir", type=Path, default=None,
+                        help="Run root holding the model run folders and cross_model/ "
+                             "(default: experiments_with_llama_cpp)")
     args = parser.parse_args()
+    experiments_dir = args.experiments_dir
 
     target_config = TARGETS[args.target]
     deploy_dir = target_config["output_dir"]

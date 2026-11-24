@@ -666,4 +666,13 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+    _parser = argparse.ArgumentParser(description="Compute scenario orderings and LaTeX tables")
+    _parser.add_argument("--experiments-dir", type=Path, default=None,
+                         help="Run root holding the model run folders and cross_model/ "
+                              "(default: experiments_with_llama_cpp)")
+    _args = _parser.parse_args()
+    if _args.experiments_dir is not None:
+        EXPERIMENTS_DIR = _args.experiments_dir.resolve()
+        CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sources.csv"
     main()

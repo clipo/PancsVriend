@@ -10,6 +10,7 @@ Usage:
     python regenerate_all_tables_and_plots.py --target paper     # Deploy to paper/figs
     python regenerate_all_tables_and_plots.py --yes              # Auto-deploy all
     python regenerate_all_tables_and_plots.py --no               # Generate only, no deploy
+    python regenerate_all_tables_and_plots.py --no --experiments-dir <run root>   # other runs
 
 Scripts run (in order):
     1. generate_choice_function_plots.py    - Choice function plots (6-panel grids)
@@ -50,6 +51,9 @@ def main():
                         help="Target: 'pres' (presentation) or 'paper' (default: pres)")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="Generate only, no deployment")
+    parser.add_argument("--experiments-dir", type=Path, default=None,
+                        help="Run root holding the model run folders and cross_model/ "
+                             "(default: experiments_with_llama_cpp); passed to every script")
     args = parser.parse_args()
 
     # Determine flags to pass to subscripts
@@ -58,6 +62,8 @@ def main():
         flags.append("--yes")
     elif args.no:
         flags.append("--no")
+    if args.experiments_dir is not None:
+        flags += ["--experiments-dir", str(args.experiments_dir.resolve())]
 
     target_desc = "CCS 2026 presentation" if args.target == "pres" else "paper"
 

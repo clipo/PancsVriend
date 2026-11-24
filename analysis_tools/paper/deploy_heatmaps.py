@@ -55,12 +55,19 @@ SCENARIOS = [
 
 
 def main():
+    global EXPERIMENTS_DIR, CROSS_MODEL_SOURCES
     parser = argparse.ArgumentParser(description="Deploy value function heatmaps")
     parser.add_argument("--target", choices=["pres", "paper"], default="pres",
                         help="Target: 'pres' (presentation) or 'paper' (default: pres)")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="List only, no deployment")
+    parser.add_argument("--experiments-dir", type=Path, default=None,
+                        help="Run root holding the model run folders and cross_model/ "
+                             "(default: experiments_with_llama_cpp)")
     args = parser.parse_args()
+    if args.experiments_dir is not None:
+        EXPERIMENTS_DIR = args.experiments_dir.resolve()
+        CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sources.csv"
 
     target_config = TARGETS[args.target]
     output_dir = target_config["output_dir"]
