@@ -20,7 +20,8 @@ into `<run_dir>/analysis/`, after which the pipeline moves every figure into
 ## 2. Prerequisites
 
 1. Ensure experiments have completed and contain `run_summary.csv` and
-   `metrics_history.csv.gz` under `experiments/<experiment_id>/` (or
+   `metrics_history.parquet` (`.csv.gz` in folders made before 2026-11-24)
+   under `experiments/<experiment_id>/` (or
    `<run_dir>/experiments/<experiment_id>/` for a pipeline run):
 	- `move_logs/` + `states/` (only required for movement analysis and for
 	  repairing a stale `metrics_history`)
@@ -209,7 +210,7 @@ steps.append(("your_script", _run_new, {}))
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| Missing `metrics_history.csv.gz` | Simulation not finished or wrong path | Check `experiments/<id>/` contents; the pipeline verifies and repairs it from `states/` (§5) |
+| Missing `metrics_history.parquet` / `.csv.gz` | Simulation not finished or wrong path | Check `experiments/<id>/` contents; the pipeline verifies and repairs it from `states/` (§5) |
 | Movement step fails | Missing `move_logs/` or `states/` | Re-run simulation with logging enabled |
 | Empty figures | Metrics columns have NaNs | Inspect source CSV; validate simulation outputs |
 | Very slow run | Movement + large number of experiments | Run without movement first, then add `--include-movement` |

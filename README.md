@@ -613,9 +613,9 @@ run_<ts>_<model>-vf-lp/
 │   └── llm_<scenario>_<ts>/
 │       ├── config.json
 │       ├── run_summary.csv       # <- per-scenario data file
-│       ├── metrics_history.csv.gz
+│       ├── metrics_history.parquet   # .csv.gz before 2026-11-24
 │       ├── states/               # states_packed.npz (not in git)
-│       └── move_logs/            # step_moves_packed.csv.gz (not in git)
+│       └── move_logs/            # step_moves_packed.parquet, .csv.gz before 2026-11-24 (not in git)
 ├── analysis/
 │   ├── run_summary_by_run_all_scenarios.csv  # <- ALL scenarios combined
 │   ├── anova_results_by_metric.{csv,md}

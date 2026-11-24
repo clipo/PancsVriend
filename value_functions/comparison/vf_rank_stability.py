@@ -161,7 +161,8 @@ def gaps_from_production(exp_root):
     run_summary.csv is written by Simulation.analyze_results and already holds
     one row per run with every metric at final_step, including the
     dissimilarity index. Reading it beats re-deriving from metrics_history:
-    that file is stored GZIPPED (metrics_history.csv.gz) and DI would need a
+    that file is compressed (metrics_history.parquet, .csv.gz in older
+    folders) and DI would need a
     final-grid load per run — 60,000 npz opens per model at n=10,000, for
     numbers already tabulated. `metrics_source` flags any row whose metrics
     were recomputed rather than recorded live.

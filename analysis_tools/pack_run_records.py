@@ -9,7 +9,8 @@ Runners pack their own experiment at the end (llm_runner / baseline_runner,
 unless PACK_RUN_RECORD=0); this is for experiments recorded before 2026-09-05,
 of which there are ~1M per-run files on disk. Per experiment it folds
 move_logs/step_moves_run_<id>.csv + states/states_run_<id>.npz into
-move_logs/step_moves_packed.csv.gz + states/states_packed.npz — same rows,
+move_logs/step_moves_packed.parquet (.csv.gz for a folder made before
+2026-11-24) + states/states_packed.npz — same rows,
 same arrays, verified member by member before any per-run file is deleted —
 and every reader in run_files answers identically afterwards. Full-format
 (per-move) runs are left untouched. --dry-run only counts. With --all,

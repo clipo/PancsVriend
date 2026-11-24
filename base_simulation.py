@@ -399,7 +399,8 @@ class Simulation:
         # own staged file (run_files.stage_metrics) and only the final row
         # travels back: holding every run's rows in the parent cost ~43 GB per
         # 10,000 x 10,000-step capped scenario (2026-11-23). analyze_results
-        # writes metrics_history.csv.gz from the staged files, run by run.
+        # writes metrics_history (Parquet; CSV in older folders) from the
+        # staged files, run by run.
         history, staged = self.metrics_history, {}
         if output_dir is not None and self.metrics_history:
             path, columns, all_int = run_files.stage_metrics(

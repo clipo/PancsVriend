@@ -116,9 +116,9 @@ never mixed). Exact tables have no multi-split ruler, so rank stability runs
 ```
 experiments/<name>_<timestamp>/
 ├── config.json                 # incl. rng_scheme for value-function runs
-├── metrics_history.csv.gz      # every metric at every step (a cache, see below)
+├── metrics_history.parquet     # every metric at every step (a cache, see below; .csv.gz in folders made before 2026-11-24)
 ├── run_summary.csv             # one row per run
-├── move_logs/                  # step_moves_run_<id>.csv, or step_moves_packed.csv.gz
+├── move_logs/                  # step_moves_run_<id>.csv, or step_moves_packed.parquet (.csv.gz before 2026-11-24)
 └── states/                     # states_run_<id>.npz (frame 0 = initial, k+1 = after step k), or states_packed.npz
 experiments/manifests/<timestamp>_run_manifest.json, <timestamp>_run_summary_<model>.csv   # campaign roll-ups
 ```
@@ -142,6 +142,12 @@ live-LLM runs continue from their last saved grid (`Simulation.preload_record`);
 aborted value-function runs are redone from scratch, since a resumed run would
 no longer be reproducible from `run_id`.
 
+Production value-function runs go to `max_steps` 10,000 (2026-11-23; OLMo's
+ordering moved after step 1,000). `VF_FAST_PATH=1` runs them on the array
+fast path (`vf_fastpath.py`), which gives the same output as the reference
+simulation (`tests/test_vf_fastpath.py`); `config.json` records
+`simulation_path`.
+
 ### run_summary.csv and metrics_history
 
 `run_summary.csv` (one row per run, written by `Simulation.analyze_results`)
@@ -152,7 +158,7 @@ in the `analysis_tools/build_run_summary.py` docstring; regenerate with
 `analysis/run_summary_by_run_all_scenarios.csv`, from which `anova_by_metric.py` computes
 the ANOVA table.
 
-`metrics_history.csv.gz` is a cache derived from the frames in `states/`;
+`metrics_history.parquet` (`.csv.gz` in older folders) is a cache derived from the frames in `states/`;
 never edit or regenerate it by hand, the pipeline verifies and repairs it.
 The significance rules behind the ranking table and bump charts are in
 `analysis_tools/analysis_guide.md`.
