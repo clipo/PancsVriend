@@ -28,6 +28,16 @@ Usage:
     python generate_choice_function_plots.py           # Interactive
     python generate_choice_function_plots.py --yes     # Auto-deploy
     python generate_choice_function_plots.py --no      # Generate only, no deploy
+    python generate_choice_function_plots.py --exact-store --no   # read the live exact tables
+
+TABLE SOURCE (2026-11-23):
+    By default the tables are the copies frozen into each model's run folder
+    (cross_model_vf-lp_sources.csv). --exact-store reads the live exact store,
+    value_functions/results/llm_logprob/tables/, instead. The two agree unless
+    a table was replaced after the run: the race scenario's type_a label lost
+    its class cue on 2026-11-17 ('white middle class family' -> 'white
+    family'), so until the runs are redone only --exact-store draws the
+    corrected race table. The other five scenarios are identical either way.
 """
 
 import argparse
@@ -45,6 +55,10 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments_with_llama_cpp"
 CROSS_MODEL_SOURCES = EXPERIMENTS_DIR / "cross_model" / "cross_model_vf-lp_sources.csv"
+EXACT_STORE = PROJECT_ROOT / "value_functions" / "results" / "llm_logprob" / "tables"
+
+# Set by main() from --exact-store: read the live exact tables, not the run's frozen copies
+use_exact_store = False
 
 # Base path for Overleaf sync
 OVERLEAF_BASE = Path.home() / "Documents/d/PM/sakoka-schelling-llm-abm/paper-overleaf"
@@ -108,12 +122,16 @@ SCENARIO_ROLE_LABELS = {
 SWAP_COLORS_SCENARIOS = {'political_liberal_conservative'}
 
 
-def load_choice_functions(run_dir: str) -> dict:
-    """Load all choice function JSON files for a model."""
-    vf_dir = EXPERIMENTS_DIR / run_dir / "value_functions"
+def load_choice_functions(run_dir: str, model: str = None) -> dict:
+    """Load all choice function JSON files for a model: the copies frozen into
+    its run folder, or (--exact-store) the live exact tables of `model`."""
+    if use_exact_store:
+        vf_dir, pattern = EXACT_STORE, f"vf_{model}-chat-grammar-lp__*__R3_dual_count.json"
+    else:
+        vf_dir, pattern = EXPERIMENTS_DIR / run_dir / "value_functions", "vf_*__*__R3_dual_count.json"
     vfs = {}
 
-    for json_path in vf_dir.glob("vf_*__*__R3_dual_count.json"):
+    for json_path in vf_dir.glob(pattern):
         with open(json_path) as f:
             vf = json.load(f)
         scenario = vf["meta"]["scenario"]
@@ -124,7 +142,7 @@ def load_choice_functions(run_dir: str) -> dict:
 
 def generate_choice_function_plot(model: str, run_dir: str, output_path: Path) -> bool:
     """Generate a 2D choice function plot for one model."""
-    vfs = load_choice_functions(run_dir)
+    vfs = load_choice_functions(run_dir, model)
     if not vfs:
         print(f"  WARNING: No choice function data for {model}")
         return False
@@ -223,7 +241,7 @@ def generate_choice_function_plot(model: str, run_dir: str, output_path: Path) -
 
 def generate_single_scenario_plot(model: str, run_dir: str, scenario: str, output_path: Path) -> bool:
     """Generate a single-scenario choice function plot for use in slides."""
-    vfs = load_choice_functions(run_dir)
+    vfs = load_choice_functions(run_dir, model)
     if scenario not in vfs:
         print(f"  WARNING: No {scenario} data for {model}")
         return False
@@ -306,8 +324,8 @@ def generate_combined_example_plot(output_path: Path) -> bool:
     deepseek_row = sources[sources['model'].str.startswith('deepseek')].iloc[0]
     phi_row = sources[sources['model'].str.startswith('phi')].iloc[0]
 
-    deepseek_vfs = load_choice_functions(deepseek_row['run_dir'])
-    phi_vfs = load_choice_functions(phi_row['run_dir'])
+    deepseek_vfs = load_choice_functions(deepseek_row['run_dir'], deepseek_row['model'])
+    phi_vfs = load_choice_functions(phi_row['run_dir'], phi_row['model'])
 
     if not deepseek_vfs or not phi_vfs:
         print("  WARNING: Could not load DeepSeek or Phi choice functions")
@@ -387,14 +405,18 @@ def generate_combined_example_plot(output_path: Path) -> bool:
 
 
 def main():
-    global deploy_dir
+    global deploy_dir, use_exact_store
 
     parser = argparse.ArgumentParser(description="Generate choice function plots")
     parser.add_argument("--target", choices=["pres", "paper"], default="pres",
                         help="Target: 'pres' (presentation) or 'paper' (default: pres)")
     parser.add_argument("--yes", action="store_true", help="Auto-deploy without asking")
     parser.add_argument("--no", action="store_true", help="Generate only, no deployment")
+    parser.add_argument("--exact-store", action="store_true",
+                        help="Read the live exact tables (value_functions/results/llm_logprob/tables) "
+                             "instead of the copies frozen into each run folder")
     args = parser.parse_args()
+    use_exact_store = args.exact_store
 
     target_config = TARGETS[args.target]
     deploy_dir = target_config["output_dir"]
@@ -403,6 +425,7 @@ def main():
     print("=" * 60)
     print(f"Generating Choice Function Plots for {target_desc}")
     print(f"Target: {deploy_dir}")
+    print(f"Tables: {'live exact store ' + str(EXACT_STORE) if use_exact_store else 'frozen copies in each run folder'}")
     print("=" * 60)
 
     # Load model sources
