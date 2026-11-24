@@ -209,8 +209,10 @@ class Server:
         r.raise_for_status()
         return r.json()["prompt"]
 
-    def sample_sequential(self, user_prompt, n, seed0):
-        """n campaign-payload chat samples, ONE in flight: (n_move, n_stay)."""
+    def sample_sequential(self, user_prompt, n, seed0, record=None):
+        """n campaign-payload chat samples, ONE in flight: (n_move, n_stay).
+        `record`, if given, is called with every draw's {i, seed, reply} so
+        the raw replies are kept, not only the counts."""
         move = stay = 0
         for i in range(n):
             payload = {"model": self.model, "stream": False, "temperature": self.temperature,
@@ -221,12 +223,15 @@ class Server:
                 try:
                     r = self.session.post(f"{self.url}/v1/chat/completions", json=payload, timeout=self.timeout)
                     r.raise_for_status()
-                    txt = r.json()["choices"][0]["message"]["content"].strip().upper()
+                    reply = r.json()["choices"][0]["message"]["content"]
                     break
                 except (requests.RequestException, KeyError, ValueError):
                     if attempt == 5:
                         raise
                     time.sleep(2 * (attempt + 1))
+            if record is not None:
+                record({"i": i, "seed": seed0 + i, "reply": reply})
+            txt = reply.strip().upper()
             if txt == "MOVE":
                 move += 1
             elif txt == "STAY":
@@ -511,8 +516,16 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
         the largest exact P(MOVE) among the ~0 cells and the smallest among
         the ~1 cells (a cell claiming 0.015 must show ~4-5 moves in 300 draws);
       * seq_random more saturated cells at random.
-    A first-stage CI miss is escalated (seq_escalate x more draws) and the
-    run passes only if EVERY checked cell ends inside its final CI."""
+    A first-stage CI miss is escalated: seq_escalate x more draws, and the
+    cell is judged on those FRESH draws alone (2026-11-17). Before that date
+    the new draws were pooled with the first-stage ones, so the fluctuation
+    that triggered the escalation stayed in the sample and could hold a cell
+    outside its interval by itself — two of nine race re-extractions failed
+    that way and were consistent on independent draws. Same rule as the
+    census (sanity_vs_exact.py). The run passes only if EVERY checked cell
+    ends inside its final CI. seq_n / seq_move are the sample the cell was
+    judged on (the fresh round if escalated); the first stage keeps its own
+    columns. Every raw reply goes to seqcheck_<label>_raw.jsonl.gz."""
     import pandas as pd
     rows = []
     for scenario in scenarios:
@@ -538,8 +551,19 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
         "requests_per_cell_mean": float(df.n_requests.mean()),
     }
     seq_rows = []
+    summary["seq_check_escalation_rule"] = "fresh draws only"
     if server is not None and (seq_cells > 0 or seq_saturated > 0) and len(df):
         import numpy as np
+        LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
+        raw = gzip.open(LOGPROB_VALIDATION_DIR / f"seqcheck_{label}_raw.jsonl.gz", "wt")
+        raw.write(json.dumps({"_meta": True, "label": label, "style": style, "seq_samples": seq_samples,
+                              "seq_escalate": seq_escalate, "escalation_rule": "fresh draws only",
+                              "created": datetime.now().isoformat(timespec="seconds")}) + "\n")
+
+        def recorder(r, stage):
+            cell = {"scenario": r.scenario, "role": r.role, "n_similar": int(r.n_similar),
+                    "n_occupied": int(r.n_occupied), "stage": stage}
+            return lambda rec: raw.write(json.dumps({**cell, **rec}) + "\n")
         u = uns.sort_values("p_logprob")
         if len(u) and seq_cells > 0:
             idx = sorted(set(np.linspace(0, len(u) - 1, min(seq_cells, len(u))).round().astype(int)))
@@ -560,7 +584,7 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
             prompt = USER_PROMPTS.get(key)
             if prompt is None:
                 continue
-            mv, st = server.sample_sequential(prompt, seq_samples, 900000 + 1000 * i)
+            mv, st = server.sample_sequential(prompt, seq_samples, 900000 + 1000 * i, recorder(r, 1))
             n = mv + st
             lo, hi = wilson_ci(mv, n) if n else (0.0, 1.0)
             inside1 = _inside(r.p_logprob, lo, hi)
@@ -570,13 +594,13 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
             n1, mv1, lo1, hi1 = n, mv, lo, hi
             escalated = False
             if not inside1 and seq_escalate > 0:
-                # more draws: a chance miss resolves, a real error persists
+                # fresh draws, judged alone: a chance miss resolves, a real error persists
                 mv2, st2 = server.sample_sequential(prompt, seq_samples * seq_escalate,
-                                                    950000 + 1000 * i)
-                mv += mv2; n += mv2 + st2
+                                                    950000 + 1000 * i, recorder(r, 2))
+                mv, n = mv2, mv2 + st2
                 lo, hi = wilson_ci(mv, n) if n else (0.0, 1.0)
                 escalated = True
-                print(f"      escalated to {mv}/{n}={mv/max(n,1):.3f} [{lo:.3f},{hi:.3f}] "
+                print(f"      fresh draws {mv}/{n}={mv/max(n,1):.3f} [{lo:.3f},{hi:.3f}] "
                       f"{'ok' if _inside(r.p_logprob, lo, hi) else 'STILL MISSES'}")
             seq_rows.append({"scenario": r.scenario, "role": r.role, "n_similar": r.n_similar,
                              "n_occupied": r.n_occupied,
@@ -587,7 +611,7 @@ def validate(label, style, scenarios, roles, lp_by_scenario, out_dir,
                              "escalated": escalated, "seq_n": n, "seq_move": mv,
                              "p_sequential": mv / n if n else None, "seq_ci_low": lo, "seq_ci_high": hi,
                              "inside_seq_ci": _inside(r.p_logprob, lo, hi)})
-        LOGPROB_VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
+        raw.close()
         pd.DataFrame(seq_rows).to_csv(LOGPROB_VALIDATION_DIR / f"seqcheck_{label}.csv", index=False)
     sq = pd.DataFrame(seq_rows)
     summary = _seq_summary(summary, sq)
