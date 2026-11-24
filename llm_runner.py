@@ -1021,6 +1021,16 @@ def run_single_simulation(args):
         'decision_source': ('value_function' if value_function_policy else 'llm_api'),
         'value_function_path': value_function_path,
     })
+    # Free the finished run now (2026-11-23). sim.agent_factory is a bound
+    # method of sim itself, so the Simulation and its 320 agents -- with every
+    # position each agent visited, ~19 MB for a 10,000-step OLMo run -- form a
+    # reference cycle that only the cycle collector frees, and it triggers on
+    # object COUNTS, not bytes: a pool worker was measured carrying ~1 GB of
+    # finished runs. Breaking the one cycle lets reference counting free the
+    # run here, at no cost (a gc.collect() per run cost ~10 ms, 40-50% of a
+    # short run). Nothing reads agent_factory after the run.
+    sim.agent_factory = None
+    del sim
     return result
 
 def _analyze_run_status(output_dir, run_id, max_steps):
