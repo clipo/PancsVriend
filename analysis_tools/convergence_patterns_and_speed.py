@@ -15,9 +15,9 @@ from experiment_list_for_analysis import (
 from analysis_tools.output_paths import get_reports_dir
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 try:                                   # bare import matches the orchestrator's sys.path
-    from plot_style import step_stats_forward_filled, steps_to_fraction_of_final
+    from plot_style import step_stats_forward_filled, steps_to_fraction_of_final, read_di_by_scenario
 except ImportError:                    # package form, for direct invocation
-    from analysis_tools.plot_style import step_stats_forward_filled, steps_to_fraction_of_final
+    from analysis_tools.plot_style import step_stats_forward_filled, steps_to_fraction_of_final, read_di_by_scenario
 
 # Publication-ready seaborn theme
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.25)
@@ -64,19 +64,28 @@ metric_labels = {
 
 # Load cached dissimilarity outputs if available
 dissim_path = get_reports_dir() / 'dissimilarity_index' / 'dissimilarity_by_step_all.csv.gz'
-dissim_ts = pd.read_csv(dissim_path) if dissim_path.exists() else None
-include_dissimilarity = dissim_ts is not None
+# Read in chunks and split by scenario as it is read, three columns only
+# (plot_style.read_di_by_scenario; 2026-11-23: a 10,000-step model's table is
+# ~600M rows). Same parser, same values.
+dissim_by_scenario = read_di_by_scenario(dissim_path) if dissim_path.exists() else None
+include_dissimilarity = dissim_by_scenario is not None
 
 metrics = ['clusters', 'switch_rate', 'distance', 'mix_deviation', 'share', 'ghetto_rate']
 # if dissim_ts is not None:
 #     metrics.append('dissimilarity_index')
 speed_metrics = metrics + (['dissimilarity_index'] if include_dissimilarity else [])
 
-# Cache metrics_history per scenario to avoid repeated reads
-metrics_history_cache = {}
-if dissim_ts is not None:
-    dissim_by_scenario = {s: dissim_ts[dissim_ts['scenario'] == s].copy() for s in dissim_ts['scenario'].unique()}
-else:
+# metrics_history is read a column at a time (run_id, step and the metric in
+# hand) rather than cached whole per scenario: six full 10,000-step tables are
+# ~43 GB (2026-11-23). Parquet reads only those columns' bytes.
+def _metric_columns(folder, metric):
+    path = Path(run_files.metrics_history_path(f'experiments/{folder}'))
+    if not path.exists():
+        return None
+    return run_files.read_metrics_file(path, usecols=['run_id', 'step', metric])
+
+
+if dissim_by_scenario is None:
     dissim_by_scenario = {}
 
 
@@ -132,14 +141,7 @@ for idx, metric in enumerate(metrics):
         if metric == 'dissimilarity_index':
             df = dissim_by_scenario.get(scenario_name)
         else:
-            filepath = Path(run_files.metrics_history_path(f'experiments/{folder}'))
-            df = None
-            if filepath.exists():
-                if scenario_name in metrics_history_cache:
-                    df = metrics_history_cache[scenario_name]
-                else:
-                    df = run_files.read_metrics_file(filepath)
-                    metrics_history_cache[scenario_name] = df
+            df = _metric_columns(folder, metric)
 
         if df is None or df.empty:
             continue
@@ -280,23 +282,17 @@ convergence_data = {}
 convergence_step_records = {}
 
 for scenario_name, folder in scenarios.items():
-    if scenario_name in metrics_history_cache:
-        df_base = metrics_history_cache[scenario_name]
-    else:
-        path = Path(run_files.metrics_history_path(f'experiments/{folder}'))
-        df_base = run_files.read_metrics_file(path) if path.exists() else None
-        if df_base is not None:
-            metrics_history_cache[scenario_name] = df_base
-
+    has_base = Path(run_files.metrics_history_path(f'experiments/{folder}')).exists()
     df_dissim = dissim_by_scenario.get(scenario_name)
-    if df_base is None and df_dissim is None:
+    if not has_base and df_dissim is None:
         continue
 
     convergence_data[scenario_name] = {}
     print(f"\n{scenario_labels[scenario_name]}:")
 
     for metric in speed_metrics:
-        df = df_dissim if metric == 'dissimilarity_index' else df_base
+        df = (df_dissim if metric == 'dissimilarity_index'
+              else (_metric_columns(folder, metric) if has_base else None))
         if df is None or df.empty:
             continue
         # Steps to 90% of each run's final value; see plot_style for why
@@ -519,3 +515,8 @@ if progress_fig_generated:
     print(f"  - {progress_fig_path}")
 if dissim_progress_generated:
     print(f"  - {dissim_progress_path}")
+
+# The pipeline imports this module and keeps it loaded through the later
+# stages; drop the per-scenario DI series (~15 GB for a 10,000-step model)
+# rather than hold them as module globals.
+dissim_by_scenario = None

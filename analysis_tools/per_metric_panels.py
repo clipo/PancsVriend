@@ -13,9 +13,9 @@ from experiment_list_for_analysis import (
 )
 from analysis_tools.output_paths import get_reports_dir
 try:                                   # bare import matches the orchestrator's sys.path
-    from plot_style import steps_to_fraction_of_final
+    from plot_style import steps_to_fraction_of_final, read_di_by_scenario
 except ImportError:                    # package form, for direct invocation
-    from analysis_tools.plot_style import steps_to_fraction_of_final
+    from analysis_tools.plot_style import steps_to_fraction_of_final, read_di_by_scenario
 try:                                   # bare import matches how the orchestrator
     from plot_style import violin_box_points          # puts analysis_tools/ on sys.path
 except ImportError:                    # package form, for direct invocation
@@ -71,12 +71,16 @@ def calculate_rate_of_change(series: np.ndarray, window: int = 7) -> np.ndarray:
     return np.gradient(smoothed)
 
 
-def load_data():
+def load_data(columns=None):
+    """{scenario: metrics_history frame}; `columns` reads only those (a panel
+    needs run_id, step and its one metric — 2026-11-23: at 10,000 steps a
+    full table is 7 GB per scenario, and all six used to be held at once)."""
     data = {}
     for scenario_name, folder in scenarios.items():
         filepath = Path(run_files.metrics_history_path(EXP_DIR / folder))
         if filepath.exists():
-            df = run_files.read_metrics_file(filepath)
+            df = (run_files.read_metrics_file(filepath, usecols=columns) if columns
+                  else run_files.read_metrics_file(filepath))
             data[scenario_name] = df
     return data
 
@@ -90,9 +94,9 @@ def load_di_data():
     di_path = get_reports_dir() / 'dissimilarity_index' / 'dissimilarity_by_step_all.csv.gz'
     if not di_path.exists():
         return {}
-    df = pd.read_csv(di_path)
-    return {str(sc): grp[['run_id', 'step', 'dissimilarity_index']].copy()
-            for sc, grp in df.groupby('scenario') if str(sc) in scenarios}
+    # Read in chunks and split as it is read, only the scenarios plotted and
+    # three columns (plot_style.read_di_by_scenario). Same parser, same values.
+    return read_di_by_scenario(di_path, scenarios=list(scenarios))
 
 
 def compute_convergence_steps(df: pd.DataFrame, metric: str) -> list:
@@ -263,12 +267,13 @@ def make_metric_panel(metric: str, data_by_scenario: dict):
 
 
 def main():
-    data = load_data()
-    if not data:
+    present = [s for s, folder in scenarios.items()
+               if Path(run_files.metrics_history_path(EXP_DIR / folder)).exists()]
+    if not present:
         print("No experiment data found. Ensure metrics_history.csv exist under experiments/<scenario>/.")
         return
     for metric in metrics:
-        make_metric_panel(metric, data)
+        make_metric_panel(metric, load_data(['run_id', 'step', metric]))
     di_data = load_di_data()
     if di_data:
         make_metric_panel('dissimilarity_index', di_data)

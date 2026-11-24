@@ -147,6 +147,34 @@ def violin_box_points(ax, plot_data, positions, colors, jitter=POINT_JITTER,
     return parts, bp
 
 
+def read_di_by_scenario(path, scenarios=None, chunksize=5_000_000):
+    """{scenario: frame(run_id, step, dissimilarity_index)} from the combined
+    dissimilarity_by_step_all table, read in chunks and split as it is read.
+
+    Only those three columns (plus scenario) are kept, rows in file order with
+    a fresh index, so holding every scenario costs ~24 bytes a row -- the
+    table is ~600M rows for a 10,000-step model, and reading it whole and then
+    copying each scenario out held it twice (2026-11-23). The parser and its
+    settings are pd.read_csv's defaults, as the callers used, so the values
+    are the ones they read before. `scenarios` limits which are kept.
+    """
+    import pandas as pd
+
+    keep = None if scenarios is None else set(map(str, scenarios))
+    parts = {}
+    for chunk in pd.read_csv(path, usecols=["scenario", "run_id", "step", "dissimilarity_index"],
+                             chunksize=chunksize):
+        for sc, grp in chunk.groupby("scenario", sort=False):
+            sc = str(sc)
+            if keep is None or sc in keep:
+                parts.setdefault(sc, []).append(grp[["run_id", "step", "dissimilarity_index"]])
+        del chunk
+    out = {}
+    for sc in list(parts):
+        out[sc] = pd.concat(parts.pop(sc), ignore_index=True)
+    return out
+
+
 def step_stats_forward_filled(df, metric, step_col="step", run_col="run_id",
                               max_step=None):
     """Per-step mean, 95% CI half-width, and ACTIVE-run count, forward-filled.

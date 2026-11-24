@@ -17,6 +17,7 @@ format, read through run_files.load_step_frames.
 from __future__ import annotations
 
 import argparse
+import gzip
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import os
@@ -227,34 +228,64 @@ def _write_outputs(exp_dir: Path, out_dir: Path, frames: List[pd.DataFrame]):
     return per_run, final_rows
 
 
+_SORT_KEYS = ['scenario', 'experiment', 'run_id', 'step']
+
+
 def run_all(
     experiments_dir: Path,
     only: Optional[Iterable[str]] = None,
     recompute: bool = True,
-) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+) -> Tuple[Optional[Path], Optional[pd.DataFrame]]:
+    """Per-experiment DI series, then the combined dissimilarity_by_step_all.
+
+    The combined table is written one scenario at a time (2026-11-23): for a
+    10,000-step model it is ~600M rows, and holding every scenario's series
+    to concatenate and sort them could not fit. Scenarios are taken in
+    sorted scenario-key order and each is sorted by the same keys, which is
+    exactly the order the one-shot mergesort produced, so the file's text is
+    unchanged. Returns (path of the combined file or None, final values).
+    """
     only_set = set(only) if only else None
-    all_ts: List[pd.DataFrame] = []
-    all_final: List[pd.DataFrame] = []
-
-    for scenario_key, folder in scenarios.items():
-        if only_set and (scenario_key not in only_set and folder not in only_set):
-            continue
-        ts_df, final_df = process_experiment(experiments_dir, scenario_key, folder, recompute=recompute)
-        if ts_df is not None:
-            all_ts.append(ts_df)
-        if final_df is not None:
-            all_final.append(final_df)
-
-    if not all_ts:
-        print("[INFO] No dissimilarity data produced.")
-        return None, None
+    selected = [(key, folder) for key, folder in scenarios.items()
+                if not (only_set and key not in only_set and folder not in only_set)]
 
     out_dir = get_reports_dir() / 'dissimilarity_index'
     out_dir.mkdir(parents=True, exist_ok=True)
+    ts_path = out_dir / 'dissimilarity_by_step_all.csv.gz'
+    tmp_path = out_dir / 'dissimilarity_by_step_all.csv.gz.tmp'
+    all_final: List[pd.DataFrame] = []
+    columns = dtypes = None
+    wrote = False
+    try:
+        with gzip.open(tmp_path, 'wt', compresslevel=9, newline='', encoding='utf-8') as fh:
+            for scenario_key, folder in sorted(selected, key=lambda kf: kf[0]):
+                ts_df, final_df = process_experiment(experiments_dir, scenario_key, folder,
+                                                     recompute=recompute)
+                if final_df is not None:
+                    all_final.append(final_df)
+                if ts_df is None:
+                    continue
+                ts_df = ts_df.sort_values(_SORT_KEYS, kind='mergesort')
+                if columns is None:
+                    columns, dtypes = list(ts_df.columns), list(ts_df.dtypes)
+                elif list(ts_df.columns) != columns or list(ts_df.dtypes) != dtypes:
+                    raise RuntimeError(f"{scenario_key}: DI series columns/dtypes differ "
+                                       f"from the other scenarios'; cannot stream them")
+                # straight into the file: to_csv streams in chunks, never
+                # building the scenario's whole text as one string
+                ts_df.to_csv(fh, index=False, header=not wrote)
+                wrote = True
+                del ts_df
+    except BaseException:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
 
-    ts_all = pd.concat(all_ts, ignore_index=True)
-    ts_all = ts_all.sort_values(['scenario', 'experiment', 'run_id', 'step'], kind='mergesort').reset_index(drop=True)
-    ts_all.to_csv(out_dir / 'dissimilarity_by_step_all.csv.gz', index=False, compression='gzip')
+    if not wrote:
+        tmp_path.unlink()
+        print("[INFO] No dissimilarity data produced.")
+        return None, None
+    os.replace(tmp_path, ts_path)
 
     if all_final:
         final_all = pd.concat(all_final, ignore_index=True)
@@ -266,7 +297,7 @@ def run_all(
     print(f"[DONE] Wrote dissimilarity time series to {out_dir}/dissimilarity_by_step_all.csv.gz")
     if final_all is not None:
         print(f"[DONE] Wrote final dissimilarity values to {out_dir}/dissimilarity_final_by_run.csv.gz")
-    return ts_all, final_all
+    return ts_path, final_all
 
 
 def main() -> int:
@@ -276,8 +307,8 @@ def main() -> int:
     parser.add_argument('--no-recompute', action='store_true', help='Skip recomputing if cached outputs exist')
     args = parser.parse_args()
 
-    ts_all, _ = run_all(Path(args.experiments_dir), only=args.only, recompute=not args.no_recompute)
-    return 0 if ts_all is not None else 1
+    ts_path, _ = run_all(Path(args.experiments_dir), only=args.only, recompute=not args.no_recompute)
+    return 0 if ts_path is not None else 1
 
 
 if __name__ == '__main__':
