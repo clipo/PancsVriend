@@ -199,9 +199,50 @@ def pick_run(hits):
     return chosen, skipped
 
 
-def load_models(run_root, family=DEFAULT_FAMILY):
+def parse_override(spec):
+    """'TARGET=RUN_ROOT[:SOURCE]' -> (target, run_root, source). SOURCE is the
+    scenario's name in the override runs when it differs from TARGET."""
+    target, _, rest = spec.partition("=")
+    root, _, source = rest.partition(":")
+    if not target or not root:
+        raise ValueError(f"--scenario-override wants TARGET=RUN_ROOT[:SOURCE], got {spec!r}")
+    return _canon(target), root, _canon(source or target)
+
+
+def splice_scenario(df, key, suffix, target, root, source):
+    """`df` with its `target` scenario rows replaced by the `source` rows of
+    the model's newest largest run of that scenario under `root`; None when
+    that model has no such run. A scenario re-run on its own never becomes a model's full run
+    (pick_run takes the largest), so this is how a single corrected scenario
+    enters the comparison (2026-11-16, the race label without the class cue).
+    Runs are seeded by run_id alone, so the spliced rows pair with the others
+    run for run; the run_id sets must match exactly."""
+    # The experiment's own run_summary.csv, not the run's roll-up: the roll-up
+    # is built from the analysis stage's scenario list and leaves out a
+    # scenario it does not know by name.
+    hits = [h for h in glob.glob(str(Path(root) / f"run_*_{key}-{suffix}" / "experiments" /
+                                     f"llm_{source}_*" / "run_summary.csv"))
+            if set(pd.read_csv(h, usecols=["scenario"]).scenario.map(_canon)) == {source}]
+    chosen, _ = pick_run(hits)
+    if chosen is None:
+        return None
+    new = pd.read_csv(chosen)
+    is_target = df.scenario.map(_canon) == target
+    old_ids, new_ids = set(df[is_target].run_id), set(new.run_id)
+    if old_ids and old_ids != new_ids:
+        sys.exit(f"{key}: {target} override has run_ids that do not match the full run "
+                 f"({len(new_ids)} vs {len(old_ids)}): the paired tests would be invalid")
+    names = df.scenario[is_target].unique()
+    new["scenario"] = names[0] if len(names) else target
+    new["_source"] = chosen
+    return pd.concat([df[~is_target], new], ignore_index=True)
+
+
+def load_models(run_root, family=DEFAULT_FAMILY, overrides=()):
     """{model_key: DataFrame} from the newest full run per model (pick_run)
-    of one table family (FAMILIES)."""
+    of one table family (FAMILIES). `overrides` — (target, run_root, source)
+    triples — replace single scenarios (splice_scenario); a model missing an
+    override run is LEFT OUT, so no figure mixes a scenario's two versions."""
     suffix = FAMILIES[family][0]
     out, missing = {}, []
     for key, _, _ in MODELS:
@@ -215,6 +256,18 @@ def load_models(run_root, family=DEFAULT_FAMILY):
         if "scenario_key" in df.columns:          # analysis key, not config.json's
             df = df.drop(columns=["scenario"]).rename(columns={"scenario_key": "scenario"})
         df["_source"] = chosen
+        dropped = False
+        for target, root, source in overrides:
+            spliced = splice_scenario(df, key, suffix, target, root, source)
+            if spliced is None:
+                print(f"  {key:22s} LEFT OUT: no {target} override run under {root}")
+                dropped = True
+                break
+            df = spliced
+            print(f"  {key:22s} {target} <- {source} of "
+                  f"{Path(df.loc[df.scenario.map(_canon) == target, '_source'].iloc[0]).parents[2].name}")
+        if dropped:
+            continue
         out[key] = df
         has_initial = any(c.startswith("initial_") for c in df.columns)
         print(f"  {key:22s} {len(df):5d} rows  <- {Path(chosen).parents[1].name}"
@@ -1000,13 +1053,24 @@ def main() -> int:
                     help="table family to compare: lp = exact logprob tables (run_*-vf-lp, "
                          "the result, default); r3 = sampled tables (run_*-vf-r3, superseded, "
                          "written as cross_model_sampled_*); never mixed")
+    ap.add_argument("--scenario-override", action="append", default=[], metavar="TARGET=RUN_ROOT[:SOURCE]",
+                    help="replace one scenario's rows, per model, with those of a run of that scenario "
+                         "alone under RUN_ROOT (named SOURCE there if it differs); models without such "
+                         "a run are left out. Repeatable")
+    ap.add_argument("--only", action="append", default=[], metavar="MODEL",
+                    help="restrict to these model keys (e.g. gemma-4-31b). Repeatable")
     args = ap.parse_args()
+    if args.only:
+        unknown = set(args.only) - {k for k, _, _ in MODELS}
+        if unknown:
+            ap.error(f"--only: unknown model key(s) {sorted(unknown)}")
+        MODELS[:] = [mdl for mdl in MODELS if mdl[0] in args.only]
     global FAMILY_NOTE
     _, infix, FAMILY_NOTE = FAMILIES[args.family]
     P = f"cross_model_{infix}"                  # output-name prefix
 
     print(f"loading model runs ({FAMILY_NOTE}):")
-    data = load_models(args.run_root, args.family)
+    data = load_models(args.run_root, args.family, [parse_override(o) for o in args.scenario_override])
     present = set().union(*[set(df.scenario.unique()) for df in data.values()])
     scenarios = [s for s in SCENARIO_ORDER if s in present]
     extra = sorted(present - set(SCENARIO_ORDER) - MECH_SCENARIOS)
@@ -1021,10 +1085,24 @@ def main() -> int:
     import csv as _csv, datetime as _dt
     with open(out / f"cross_model_{FAMILIES[args.family][0]}_sources.csv", "w", newline="") as fh:
         w = _csv.writer(fh); w.writerow(["model", "run_dir", "rows", "run_summary_mtime", "family"])
-        for key, df in data.items():
+        for key, df in data.items():       # the model's FULL run: the first source, splices follow it
             src = Path(df["_source"].iloc[0])
             w.writerow([key, src.parents[1].name, len(df),
                         _dt.datetime.fromtimestamp(src.stat().st_mtime).strftime("%Y-%m-%d %H:%M"), args.family])
+    # Spliced scenarios, one line each (2026-11-16). Kept out of the sources
+    # file, whose one-row-per-model shape other scripts rely on; anything that
+    # reads a full run's roll-up directly must take these rows instead.
+    overrides_path = out / f"cross_model_{FAMILIES[args.family][0]}_overrides.csv"
+    spliced = [(key, sc, Path(source)) for key, df in data.items()
+               for (source, sc), _ in df.groupby(["_source", "scenario"], sort=False)
+               if source != df["_source"].iloc[0]]
+    if spliced:
+        with open(overrides_path, "w", newline="") as fh:
+            w = _csv.writer(fh); w.writerow(["model", "scenario", "run_dir", "run_root"])
+            for key, sc, src in spliced:
+                w.writerow([key, sc, src.parents[2].name, src.parents[3]])
+    elif overrides_path.exists():
+        overrides_path.unlink()
     out.mkdir(parents=True, exist_ok=True)
     rows, chance_rows = fig_metrics(data, scenarios, out / f"{P}bump_all_metrics.png", args.dpi)
     fig_levels_grid(data, scenarios, out / f"{P}level_all_metrics.png", args.dpi)
