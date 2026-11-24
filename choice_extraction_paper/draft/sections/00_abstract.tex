@@ -1,0 +1,13 @@
+\begin{abstract}
+Simulations built from LLM agents need the probability of each agent's choice in each state.
+In practice that probability is read from the first answer token's logits or estimated from hundreds of sampled replies.
+First-token reads are known to disagree with what models actually answer, and sampled estimates are noisy.
+We show that sampled estimates are also sensitive to how the model is served.
+For a decision with a finite set of options and a grammar-constrained sampler, we compute the exact choice probability the sampler realises.
+We sum the locally renormalised probability of every grammar-valid token path that spells each option, and bound the mass left out.
+On 9 open-weight models (four quantisation levels) and 540 decision states per model from a Schelling segregation simulation, the path sum matches a sequential census of 100 sampled replies per state (goodness-of-fit $p$ from 0.27 to 0.94 in the first census; \tbd{re-census values}).
+It needs 1.8 to 2.8 requests per state, and the reported bound on omitted mass is at single-precision level, at most $1.2\times10^{-7}$.
+First-token readouts deviate from it by \tbd{E1}.
+With four requests in flight, the probability the server returns for the same request varies by up to 1.00 on near-tie states, and a date printed by the chat template moves it by up to 0.45 across days.
+We release the extractor and a checklist for reporting choice probabilities from LLM agents.
+\end{abstract}

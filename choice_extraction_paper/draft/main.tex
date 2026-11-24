@@ -1,0 +1,46 @@
+% Exact Choice Probabilities for Grammar-Constrained LLM Agents -- draft 2 (18 Nov 2026)
+% Build: latexmk -pdf main.tex   (see README.md)
+% Uses the official ACL style if acl.sty is in this folder; otherwise a plain layout.
+\documentclass[11pt]{article}
+
+\IfFileExists{acl.sty}{\usepackage[review]{acl}}{%
+  \usepackage[margin=1in]{geometry}%
+  \usepackage[round]{natbib}%
+  \usepackage{hyperref}}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern} % scalable fonts, needed by microtype
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% \tbd{...} marks text or numbers still waiting on an experiment
+\newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
+\newcommand{\moff}{m_{\text{off}}}
+\newcommand{\Ppath}{P_{\text{path}}}
+\newcommand{\pmask}{\hat p_{\text{FT-mask}}}
+\newcommand{\pcanon}{\hat p_{\text{FT-canon}}}
+
+\title{Exact Choice Probabilities for Grammar-Constrained LLM Agents}
+\author{Anonymous submission}
+
+\begin{document}
+\maketitle
+
+\input{sections/00_abstract}
+\input{sections/01_introduction}
+\input{sections/02_setup}
+\input{sections/03_validation}
+\input{sections/04_shortcuts}
+\input{sections/05_serving}
+\input{sections/06_related}
+\input{sections/07_limitations}
+
+\IfFileExists{acl_natbib.bst}{\bibliographystyle{acl_natbib}}{\bibliographystyle{plainnat}}
+\bibliography{references}
+
+\end{document}

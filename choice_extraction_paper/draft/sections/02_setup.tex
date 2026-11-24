@@ -1,0 +1,64 @@
+\section{Setup and estimators}
+\label{sec:setup}
+
+The target is the distribution the deployed sampler draws from, not the model's ``belief''.
+An agent's reply is constrained by a GBNF grammar whose language $L$ is whitespace followed by MOVE or STAY, in any casing.
+Let $s$ be the text generated so far (a prefix) and $z(t\mid s)$ the logit of token $t$.
+Sampling at temperature $T$, with top-$k$, top-$p$ and min-$p$ switched off, gives the tempered distribution
+\begin{equation}
+p_T(t\mid s)=\frac{\exp\big(z(t\mid s)/T\big)}{\sum_{u}\exp\big(z(u\mid s)/T\big)}.
+\end{equation}
+The allowed set $A(s)$ holds the tokens $t$ for which $s$ followed by $t$ is still a prefix of some string in $L$.
+llama.cpp enforces the grammar by rejection: it draws a token and resamples only if the draw is invalid.
+The realised next-token law is therefore the tempered distribution renormalised over $A(s)$:
+\begin{equation}
+q(t\mid s)=\frac{p_T(t\mid s)}{\sum_{u\in A(s)}p_T(u\mid s)},\qquad t\in A(s).
+\end{equation}
+
+\paragraph{Path sum.}
+Every reply that spells option $o$ is a path of tokens through the prefix tree.
+Its probability is the product of $q$ along the path, and the choice probability is the sum over all paths that end in $o$:
+\begin{equation}
+\Ppath(o)=\sum_{\pi\to o}\;\prod_{k=1}^{|\pi|}q(t_k\mid s_{k-1}).
+\end{equation}
+Because $L$ is finite apart from leading whitespace, the tree is finite once whitespace runs are cut off.
+We expand states in order of mass.
+Each state costs one request that returns the top $n=64$ tempered probabilities.
+We stop at depth 8 or when a state's mass falls below $10^{-7}$.
+All mass dropped by these cut-offs, plus mass outside the top 64, is added to a bound $B$, and the true value lies within $B$ of the estimate.
+The interval is two-sided, because allowed tokens outside the top 64 would also enlarge the denominator of $q$, so the estimate can overshoot as well as undershoot:
+\begin{equation}
+\big|\,\Ppath(o)-\hat P_{\text{path}}(o)\,\big|\;\le\;B.
+\end{equation}
+The largest bound we observe, $1.19\times10^{-7}$, equals $2^{-23}$, so the precision is that of the single-precision probabilities the server returns.
+\tbd{confirm from the path-sum code that $B$ is accumulated relative to the allowed mass at each state.}
+Figure~1 shows the prefix tree for one state. \tbd{Figure 1.}
+
+\paragraph{First-token readouts.}
+We compare two shortcuts. FT-mask corresponds to the restricted first-token readout of \citet{ahnert2026survey}.
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item \emph{Canonical first token} ($\pcanon$): the softmax at temperature 1 over the two canonical tokens for MOVE and STAY at the empty prefix, renormalised over the pair. We also report it at the serving temperature $T=0.3$.
+  \item \emph{Masked first token} ($\pmask$): $q$ at the empty prefix, summed over the allowed tokens whose first non-whitespace letter is M (or S), renormalised over all such resolving tokens.
+\end{itemize}
+
+\paragraph{When is the first token enough?}
+In this grammar no token can start both MOVE and STAY, so the first non-whitespace letter decides the answer.
+Let $\moff$ be the share of the allowed first-token mass, under $q$, that falls on pure-whitespace tokens, and $a$ the probability of MOVE given that the reply starts with whitespace. Then
+\begin{equation}
+\Ppath(\text{MOVE})-\pmask=\moff\,\big(a-\pmask\big),\qquad
+\big|\Ppath-\pmask\big|\le\moff .
+\end{equation}
+A masked first-token read is therefore exact up to $\moff$, and the path sum is what tells us $\moff$.
+FT-canon has no such guarantee: it ignores casing and spacing variants and is read at the wrong temperature.
+
+\paragraph{What this is not.}
+The path sum is the law of the sampler with local masking.
+It is not the model's probability conditioned on the whole reply lying in $L$, which renormalises globally and can differ \citep{park2024grammar}.
+We measure that gap in \S\ref{sec:shortcuts}.
+
+\paragraph{Assumptions.}
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item \emph{Text prefixes.} Each prefix is sent as assistant text and re-tokenised by the server. Token paths that spell the same text are therefore merged, and the next-token probabilities are those at the server's tokenisation of that text, which need not be the tokens the sampler drew. \tbd{compare text-level and token-level prefixes on a few states.}
+  \item \emph{Stopping.} Once a complete option is generated, the grammar allows only end-of-sequence, so stopping has probability 1 under local masking.
+  \item \emph{Reply length.} The live agent stops after 5 tokens while the tree goes to depth 8. Paths of 6 to 8 tokens count in the path sum but would be unparseable, and dropped, when sampled. \tbd{report their total mass.}
+\end{itemize}

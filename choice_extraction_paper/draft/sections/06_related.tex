@@ -1,0 +1,29 @@
+\section{Related work}
+\label{sec:related}
+
+\paragraph{First token versus the answer.}
+Instruction-tuned models often begin with a preamble, a refusal or a different spelling, so the first-token distribution disagrees with the text answer in 10\% to over 60\% of items \citep{wang2024myanswer,wang2024lookattext,lyu2024beyond,cappelletti2025prefilling,guo2026scoring}.
+The choice of scoring method also changes conclusions \citep{tsvilodub2024scoring}, and prompted answers can disagree with direct probability reads \citep{hu2023prompting}.
+We take this as given and ask what the exact replacement costs.
+
+\paragraph{Probabilities of strings, not tokens.}
+The probability of a string should be summed over its tokenisations \citep{cao2021marginal,geh2024signal}, although \citet{chirkova2023marginalize} find the gain from doing so typically small, and word probabilities depend on how leading whitespace is handled \citep{pimentel2024word,oh2024whitespace}.
+General exact algorithms map token models to characters or bytes \citep{vieira2025characters,phan2025bytes}.
+\citet{ansari2026numbers} sums exactly over the bare and space-prefixed spellings of number answers, includes the stop probability, and checks against sampling.
+Our setting is narrower, a finite option set, which makes the sum finite and cheap.
+We add grammar constraints and agent simulations.
+
+\paragraph{Grammar-constrained decoding.}
+Masking invalid tokens step by step does not sample from the model's distribution conditioned on the grammar \citep{park2024grammar}, and misaligned subword boundaries add further distortion \citep{beurerkellner2024guiding}.
+We compute the locally masked law on purpose, because it is the law the deployed agent samples from, and we measure its distance from the grammar-conditional one.
+
+\paragraph{Choice probabilities for LLM agents and silicon samples.}
+Social-science uses of LLMs read choice distributions from logprobs or from samples \citep{argyle2023outofone,santurkar2023opinions,dominguezolmedo2024questioning,meister2025distributional}.
+\citet{ahnert2026survey} compare first-token, masked first-token, answer-prefix and restricted-generation readouts for survey responses, without an exact sequence probability.
+\citet{sun2025choice} read the probability at the token where the decision resolves, after one sampled preamble.
+They prove it is unbiased for the sampled frequency at $T=1$ and needs about 20 times fewer runs.
+\citet{wadi2026likert} argue for exact next-token distributions over Likert scales.
+\citet{schwager2026confidence} use normalised first-token probabilities for a binary action in behaviour simulations and name multi-token estimation as future work.
+\citet{baumann2026networks} lift binary LLM-agent response functions, estimated from 200 samples per state, to network dynamics.
+LLM agents have also been placed in Schelling-type models \citep{cheng2024micromotives}, and agentic agent-based models are evaluated from sampled runs \citep{agenticabm2026}.
+Our estimator slots into all of these where the options are finite and the sampler is known.

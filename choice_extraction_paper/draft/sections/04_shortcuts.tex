@@ -1,0 +1,29 @@
+\section{How wrong are the shortcuts?}
+\label{sec:shortcuts}
+
+\tbd{headline sentence from E1, for example ``On unsaturated states, FT-canon is off by a median $X$ and up to $Y$; FT-mask is off by at most $\moff$, which is below $Z$ on $N$ of 9 models.''}
+
+All quantities in this section are computed offline from the stored extraction records, which keep every prefix state's top-64 table and every path's mass.
+No new model calls are needed.
+
+\paragraph{First token versus path sum (E1).}
+For each state we compute $\moff$, FT-canon, FT-mask and the path sum.
+We report absolute differences on the probability scale and on the logit scale, restricted to unsaturated states.
+Figure~2 plots FT-canon and FT-mask against the path sum, one panel per model, coloured by $\moff$, with the band of width $\moff$ from \S\ref{sec:setup} drawn around the diagonal. \tbd{Figure 2.}
+The stored tables are already tempered at $T=0.3$.
+FT-canon at $T=1$ is recovered by raising the stored probabilities to the power 0.3.
+For a ratio of two tokens this is exact, provided both appear in the stored top 64.
+
+\paragraph{Where the mass goes (E2).}
+We split each state's mass by path type: the canonical token, casing variants, a leading space, sub-word splits (such as ST + AY), and whitespace depth. \tbd{Table 2 or one sentence if the canonical token dominates.}
+
+\paragraph{Can the census tell them apart? (E3).}
+We rerun the deviance test of \S\ref{sec:validation} with FT-canon and FT-mask in place of the path sum. \tbd{which readouts the census rejects.}
+If 100 draws per state cannot separate FT-mask from the path sum, we say so: they then differ by at most $\moff$.
+
+\paragraph{Sampler law versus grammar-conditional probability (E4).}
+From the unmasked top-64 tables we also compute the probability of each option conditioned on the whole reply lying in $L$, renormalised once over complete paths. \tbd{size of the gap.}
+\citet{park2024grammar} predict a gap in general; we measure how large it is for a two-option grammar.
+
+\paragraph{Error budget.}
+Figure~4 stacks, per model, the mean absolute deviation from the path sum of each shortcut: FT-canon at $T=1$, FT-canon at $T=0.3$, FT-mask, the sampling noise of 100 draws, and sampling with four requests in flight (\S\ref{sec:serving}). \tbd{Figure 4.}

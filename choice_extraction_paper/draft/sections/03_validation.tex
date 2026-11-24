@@ -1,0 +1,48 @@
+\section{Validation against a sampled census}
+\label{sec:validation}
+
+In the first census the path sum agrees with sequential sampling on all nine models (Table~\ref{tab:census}); a re-census after a race-label fix has passed the goodness-of-fit test on seven models so far.
+
+\paragraph{Setting.}
+Agents in a Sakoda--Schelling simulation see their neighbourhood composition and answer MOVE or STAY.
+Each model has 540 decision states (45 compositions $\times$ 2 roles $\times$ 6 scenarios) and is served by llama.cpp (build b1-a4ce259) through its chat endpoint, at $T=0.3$, one request at a time, with prompt caching off.
+The probabilities are read from the same endpoint and payload the simulation samples from, so template rendering is identical by construction.
+
+\paragraph{Census.}
+For every state we draw 100 replies one at a time (54,000 per model).
+We test the whole table at once with the deviance $G$ of the census counts against the path-sum probabilities, and calibrate $G$ with a parametric bootstrap from the exact table (10,000 replicates).
+Because the test covers all states, no cell is selected after the fact.
+The census tests the final answer, so when $\moff$ is small it validates the path sum as a whole but cannot separately test its multi-token paths (E3 in \S\ref{sec:shortcuts}).
+Figure~3 plots the path sum against the census MOVE rate with binomial intervals. \tbd{Figure 3.}
+
+\paragraph{Mass closure and reproducibility.}
+Over all stored states, $P(\text{MOVE})+P(\text{STAY})$ differs from 1 by at most $9.9\times10^{-8}$.
+Re-running the extraction reproduces eight models bit for bit and Hermes within $10^{-9}$.
+
+\begin{table*}[t]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrr}
+\toprule
+Model & Quant. & Unsat.\ states & Req./state & Max $B$ & Census $p$ & Spot-check $|\Delta|$ \\
+\midrule
+OLMo-2 32B & Q8\_0 & 399 & 2.06 & $1.19\times10^{-7}$ & 0.36 & 0.010 \\
+Qwen3.6 27B & Q5\_K\_M & 127 & 1.95 & $7.89\times10^{-8}$ & 0.27 & 0.009 \\
+Hermes 4.3 36B & Q8\_0 & 114 & 2.78 & $1.04\times10^{-7}$ & 0.59 & 0.009 \\
+DeepSeek V4 Flash & IQ3\_XXS & 113 & 2.61 & $1.19\times10^{-7}$ & 0.43 & 0.007 \\
+Llama 3.3 70B & Q4\_K\_M & 35 & 1.85 & $6.03\times10^{-8}$ & 0.47 & 0.004 \\
+Granite 4.2 30B & Q8\_0 & 28 & 2.00 & $2.98\times10^{-8}$ & 0.84 & 0.012 \\
+Phi-4 14B & Q8\_0 & 26 & 2.00 & $3.42\times10^{-8}$ & 0.94 & 0.015 \\
+Mistral Small 4 119B & Q4\_K\_M & 21 & 2.00 & $8.74\times10^{-8}$ & 0.46 & 0.005 \\
+Gemma-4 31B & Q5\_K\_M & 11 & 1.83 & $5.96\times10^{-8}$ & 0.71 & 0.001 \\
+\bottomrule
+\end{tabular}}
+\caption{Census $p$ is the bootstrap $p$-value of the deviance test; a high value means no detectable disagreement. Spot-check differences come from 16--18 states per model sampled one at a time, where, after one round of fresh draws on 7 borderline states in 5 models, every exact value fell inside the 95\% interval. An unsaturated state is one whose probability is not pinned at 0 or 1. \tbd{unsaturated threshold; census $p$ values are from the census before the race-label fix and must be updated once the re-census finishes.}}
+\label{tab:census}
+\end{table*}
+
+\paragraph{Open item.}
+In the re-census after a race-label fix, one Qwen state (Black agent, 1 Black and 5 white neighbours) has an exact value of 0.358 against 24/100 in the census and 133/300 in fresh draws (Holm-adjusted $p=0.026$).
+An adjudication committed to in advance, with 2,000 fresh draws, has not yet run.
+We will report its outcome whichever way it falls.

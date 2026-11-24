@@ -1,0 +1,32 @@
+\section{Serving conditions change the measured probability}
+\label{sec:serving}
+
+Routine serving choices moved choice probabilities by up to 1.00, so ``validate against samples'' is only meaningful under a fixed serving protocol (Table~\ref{tab:serving}).
+
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{p{0.26\textwidth}p{0.38\textwidth}p{0.28\textwidth}}
+\toprule
+Condition & Effect on $P(\text{MOVE})$ & Fix \\
+\midrule
+Four requests in flight (batched); earlier, prompt cache on &
+Probability returned for the same request spreads by 0.15 (OLMo) to 1.00 (Mistral) across 10 near-tie states per model; with the cache on, sampled shares shifted by up to about 0.44 &
+One request at a time, cache off; repeats are identical in eight models and within $3\times10^{-9}$ in Hermes \\
+Template prints today's date (Llama 3.3, Mistral Small 4) &
+Up to 0.45 between calendar days for Llama 3.3; about 0.18 nats in logit on every state &
+Pin the server clock: Llama 3.3 to its template's default date, Mistral Small 4 to its release date \\
+Raw \texttt{/completion} endpoint versus the chat endpoint &
+One Gemma-4 probe gave $P(\text{MOVE})$ of 0.999 on one route and 0.022 on the other, from 162 prompt tokens either way &
+Read probabilities from the endpoint the agent samples from \\
+\bottomrule
+\end{tabular}
+\caption{Effects measured during the Schelling campaign. \tbd{confirm each number against the batch-numerics and infrastructure notes in the repository.}}
+\label{tab:serving}
+\end{table*}
+
+Two points matter for interpretation.
+First, part of the batch spread is amplification by the low temperature: at $T=0.3$ a logit shift is multiplied by about 3.3, so Gemma's swing from 0.027 to 0.94 corresponds to about 1.9 nats in raw logits.
+Second, these effects bias sampled estimates as well as logprob reads.
+In the seven models whose concurrently sampled tables we kept, only 9\% to 83\% of unsaturated states fell inside the 95\% interval around the sequential exact value, against 95\% expected.
+Earlier sampled tables from this project were retired for this reason.

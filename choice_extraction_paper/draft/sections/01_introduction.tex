@@ -1,0 +1,29 @@
+\section{Introduction}
+
+Agent-based models increasingly replace hand-written decision rules with LLM agents.
+Each agent sees a local state and makes a discrete choice, such as moving or staying in a Schelling segregation model.
+What the simulation needs is the choice probability $P(\text{option}\mid\text{state})$, because it drives the dynamics.
+Two readouts dominate practice.
+One reads the softmax over the first answer token.
+The other samples many replies and counts.
+
+Neither is satisfactory.
+The first token often does not match the answer the model goes on to give \citep{wang2024myanswer,wang2024lookattext,lyu2024beyond}.
+Sampled frequencies converge slowly: about 9,600 draws give $\pm0.01$ at $p=0.5$.
+They also depend on how the model is served, as we show in \S\ref{sec:serving}.
+The closest alternative reads the probability at the token where the decision resolves, after one sampled preamble \citep{sun2025choice}.
+That estimate is unbiased only at temperature 1 and is still Monte Carlo.
+
+We take a third route.
+For a finite option set enforced by a grammar, the set of token sequences that can spell each option is finite.
+The probability the sampler assigns to each option is therefore a finite sum over a prefix tree, and it can be computed exactly, up to a reported truncation bound.
+When the grammar lets the first letter decide the answer, a masked first-token read is already within $\moff$ of this value, where $\moff$ is the probability that the reply starts with whitespace.
+The path sum is what measures $\moff$, and it stays exact when no such shortcut exists.
+
+Our contributions:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{An exact readout with a bound.} A path-sum estimator of the choice probability that the grammar-constrained sampler realises, with an explicit bound on what it omits, and a bound that says when a first-token read is already enough (\S\ref{sec:setup}).
+  \item \textbf{A validated identity with the deployed sampler.} The path sum matches llama.cpp's rejection-based grammar sampler in a census of 54,000 sequential replies per model on 9 open-weight models, and re-extraction is identical in eight models and within $3\times10^{-9}$ in the ninth (\S\ref{sec:validation}).
+  \item \textbf{Serving conditions as a threat to validity.} Batching, prompt caching, dates printed by chat templates and endpoint choice each moved measured probabilities by tens of percentage points, for sampled and logprob estimates alike (\S\ref{sec:serving}).
+  \item \textbf{An error budget for shortcuts.} How far first-token readouts fall from the exact value on each model (\S\ref{sec:shortcuts}).
+\end{enumerate}

@@ -1,0 +1,20 @@
+\section*{Limitations}
+\label{sec:limitations}
+
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item One task, one prompt family and two options. The method extends to any finite option set, but the tree grows with the number of options and their spellings. Choices whose options share a token prefix, such as Likert labels or integers, are where first-token reads should fail most and are not yet covered. \tbd{other choice types (X1 to X3), at least as a pilot, if the E1 gate requires it.}
+  \item One inference stack. We use llama.cpp, which returns post-sampler top-$n$ probabilities and accepts assistant prefills. Other servers (vLLM) need the same access; closed APIs that return only the top 20 log-probabilities may not reach a bound as tight as ours.
+  \item One temperature. All results are at $T=0.3$. \tbd{temperature sweep (E6).} Other sampler stages (top-$k$, top-$p$, min-$p$) must be applied inside the tree in the same order as the server applies them.
+  \item Quantised weights. Probabilities are those of the quantised model actually served, not of the full-precision weights.
+  \item With this grammar the first letter decides the answer, so the path sum's advantage over a masked first-token read is bounded by $\moff$ (\S\ref{sec:setup}). Free-form replies, where the first-token read should fail more visibly, are not covered. \tbd{grammar-off arm with the \citet{sun2025choice} baseline (E5).}
+\end{itemize}
+
+\paragraph{Checklist for reporting LLM-agent choice probabilities.}
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item State the target: the sampler's law at a given temperature and set of sampler stages, under local or global masking.
+  \item Read probabilities from the same endpoint, template and payload the agent samples from.
+  \item Serve one request at a time, with the prompt cache off, or show that batching does not change the values.
+  \item Pin anything the template injects, such as the date.
+  \item Report the omitted mass, or $\moff$ if you use a first-token read.
+  \item Validate against sequential samples with a test over all states, not a hand-picked subset.
+\end{enumerate}

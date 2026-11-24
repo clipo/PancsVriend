@@ -1,0 +1,176 @@
+\begin{thebibliography}{28}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Ahnert et~al.(2026)Ahnert, Haensch, Plank, and
+  Strohmaier]{ahnert2026survey}
+G.~Ahnert, A.-C. Haensch, B.~Plank, and M.~Strohmaier.
+\newblock Survey response generation: Generating closed-ended survey responses
+  in-silico with large language models.
+\newblock In \emph{Proceedings of ACL}, 2026.
+\newblock arXiv:2510.11586.
+
+\bibitem[Ansari(2026)]{ansari2026numbers}
+S.~Ansari.
+\newblock 3, 7, 14, 17, 42: Instruction tuning installs and sharpens
+  number-choice heuristics in language models, 2026.
+\newblock arXiv:2610.36178.
+
+\bibitem[Argyle et~al.(2023)]{argyle2023outofone}
+L.~P. Argyle et~al.
+\newblock Out of one, many: Using language models to simulate human samples.
+\newblock \emph{Political Analysis}, 31\penalty0 (3), 2023.
+
+\bibitem[Baumann and Starnini(2026)]{baumann2026networks}
+F.~Baumann and M.~Starnini.
+\newblock Predictability of collective behavior in networks of llm agents,
+  2026.
+\newblock arXiv:2611.12256.
+
+\bibitem[Beurer-Kellner et~al.(2024)Beurer-Kellner, Fischer, and
+  Vechev]{beurerkellner2024guiding}
+L.~Beurer-Kellner, M.~Fischer, and M.~Vechev.
+\newblock Guiding llms the right way: Fast, non-invasive constrained
+  generation.
+\newblock In \emph{Proceedings of ICML}, 2024.
+
+\bibitem[Cao and Rimell(2021)]{cao2021marginal}
+K.~Cao and L.~Rimell.
+\newblock You should evaluate your language model on marginal likelihood over
+  tokenisations.
+\newblock In \emph{Proceedings of EMNLP}, 2021.
+
+\bibitem[Cappelletti et~al.(2025)]{cappelletti2025prefilling}
+S.~Cappelletti et~al.
+\newblock Improving llm first-token predictions in multiple-choice question
+  answering via output prefilling, 2025.
+\newblock arXiv:2505.15323.
+
+\bibitem[Cheng et~al.(2024)Cheng, Qu, Goldsack, Lin, and
+  Chen]{cheng2024micromotives}
+Y.~Cheng, X.~Qu, T.~Goldsack, C.~Lin, and C.-C. Chen.
+\newblock Observing micromotives and macrobehavior of large language models,
+  2024.
+\newblock arXiv:2412.10428; venue to confirm.
+
+\bibitem[Chirkova et~al.(2023)]{chirkova2023marginalize}
+N.~Chirkova et~al.
+\newblock Should you marginalize over possible tokenizations?
+\newblock In \emph{Proceedings of ACL}, 2023.
+
+\bibitem[Dominguez-Olmedo et~al.(2024)Dominguez-Olmedo, Hardt, and
+  Mendler-D{\"u}nner]{dominguezolmedo2024questioning}
+R.~Dominguez-Olmedo, M.~Hardt, and C.~Mendler-D{\"u}nner.
+\newblock Questioning the survey responses of large language models.
+\newblock In \emph{Advances in NeurIPS}, 2024.
+
+\bibitem[Geh et~al.(2024)]{geh2024signal}
+R.~Geh et~al.
+\newblock Where is the signal in tokenization space?
+\newblock In \emph{Proceedings of EMNLP}, 2024.
+
+\bibitem[Guo et~al.(2026)]{guo2026scoring}
+J.~Guo et~al.
+\newblock Scoring the wrong question: Readout failures in constrained-option
+  evaluation, 2026.
+\newblock arXiv:2609.33179.
+
+\bibitem[Hu and Levy(2023)]{hu2023prompting}
+J.~Hu and R.~Levy.
+\newblock Prompting is not a substitute for probability measurements in large
+  language models.
+\newblock In \emph{Proceedings of EMNLP}, 2023.
+
+\bibitem[Lyu et~al.(2024)Lyu, Wu, and Aji]{lyu2024beyond}
+C.~Lyu, M.~Wu, and A.~F. Aji.
+\newblock Beyond probabilities: Unveiling the misalignment in evaluating large
+  language models.
+\newblock In \emph{KnowLLM Workshop at ACL}, 2024.
+
+\bibitem[Meister et~al.(2025)Meister, Guestrin, and
+  Hashimoto]{meister2025distributional}
+N.~Meister, C.~Guestrin, and T.~Hashimoto.
+\newblock Benchmarking distributional alignment of large language models, 2025.
+\newblock arXiv:2411.05403; venue to confirm.
+
+\bibitem[Oh and Schuler(2024)]{oh2024whitespace}
+B.-D. Oh and W.~Schuler.
+\newblock Leading whitespaces of language models' subword vocabulary pose a
+  confound for calculating word probabilities.
+\newblock In \emph{Proceedings of EMNLP}, 2024.
+
+\bibitem[Park et~al.(2024)]{park2024grammar}
+K.~Park et~al.
+\newblock Grammar-aligned decoding.
+\newblock In \emph{Advances in NeurIPS}, 2024.
+
+\bibitem[Phan et~al.(2025)]{phan2025bytes}
+B.~Phan et~al.
+\newblock Exact byte-level probabilities from tokenized language models for
+  fim-tasks and model ensembles.
+\newblock In \emph{Proceedings of ICLR}, 2025.
+
+\bibitem[Pimentel and Meister(2024)]{pimentel2024word}
+T.~Pimentel and C.~Meister.
+\newblock How to compute the probability of a word.
+\newblock In \emph{Proceedings of EMNLP}, 2024.
+
+\bibitem[Santurkar et~al.(2023)]{santurkar2023opinions}
+S.~Santurkar et~al.
+\newblock Whose opinions do language models reflect?
+\newblock In \emph{Proceedings of ICML}, 2023.
+
+\bibitem[Schwager et~al.(2026)Schwager, M{\"u}nker, Plum, and
+  Rettinger]{schwager2026confidence}
+Schwager, M{\"u}nker, Plum, and Rettinger.
+\newblock Evaluating token probabilities as confidence estimators in human
+  behavior simulations, 2026.
+\newblock arXiv:2611.07735; initials TBD.
+
+\bibitem[Sun and Zhang(2025)]{sun2025choice}
+H.~Sun and J.~Zhang.
+\newblock From model choice to model belief: Establishing a new measure for
+  llm-based research, 2025.
+\newblock Working paper, arXiv:2512.23184.
+
+\bibitem[{TBD}(2026)]{agenticabm2026}
+{TBD}.
+\newblock Towards agentic agent-based models: Feasibility, performance, and
+  statistical model checking, 2026.
+\newblock arXiv:2607.17948; authors TBD.
+
+\bibitem[Tsvilodub et~al.(2024)Tsvilodub, Wang, Grosch, and
+  Franke]{tsvilodub2024scoring}
+P.~Tsvilodub, H.~Wang, S.~Grosch, and M.~Franke.
+\newblock Predictions from language models for multiple-choice tasks are not
+  robust under variation of scoring methods, 2024.
+\newblock arXiv:2403.00998.
+
+\bibitem[Vieira et~al.(2025)]{vieira2025characters}
+T.~Vieira et~al.
+\newblock From language models over tokens to language models over characters.
+\newblock In \emph{Proceedings of ICML}, 2025.
+
+\bibitem[Wadi et~al.(2026)Wadi, Ghodrat, and Philp]{wadi2026likert}
+D.~Wadi, M.~Ghodrat, and M.~Philp.
+\newblock Every token counts: Exact likert-scale distributions for measuring
+  llm attitudes and biases, 2026.
+\newblock arXiv:2608.10503.
+
+\bibitem[Wang et~al.(2024{\natexlab{a}})Wang, Hu, Ma, R{\"o}ttger, and
+  Plank]{wang2024lookattext}
+X.~Wang, C.~Hu, B.~Ma, P.~R{\"o}ttger, and B.~Plank.
+\newblock Look at the text: Instruction-tuned language models are more robust
+  multiple choice selectors than you think.
+\newblock In \emph{Proceedings of COLM}, 2024{\natexlab{a}}.
+
+\bibitem[Wang et~al.(2024{\natexlab{b}})]{wang2024myanswer}
+X.~Wang et~al.
+\newblock ``my answer is c'': First-token probabilities do not match text
+  answers in instruction-tuned language models.
+\newblock In \emph{Findings of ACL}, 2024{\natexlab{b}}.
+
+\end{thebibliography}
