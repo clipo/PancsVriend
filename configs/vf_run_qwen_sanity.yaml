@@ -39,7 +39,7 @@ vf_build_args:
 contexts_args:
   scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
   runs: 100
-  max_steps: 1000
+  max_steps: 10000
   grid_size: 20
   num_type_a: 160
   num_type_b: 160
@@ -76,7 +76,7 @@ profiles:
     contexts_args:
       scenarios: [baseline, race_white_black, ethnic_asian_hispanic, income_high_low, political_liberal_conservative, green_yellow]
       runs: 100
-      max_steps: 1000
+      max_steps: 10000
       grid_size: 20
       num_type_a: 160
       num_type_b: 160
