@@ -152,9 +152,9 @@ for idx, metric in enumerate(metrics):
         mean_values, ci, n_active_series = step_stats_forward_filled(df, metric)
         active_by_scenario[scenario_name] = n_active_series
 
-        # Limit steps for visual clarity
-        max_step = min(1000, mean_values.index.max())
-        steps = mean_values.index[mean_values.index <= max_step]
+        # Every step the runs reached (the old 1,000-step axis cap predates
+        # the 10,000-step horizon; the activity strip below already spans all)
+        steps = mean_values.index
 
         color = scenario_colors[scenario_name]
 
@@ -234,8 +234,7 @@ if include_dissimilarity:
             df, 'dissimilarity_index')
         di_active_by_scenario[scenario_name] = n_active_series
 
-        max_step = min(1000, mean_values.index.max())
-        steps = mean_values.index[mean_values.index <= max_step]
+        steps = mean_values.index
         color = scenario_colors[scenario_name]
 
         ax_di.plot(steps, mean_values[steps],

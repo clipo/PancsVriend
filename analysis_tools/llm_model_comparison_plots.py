@@ -250,8 +250,7 @@ def _plot_convergence_patterns(
             # difference. See plot_style.step_stats_forward_filled.
             mean_values, ci, _n_active = step_stats_forward_filled(df, metric)
 
-            max_step = min(1000, mean_values.index.max())
-            steps = mean_values.index[mean_values.index <= max_step]
+            steps = mean_values.index        # every step the runs reached
 
             ax.plot(
                 steps,
